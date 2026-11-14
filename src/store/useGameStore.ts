@@ -10,13 +10,17 @@
  * é ausência: rende com teto e eficiência reduzida e gera o relatório de
  * "bem-vindo de volta".
  *
+ * Ordem de cada passo, como em qualquer laço de jogo: entrada, atualização,
+ * desenho. Toda ação da pessoa primeiro simula o jogo até o instante do clique
+ * e só depois é aplicada. Assim uma compra nunca vale para o tempo que já passou.
+ *
  * A store só coordena. As regras ficam em src/engine e os números em src/data.
  *
  * Mapa:
  *   1. Tipos
  *   2. Constantes
  *   3. Store
- *   4. Ações de simulação (tick e progresso offline)
+ *   4. Ações de simulação (tick, progresso offline e troca de aba)
  *   5. Ações de jogo (comitiva, melhorias, pactos, estágios)
  *   6. Ações de salvamento (exportar, importar, apagar tudo)
  *   7. Ferramentas
@@ -59,6 +63,7 @@ export interface GameActions {
   // Simulação
   tick: (now?: number) => void;
   dismissOfflineReport: () => void;
+  yieldToAnotherTab: () => void;
 
   // Jogo
   chooseStarter: (encantadoId: string) => boolean;
@@ -80,6 +85,7 @@ export interface GameActions {
 export interface SessionState {
   offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
   combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
+  isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
 }
 
 export type GameStore = GameState & SessionState & GameActions;
@@ -95,7 +101,13 @@ type GetStore = () => GameStore;
 // Lista vazia única: reaproveitar a mesma referência evita redesenhar a interface à toa
 const NO_EVENTS: readonly CombatEvent[] = [];
 
-const SESSION_DEFAULTS: SessionState = { offlineReport: null, combatEvents: NO_EVENTS };
+const SESSION_DEFAULTS: SessionState = {
+  offlineReport: null,
+  combatEvents: NO_EVENTS,
+  isOpenInAnotherTab: false,
+};
+
+const OPEN_IN_ANOTHER_TAB_ERROR = 'O jogo está aberto em outra aba. Recarregue esta página.';
 
 const saveStorage = createThrottledStorage(BALANCE.saveIntervalMs);
 
@@ -129,7 +141,7 @@ export const useGameStore = create<GameStore>()(
 // =============================================================================
 // A Ç Õ E S   D E   S I M U L A Ç Ã O
 
-type SimulationActions = Pick<GameActions, 'tick' | 'dismissOfflineReport'>;
+type SimulationActions = Pick<GameActions, 'tick' | 'dismissOfflineReport' | 'yieldToAnotherTab'>;
 
 // O tick e o que depende do tempo
 function createSimulationActions(set: SetStore, get: GetStore): SimulationActions {
@@ -138,6 +150,9 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
     tick: (now = Date.now()) => {
       const elapsedSeconds = (now - get().lastSaveTimestamp) / MS_PER_SECOND;
 
+      if (get().isOpenInAnotherTab) {
+        return;
+      }
       if (elapsedSeconds < 0) {
         // O relógio do aparelho voltou no tempo: só acerta a marca, sem render nada
         set({ lastSaveTimestamp: now });
@@ -149,6 +164,13 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
     },
 
     dismissOfflineReport: () => set({ offlineReport: null }),
+
+    // Outra aba abriu o jogo. Duas abas gravando no mesmo salvamento apagariam o progresso
+    // uma da outra, então esta para de gravar e de simular. A aba nova continua de onde parou.
+    yieldToAnotherTab: () => {
+      saveStorage.disable();
+      set({ isOpenInAnotherTab: true, combatEvents: NO_EVENTS });
+    },
   };
 }
 
@@ -205,17 +227,36 @@ type GameplayActions = Pick<
 function createGameplayActions(set: SetStore, get: GetStore): GameplayActions {
   return {
     chooseStarter: (encantadoId) =>
-      commitChange(set, get, (draft) => chooseStarter(draft, encantadoId)),
+      applyInput(set, get, (draft) => chooseStarter(draft, encantadoId)),
     togglePartyMember: (encantadoId) =>
-      commitChange(set, get, (draft) => togglePartyMember(draft, encantadoId)),
+      applyInput(set, get, (draft) => togglePartyMember(draft, encantadoId)),
     buyUpgrade: (upgradeId) =>
-      commitChange(set, get, (draft) => buyUpgrade(draft, upgradeId)),
+      applyInput(set, get, (draft) => buyUpgrade(draft, upgradeId)),
     sealPact: (encantadoId) =>
-      commitChange(set, get, (draft) => sealPact(draft, encantadoId, Date.now())),
-    setAutoProgress: (enabled) => set({ autoProgress: enabled }),
-    challengeBoss: () => commitChange(set, get, (draft) => challengeBoss(draft)),
-    goToStage: (stage) => commitChange(set, get, (draft) => goToStage(draft, stage)),
+      applyInput(set, get, (draft) => sealPact(draft, encantadoId, Date.now())),
+    setAutoProgress: (enabled) => {
+      applyInput(set, get, (draft) => setAutoProgress(draft, enabled));
+    },
+    challengeBoss: () => applyInput(set, get, (draft) => challengeBoss(draft)),
+    goToStage: (stage) => applyInput(set, get, (draft) => goToStage(draft, stage)),
   };
+}
+
+// Entrada da pessoa: simula até o instante do clique e só então aplica a ação.
+// Sem isso, uma melhoria comprada agora valeria também para o tempo que já passou.
+function applyInput(set: SetStore, get: GetStore, change: (draft: GameState) => boolean): boolean {
+  if (get().isOpenInAnotherTab) {
+    return false;
+  }
+
+  get().tick(Date.now());
+  return commitChange(set, get, change);
+}
+
+// Liga ou desliga o avanço automático de estágio
+function setAutoProgress(draft: GameState, enabled: boolean): boolean {
+  draft.autoProgress = enabled;
+  return true;
 }
 
 // Primeiro encantado da comitiva. Só vale uma vez, com o elenco vazio.
@@ -332,6 +373,10 @@ function createSaveActions(set: SetStore, get: GetStore): SaveActions {
 
     // Troca o jogo atual pelo do código. Se o código for inválido, nada muda.
     importSave: (code) => {
+      if (get().isOpenInAnotherTab) {
+        return { ok: false, error: OPEN_IN_ANOTHER_TAB_ERROR };
+      }
+
       const decoded = decodeSave(code, Date.now());
 
       if (!decoded.ok) {
@@ -343,13 +388,17 @@ function createSaveActions(set: SetStore, get: GetStore): SaveActions {
     },
 
     // Apaga tudo e começa de novo. A confirmação dupla fica por conta da interface.
-    hardReset: () => replaceGame(set, createInitialState(Date.now())),
+    hardReset: () => {
+      if (!get().isOpenInAnotherTab) {
+        replaceGame(set, createInitialState(Date.now()));
+      }
+    },
   };
 }
 
 // Substitui o jogo inteiro e grava na hora, para o salvamento antigo não voltar
 function replaceGame(set: SetStore, state: GameState): void {
-  set({ ...state, ...SESSION_DEFAULTS });
+  set({ ...state, offlineReport: null, combatEvents: NO_EVENTS });
   saveStorage.flush();
 }
 

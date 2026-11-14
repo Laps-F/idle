@@ -28,8 +28,18 @@ const ROW_STYLE = { display: 'flex', gap: 8, flexWrap: 'wrap' as const, margin: 
 // Liga o laço do jogo e escolhe o que mostrar
 export default function App() {
   const hasStarter = useGameStore((store) => store.party.length > 0);
+  const isOpenInAnotherTab = useGameStore((store) => store.isOpenInAnotherTab);
 
   useEffect(() => startGameLoop(), []);
+
+  if (isOpenInAnotherTab) {
+    return (
+      <main style={PAGE_STYLE}>
+        <h1>Encantados</h1>
+        <p>O jogo foi aberto em outra aba. Para continuar por aqui, recarregue esta página.</p>
+      </main>
+    );
+  }
 
   return (
     <main style={PAGE_STYLE}>

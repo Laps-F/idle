@@ -286,3 +286,71 @@ describe('salvamento', () => {
     expect(warn).toHaveBeenCalled();
   });
 });
+
+describe('entrada antes da atualização', () => {
+  it('simula até o instante da ação antes de aplicar', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+
+    // Um minuto sem nenhum tick, como numa aba que travou
+    vi.advanceTimersByTime(60 * MS_PER_SECOND);
+    expect(useGameStore.getState().buyUpgrade('reza-forte')).toBe(true);
+    expect(useGameStore.getState().stats.playTimeSeconds).toBeCloseTo(60, 6);
+    expect(useGameStore.getState().lastSaveTimestamp).toBe(Date.now());
+  });
+});
+
+describe('duas abas', () => {
+  it('para de simular e de gravar quando outra aba assume o jogo', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    play(useGameStore, 60);
+    useGameStore.getState().saveNow();
+    const savedText = localStorage.getItem(SAVE_STORAGE_KEY);
+    const killsBefore = useGameStore.getState().stats.totalKills;
+
+    useGameStore.getState().yieldToAnotherTab();
+    play(useGameStore, 30);
+    useGameStore.getState().saveNow();
+
+    expect(useGameStore.getState().isOpenInAnotherTab).toBe(true);
+    expect(useGameStore.getState().stats.totalKills).toBe(killsBefore);
+    expect(useGameStore.getState().buyUpgrade('reza-forte')).toBe(false);
+    expect(useGameStore.getState().importSave('qualquer').ok).toBe(false);
+    expect(localStorage.getItem(SAVE_STORAGE_KEY)).toBe(savedText);
+  });
+
+  it('a aba nova continua de onde a antiga parou, sem perder o intervalo', async () => {
+    const oldTab = await openGame();
+    oldTab.getState().chooseStarter('saci');
+    play(oldTab, 60);
+    oldTab.getState().saveNow();
+
+    // A aba antiga joga mais 3 segundos que não chegam a ser gravados
+    play(oldTab, 3);
+    const newTab = await openGame();
+    newTab.getState().tick(Date.now());
+    expect(newTab.getState().stats.playTimeSeconds).toBeCloseTo(63, 6);
+  });
+
+  it('avisa quando outra aba escreve a própria marca', async () => {
+    vi.stubGlobal('window', new EventTarget());
+    const { claimActiveTab } = await import('../store/tabGuard');
+    const onTakenOver = vi.fn();
+    const stopWatching = claimActiveTab(onTakenOver);
+    const ownTabId = localStorage.getItem('encantados-aba-ativa');
+    const notify = (key: string, newValue: string | null) =>
+      window.dispatchEvent(Object.assign(new Event('storage'), { key, newValue }));
+
+    notify('encantados-aba-ativa', ownTabId);
+    notify(SAVE_STORAGE_KEY, 'qualquer coisa');
+    expect(onTakenOver).not.toHaveBeenCalled();
+
+    notify('encantados-aba-ativa', 'marca-de-outra-aba');
+    expect(onTakenOver).toHaveBeenCalledTimes(1);
+
+    stopWatching();
+    notify('encantados-aba-ativa', 'mais-uma-aba');
+    expect(onTakenOver).toHaveBeenCalledTimes(1);
+  });
+});

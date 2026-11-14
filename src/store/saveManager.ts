@@ -47,6 +47,7 @@ const IMPORT_ERRORS = {
 export interface ThrottledStorage {
   storage: PersistStorage<GameState>;
   flush: () => void; // grava agora o que estiver pendente
+  disable: () => void; // para de gravar de vez e descarta o que estava pendente
 }
 
 export type DecodeResult = { ok: true; state: GameState } | { ok: false; error: string };
@@ -70,6 +71,7 @@ type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
 export function createThrottledStorage(intervalMs: number): ThrottledStorage {
   let pending: { name: string; value: StorageValue<GameState> } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let isEnabled = true;
 
   const flush = (): void => {
     if (timer !== null) {
@@ -82,11 +84,20 @@ export function createThrottledStorage(intervalMs: number): ThrottledStorage {
     }
   };
 
+  // Usado quando outra aba assume o jogo: esta não pode mais escrever por cima do salvamento
+  const disable = (): void => {
+    isEnabled = false;
+    pending = null;
+    flush();
+  };
+
   const storage: PersistStorage<GameState> = {
     getItem: (name) => readSave(name),
     setItem: (name, value) => {
-      pending = { name, value };
-      timer ??= setTimeout(flush, intervalMs);
+      if (isEnabled) {
+        pending = { name, value };
+        timer ??= setTimeout(flush, intervalMs);
+      }
     },
     removeItem: (name) => {
       pending = null;
@@ -94,7 +105,7 @@ export function createThrottledStorage(intervalMs: number): ThrottledStorage {
     },
   };
 
-  return { storage, flush };
+  return { storage, flush, disable };
 }
 
 // Lê o salvamento. Se estiver ilegível, guarda uma cópia e devolve null (jogo novo).
@@ -115,7 +126,7 @@ function readSave(name: string): StorageValue<GameState> | null {
 }
 
 // Grava um texto no localStorage e avisa se o navegador recusar (disco cheio, modo privado)
-function writeToLocalStorage(name: string, text: string): void {
+export function writeToLocalStorage(name: string, text: string): void {
   try {
     getLocalStorage()?.setItem(name, text);
   } catch (error) {

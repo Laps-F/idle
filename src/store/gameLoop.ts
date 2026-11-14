@@ -1,15 +1,23 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/store/gameLoop.ts
- * O que faz: liga o laço do jogo. Chama o tick da store em intervalos curtos
- * e garante a gravação quando a aba é escondida ou fechada.
+ * O que faz: liga o laço do jogo. Chama o tick da store em intervalos curtos,
+ * garante a gravação quando a aba é escondida ou fechada e para tudo se o
+ * jogo for aberto em outra aba.
  *
- * O intervalo do setInterval não é confiável: o navegador atrasa abas em
- * segundo plano. Isso não atrapalha, porque o tick mede o tempo real que
- * passou em vez de supor que foram 100 ms.
+ * Por que setInterval e não requestAnimationFrame: o requestAnimationFrame
+ * para em abas escondidas, e um idle precisa continuar andando. O intervalo
+ * do setInterval também não é confiável (o navegador atrasa abas em segundo
+ * plano), mas isso não atrapalha: o tick mede o tempo real que passou em vez
+ * de supor que foram 100 ms. O desenho fica com o React e com CSS.
+ *
+ * Mapa:
+ *   1. Laço do jogo
+ *   2. Passos do laço
  */
 
 import { BALANCE } from '../data/balance';
+import { claimActiveTab } from './tabGuard';
 import { useGameStore } from './useGameStore';
 
 // =============================================================================
@@ -25,14 +33,30 @@ export function startGameLoop(): () => void {
   window.addEventListener('pagehide', saveProgress);
   window.addEventListener('beforeunload', saveProgress);
 
-  return () => {
+  const stopTicking = (): void => {
     window.clearInterval(intervalId);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('pagehide', saveProgress);
     window.removeEventListener('beforeunload', saveProgress);
+  };
+
+  const stopWatchingTabs = claimActiveTab(() => {
+    // A ordem importa: primeiro para de gravar, depois desliga o laço
+    useGameStore.getState().yieldToAnotherTab();
+    stopTicking();
+  });
+
+  return () => {
+    stopWatchingTabs();
+    stopTicking();
     saveProgress();
   };
 }
+
+
+// =============================================================================
+// =============================================================================
+// P A S S O S   D O   L A Ç O
 
 // Um passo do jogo, medido pelo relógio real
 function runTick(): void {

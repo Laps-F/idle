@@ -43,6 +43,7 @@ src/
     useGameStore.ts    estado global (Zustand), tick e ações
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
     gameLoop.ts        liga o tick e grava ao esconder ou fechar a aba
+    tabGuard.ts        garante que só uma aba cuida do jogo
   utils/               sorteios, comparação de objetos e Base64
   __tests__/           testes automáticos
   App.tsx              tela provisória de conferência
@@ -64,6 +65,13 @@ intervalo:
 A simulação pula de evento em evento (próximo golpe ou fim do tempo do chefe). Por isso a mesma
 função serve para 0,1 segundo e para 8 horas.
 
+Toda ação da pessoa (comprar, trocar a comitiva, fechar pacto) primeiro simula o jogo até o
+instante do clique e só depois é aplicada. Assim uma compra nunca vale para o tempo que já
+passou.
+
+O laço usa `setInterval`, não `requestAnimationFrame`, porque o segundo para em abas
+escondidas. O desenho fica com o React e com CSS.
+
 ## Salvamento
 
 - Gravação automática no `localStorage`, no máximo uma vez a cada 5 segundos, e na hora ao
@@ -72,6 +80,8 @@ função serve para 0,1 segundo e para 8 horas.
   código. `hardReset()` apaga tudo.
 - Todo salvamento lido ou importado passa por uma conferência que descarta ids desconhecidos e
   valores inválidos.
+- Só uma aba cuida do jogo. Se ele for aberto em outra aba, a antiga para de simular e de
+  gravar (`isOpenInAnotherTab`) e a nova continua de onde o salvamento parou.
 - Mudou o formato do `GameState`? Suba `saveVersion` em `balance.ts` e registre a conversão em
   `MIGRATIONS`, dentro de `saveManager.ts`.
 
