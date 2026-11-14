@@ -7,12 +7,21 @@ Estio. Roda inteiro no navegador e salva no `localStorage`.
 Estado atual: motor e estado global prontos. A tela ainda é o painel de debug
 (`src/components/DebugView.tsx`), usado para validar o motor antes da interface final.
 
+## Documentação
+
+- [docs/GUIA_DE_MANUTENCAO.md](docs/GUIA_DE_MANUTENCAO.md): o que mudar e onde mudar.
+- [docs/COMO_TESTAR.md](docs/COMO_TESTAR.md): passo a passo para rodar e testar.
+- [docs/HISTORICO.md](docs/HISTORICO.md): o que mudou em cada etapa.
+
+Toda mudança no código atualiza esses três documentos. A lista do que conferir está na seção 6
+do guia de manutenção.
+
 ## Como rodar
 
 ```bash
 npm install
 npm run dev        # abre o jogo em http://localhost:5173
-npm test           # roda os testes do motor, dos dados e da store
+npm test           # roda os testes dos dados, do motor, da store e do painel
 npm run typecheck  # confere as tipagens
 npm run build      # gera a versão final em dist/
 ```
@@ -45,7 +54,7 @@ src/
     gameLoop.ts        liga o tick e grava ao esconder ou fechar a aba
     tabGuard.ts        garante que só uma aba cuida do jogo
   components/
-    DebugView.tsx      painel de debug: métricas, indicador de tick e controles de teste
+    DebugView.tsx      painel de debug: métricas, indicador de tick, ausência e controles
   utils/               sorteios, comparação de objetos, Base64 e formatação de números
   __tests__/           testes automáticos
   App.tsx              liga o laço do jogo e mostra a tela
@@ -96,7 +105,7 @@ O `DebugView` lê tudo direto da store e não liga o laço (isso é do `App`). P
 - nova seção: escreva o componente e acrescente uma linha em `SECTIONS`;
 - mostrar só algumas seções: `<DebugView sectionIds={['loop', 'save']} />`.
 
-Os botões de teste usam as ações `debugHitEnemy` e `debugGrantGold` da store.
+Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold` e `debugSkipTime` da store.
 
 ## Próximas etapas
 

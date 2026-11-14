@@ -15,24 +15,33 @@
  *   1. Constantes e tipos
  *   2. Painel
  *   3. Seção: laço do jogo
- *   4. Seção: combate
- *   5. Seção: recursos
- *   6. Seção: comitiva
- *   7. Seção: melhorias
- *   8. Seção: controles de teste
- *   9. Seção: salvamento
- *  10. Peças reutilizáveis
- *  11. Ferramentas
+ *   4. Seção: ausência
+ *   5. Seção: combate
+ *   6. Seção: recursos
+ *   7. Seção: comitiva
+ *   8. Seção: melhorias
+ *   9. Seção: controles de teste
+ *  10. Seção: salvamento
+ *  11. Peças reutilizáveis
  */
 
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { ENCANTADOS, ITEMS, UPGRADES, getEncantado, getEnemy, getZoneForStage } from '../data';
+import {
+  ENCANTADOS,
+  ITEMS,
+  UPGRADES,
+  getEncantado,
+  getEnemy,
+  getItem,
+  getZoneForStage,
+} from '../data';
 import { getClockInfo } from '../engine/clock';
 import { getUpgradeCost, getXpToNextLevel, isUpgradeMaxed } from '../engine/formulas';
 import { getSavedGameSize } from '../store/saveManager';
 import { useGameStore } from '../store/useGameStore';
+import type { OfflineReport } from '../types/game';
 import { formatClockTime, formatDuration, formatNumber, formatPercent } from '../utils/format';
 
 // =============================================================================
@@ -43,6 +52,12 @@ import { formatClockTime, formatDuration, formatNumber, formatPercent } from '..
 const MANUAL_HIT_FRACTION = 0.25; // fração da vida máxima que o golpe manual tira
 const KILL_HIT_FRACTION = 1;
 const TEST_GOLD_AMOUNTS = [100, 10_000];
+
+// Ausências que o painel simula. A segunda passa do teto de 8 horas de propósito.
+const ABSENCE_OPTIONS = [
+  { label: 'Simular 1 hora fora', seconds: 3600 },
+  { label: 'Simular 12 horas fora', seconds: 12 * 3600 },
+];
 
 // De quanto em quanto tempo o painel mede os ticks por segundo
 const TICK_SAMPLE_MS = 1000;
@@ -110,6 +125,7 @@ interface DebugViewProps {
 // Seções do painel, na ordem em que aparecem
 const SECTIONS: DebugSectionDef[] = [
   { id: 'loop', title: 'Laço do jogo', Content: LoopSection },
+  { id: 'offline', title: 'Ausência', Content: OfflineSection },
   { id: 'combat', title: 'Combate', Content: CombatSection },
   { id: 'resources', title: 'Recursos', Content: ResourcesSection },
   { id: 'party', title: 'Comitiva', Content: PartySection },
@@ -195,6 +211,67 @@ function describeLoopStatus(ticksPerSecond: number | null, isOpenInAnotherTab: b
     return 'Medindo...';
   }
   return ticksPerSecond > 0 ? 'Rodando' : 'Parado';
+}
+
+
+// =============================================================================
+// =============================================================================
+// S E Ç Ã O :   A U S Ê N C I A
+
+// Simula o jogo fechado por um tempo e mostra o relatório de volta que o motor gerou
+function OfflineSection() {
+  const offlineReport = useGameStore((store) => store.offlineReport);
+  const skipTime = useGameStore((store) => store.debugSkipTime);
+  const dismissOfflineReport = useGameStore((store) => store.dismissOfflineReport);
+
+  const actions: DebugAction[] = [
+    ...ABSENCE_OPTIONS.map((option) => ({
+      label: option.label,
+      run: () => skipTime(option.seconds),
+    })),
+    { label: 'Fechar relatório', run: dismissOfflineReport, disabled: offlineReport === null },
+  ];
+
+  return (
+    <>
+      {offlineReport === null ? (
+        <p>Nenhum relatório de ausência aberto.</p>
+      ) : (
+        <MetricList metrics={getOfflineMetrics(offlineReport)} />
+      )}
+      <ActionButtons actions={actions} />
+    </>
+  );
+}
+
+// Linhas do relatório de volta: tempo fora, tempo que rendeu e tudo que foi ganho
+function getOfflineMetrics(report: OfflineReport): Metric[] {
+  const { summary } = report;
+  const bosses = `${summary.bossesDefeated} vencidos, ${summary.bossesFailed} perdidos`;
+
+  return [
+    { label: 'Tempo fora', value: formatDuration(report.secondsAway) },
+    { label: 'Tempo que rendeu', value: formatDuration(report.secondsSimulated) },
+    { label: 'Patacas ganhas', value: formatNumber(summary.gold) },
+    { label: 'XP por encantado', value: formatNumber(summary.xp) },
+    { label: 'Visagens derrotadas', value: formatNumber(summary.kills) },
+    { label: 'Chefes', value: bosses },
+    { label: 'Estágios avançados', value: String(summary.stagesAdvanced) },
+    ...getCounterMetrics(summary.items, (itemId) => getItem(itemId).name),
+    ...getCounterMetrics(summary.trails, (id) => `Rastros: ${getEncantado(id).name}`),
+    ...getCounterMetrics(summary.levelUps, (id) => `Níveis: ${getEncantado(id).name}`),
+  ];
+}
+
+// Uma linha para cada entrada de um contador do tipo { id: quantidade }
+function getCounterMetrics(
+  counters: Record<string, number>,
+  describe: (id: string) => string,
+): Metric[] {
+  return Object.entries(counters).map(([id, amount]) => ({
+    label: describe(id),
+    value: `+${formatNumber(amount)}`,
+  }));
 }
 
 

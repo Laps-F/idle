@@ -61,6 +61,7 @@ describe('painel de debug', () => {
     const titles = [...host.querySelectorAll('h2')].map((title) => title.textContent);
     expect(titles).toEqual([
       'Laço do jogo',
+      'Ausência',
       'Combate',
       'Recursos',
       'Comitiva',
@@ -152,6 +153,26 @@ describe('painel de debug', () => {
     });
     await click('Importar');
     expect(host.textContent).toContain('Não consegui ler esse código');
+  });
+
+  it('simula uma ausência e mostra o relatório de volta', async () => {
+    await click('Saci');
+    expect(host.textContent).toContain('Nenhum relatório de ausência aberto.');
+
+    await click('Simular 1 hora fora');
+    const report = useGameStore.getState().offlineReport;
+    expect(report?.secondsSimulated).toBeCloseTo(1800, 0);
+    expect(host.textContent).toContain('Tempo que rendeu30min 00s');
+    expect(useGameStore.getState().gold).toBeGreaterThan(0);
+
+    await click('Fechar relatório');
+    expect(useGameStore.getState().offlineReport).toBeNull();
+  });
+
+  it('respeita o teto de 8 horas na ausência simulada', async () => {
+    await click('Saci');
+    await click('Simular 12 horas fora');
+    expect(host.textContent).toContain('Tempo que rendeu4h 00min 00s');
   });
 
   it('só apaga tudo depois de três cliques', async () => {

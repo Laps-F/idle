@@ -84,6 +84,7 @@ export interface GameActions {
   // Teste
   debugHitEnemy: (hpFraction: number) => void;
   debugGrantGold: (amount: number) => void;
+  debugSkipTime: (seconds: number) => void;
 }
 
 // Campos que existem só enquanto o jogo está aberto. Não vão para o localStorage.
@@ -418,7 +419,7 @@ function replaceGame(set: SetStore, state: GameState): void {
 // =============================================================================
 // A Ç Õ E S   D E   T E S T E
 
-type DebugActions = Pick<GameActions, 'debugHitEnemy' | 'debugGrantGold'>;
+type DebugActions = Pick<GameActions, 'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime'>;
 
 // Atalhos para o painel de debug mexer no jogo sem esperar o ritmo normal.
 // Passam pelo mesmo caminho das ações de jogo: simulam até agora e só então alteram.
@@ -432,6 +433,18 @@ function createDebugActions(set: SetStore, get: GetStore): DebugActions {
     // Soma Patacas direto no saldo
     debugGrantGold: (amount) => {
       applyInput(set, get, (draft) => grantGold(draft, amount));
+    },
+
+    // Faz de conta que o jogo ficou fechado por "seconds" segundos: recua a marca do tempo
+    // e roda um tick. Acima do limite de ausência, cai no caminho offline e gera o relatório.
+    debugSkipTime: (seconds) => {
+      const canSkip = seconds > 0 && !get().isOpenInAnotherTab;
+
+      if (canSkip) {
+        get().tick(Date.now());
+        set({ lastSaveTimestamp: get().lastSaveTimestamp - seconds * MS_PER_SECOND });
+        get().tick(Date.now());
+      }
     },
   };
 }
