@@ -354,3 +354,39 @@ describe('duas abas', () => {
     expect(onTakenOver).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('ações de teste e contador de ticks', () => {
+  it('conta os ticks e para de contar quando outra aba assume', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    const countBefore = useGameStore.getState().tickCount;
+    play(useGameStore, 2);
+    expect(useGameStore.getState().tickCount).toBe(countBefore + 20);
+
+    useGameStore.getState().yieldToAnotherTab();
+    play(useGameStore, 2);
+    expect(useGameStore.getState().tickCount).toBe(countBefore + 20);
+  });
+
+  it('tira vida com o golpe manual e entrega as recompensas ao derrotar', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    const maxHp = useGameStore.getState().combat.enemyMaxHp;
+
+    useGameStore.getState().debugHitEnemy(0.25);
+    expect(useGameStore.getState().combat.enemyHp).toBeCloseTo(maxHp * 0.75, 6);
+
+    useGameStore.getState().debugHitEnemy(1);
+    expect(useGameStore.getState().stats.totalKills).toBe(1);
+    expect(useGameStore.getState().gold).toBeGreaterThan(0);
+    expect(useGameStore.getState().combat.enemyHp).toBe(useGameStore.getState().combat.enemyMaxHp);
+  });
+
+  it('soma Patacas de teste sem mexer na estatística', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().debugGrantGold(100);
+    useGameStore.getState().debugGrantGold(-5);
+    expect(useGameStore.getState().gold).toBe(100);
+    expect(useGameStore.getState().stats.totalGoldEarned).toBe(0);
+  });
+});

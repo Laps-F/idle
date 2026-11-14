@@ -23,7 +23,8 @@
  *   4. Ações de simulação (tick, progresso offline e troca de aba)
  *   5. Ações de jogo (comitiva, melhorias, pactos, estágios)
  *   6. Ações de salvamento (exportar, importar, apagar tudo)
- *   7. Ferramentas
+ *   7. Ações de teste (usadas pelo painel de debug)
+ *   8. Ferramentas
  */
 
 import { create } from 'zustand';
@@ -34,7 +35,7 @@ import { getEncantado, getUpgrade, getZoneForStage, hasEncantado, hasUpgrade } f
 import { getUpgradeCost, isUpgradeMaxed } from '../engine/formulas';
 import { applyOfflineProgress, mergeOfflineReports } from '../engine/offline';
 import { sealPact } from '../engine/pact';
-import { advanceSimulation } from '../engine/simulation';
+import { advanceSimulation, dealDirectDamage } from '../engine/simulation';
 import {
   cloneGameState,
   createInitialState,
@@ -79,6 +80,10 @@ export interface GameActions {
   exportSave: () => string;
   importSave: (code: string) => ImportResult;
   hardReset: () => void;
+
+  // Teste
+  debugHitEnemy: (hpFraction: number) => void;
+  debugGrantGold: (amount: number) => void;
 }
 
 // Campos que existem só enquanto o jogo está aberto. Não vão para o localStorage.
@@ -86,6 +91,7 @@ export interface SessionState {
   offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
   combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
   isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
+  tickCount: number; // quantos ticks rodaram desde que a página abriu. Prova que o laço anda.
 }
 
 export type GameStore = GameState & SessionState & GameActions;
@@ -105,6 +111,7 @@ const SESSION_DEFAULTS: SessionState = {
   offlineReport: null,
   combatEvents: NO_EVENTS,
   isOpenInAnotherTab: false,
+  tickCount: 0,
 };
 
 const OPEN_IN_ANOTHER_TAB_ERROR = 'O jogo está aberto em outra aba. Recarregue esta página.';
@@ -124,6 +131,7 @@ export const useGameStore = create<GameStore>()(
       ...createSimulationActions(set, get),
       ...createGameplayActions(set, get),
       ...createSaveActions(set, get),
+      ...createDebugActions(set, get),
     }),
     {
       name: SAVE_STORAGE_KEY,
@@ -155,7 +163,7 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
       }
       if (elapsedSeconds < 0) {
         // O relógio do aparelho voltou no tempo: só acerta a marca, sem render nada
-        set({ lastSaveTimestamp: now });
+        set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
       } else if (elapsedSeconds > BALANCE.offlineThresholdSeconds) {
         runOfflineTick(set, get, now);
       } else if (elapsedSeconds > 0) {
@@ -187,6 +195,7 @@ function runOnlineTick(set: SetStore, get: GetStore, now: number, elapsedSeconds
   };
   const describeSession = (): Partial<SessionState> => ({
     combatEvents: events.length > 0 ? events : NO_EVENTS,
+    tickCount: get().tickCount + 1,
   });
 
   commitChange(set, get, simulate, describeSession);
@@ -196,11 +205,13 @@ function runOnlineTick(set: SetStore, get: GetStore, now: number, elapsedSeconds
 function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
   const simulate = (draft: GameState): OfflineReport | null => applyOfflineProgress(draft, now);
   const describeSession = (report: OfflineReport | null): Partial<SessionState> => {
+    const tickCount = get().tickCount + 1;
+
     if (report === null) {
-      return {};
+      return { tickCount };
     }
     const offlineReport = mergeOfflineReports(get().offlineReport, report);
-    return { offlineReport, combatEvents: NO_EVENTS };
+    return { offlineReport, combatEvents: NO_EVENTS, tickCount };
   };
 
   commitChange(set, get, simulate, describeSession);
@@ -400,6 +411,51 @@ function createSaveActions(set: SetStore, get: GetStore): SaveActions {
 function replaceGame(set: SetStore, state: GameState): void {
   set({ ...state, offlineReport: null, combatEvents: NO_EVENTS });
   saveStorage.flush();
+}
+
+
+// =============================================================================
+// =============================================================================
+// A Ç Õ E S   D E   T E S T E
+
+type DebugActions = Pick<GameActions, 'debugHitEnemy' | 'debugGrantGold'>;
+
+// Atalhos para o painel de debug mexer no jogo sem esperar o ritmo normal.
+// Passam pelo mesmo caminho das ações de jogo: simulam até agora e só então alteram.
+function createDebugActions(set: SetStore, get: GetStore): DebugActions {
+  return {
+    // Tira do inimigo uma fração da vida máxima (1 = derrota na hora)
+    debugHitEnemy: (hpFraction) => {
+      applyInput(set, get, (draft) => hitEnemy(draft, hpFraction));
+    },
+
+    // Soma Patacas direto no saldo
+    debugGrantGold: (amount) => {
+      applyInput(set, get, (draft) => grantGold(draft, amount));
+    },
+  };
+}
+
+// Golpe direto. A derrota entrega as recompensas normais e chama o próximo inimigo.
+function hitEnemy(draft: GameState, hpFraction: number): boolean {
+  const damage = draft.combat.enemyMaxHp * hpFraction;
+
+  if (!(damage > 0)) {
+    return false;
+  }
+
+  dealDirectDamage(draft, damage, { startTimestamp: draft.lastSaveTimestamp });
+  return true;
+}
+
+// Patacas de teste. Não entram na estatística de Patacas ganhas.
+function grantGold(draft: GameState, amount: number): boolean {
+  if (!(amount > 0)) {
+    return false;
+  }
+
+  draft.gold += amount;
+  return true;
 }
 
 

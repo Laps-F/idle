@@ -1,21 +1,2 @@
-/* Estilo provisório da tela de conferência. O visual de cordel entra junto com a interface. */
-
-:root {
-  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color: #1c1917;
-  background: #f5efe0;
-}
-
-body {
-  margin: 0;
-}
-
-button {
-  font: inherit;
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
+/* Tailwind cuida do estilo. O visual de cordel entra junto com a interface final. */
+@import 'tailwindcss';

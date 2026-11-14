@@ -125,6 +125,12 @@ function readSave(name: string): StorageValue<GameState> | null {
   }
 }
 
+// Tamanho, em caracteres, do salvamento gravado no localStorage. Null se não houver nenhum.
+export function getSavedGameSize(): number | null {
+  const raw = getLocalStorage()?.getItem(SAVE_STORAGE_KEY) ?? null;
+  return raw === null ? null : raw.length;
+}
+
 // Grava um texto no localStorage e avisa se o navegador recusar (disco cheio, modo privado)
 export function writeToLocalStorage(name: string, text: string): void {
   try {

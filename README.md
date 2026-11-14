@@ -4,8 +4,8 @@ Idle de coleção com folclore brasileiro, para navegador. Você percorre os bio
 comitiva de encantados (Saci, Curupira, Iara, Caipora, Boitatá) e enfrenta as visagens do
 Estio. Roda inteiro no navegador e salva no `localStorage`.
 
-Estado atual: motor e estado global prontos. A interface ainda é uma tela provisória de
-conferência.
+Estado atual: motor e estado global prontos. A tela ainda é o painel de debug
+(`src/components/DebugView.tsx`), usado para validar o motor antes da interface final.
 
 ## Como rodar
 
@@ -44,9 +44,11 @@ src/
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
     gameLoop.ts        liga o tick e grava ao esconder ou fechar a aba
     tabGuard.ts        garante que só uma aba cuida do jogo
-  utils/               sorteios, comparação de objetos e Base64
+  components/
+    DebugView.tsx      painel de debug: métricas, indicador de tick e controles de teste
+  utils/               sorteios, comparação de objetos, Base64 e formatação de números
   __tests__/           testes automáticos
-  App.tsx              tela provisória de conferência
+  App.tsx              liga o laço do jogo e mostra a tela
 ```
 
 A regra da casa: número de balanceamento mora em `src/data`, regra mora em `src/engine`, e a
@@ -84,6 +86,17 @@ escondidas. O desenho fica com o React e com CSS.
   gravar (`isOpenInAnotherTab`) e a nova continua de onde o salvamento parou.
 - Mudou o formato do `GameState`? Suba `saveVersion` em `balance.ts` e registre a conversão em
   `MIGRATIONS`, dentro de `saveManager.ts`.
+
+## Painel de debug
+
+O `DebugView` lê tudo direto da store e não liga o laço (isso é do `App`). Para adaptar:
+
+- nova métrica: uma linha na lista `metrics` da seção;
+- novo botão: uma linha na lista `actions` da seção;
+- nova seção: escreva o componente e acrescente uma linha em `SECTIONS`;
+- mostrar só algumas seções: `<DebugView sectionIds={['loop', 'save']} />`.
+
+Os botões de teste usam as ações `debugHitEnemy` e `debugGrantGold` da store.
 
 ## Próximas etapas
 

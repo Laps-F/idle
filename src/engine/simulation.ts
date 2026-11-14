@@ -12,7 +12,7 @@
  *   1. Constantes e tipos
  *   2. Avanço da simulação
  *   3. Tempo: próximo evento e relógios
- *   4. Golpes
+ *   4. Golpes (dos encantados e dano direto)
  *   5. Derrota de inimigos e chefes
  *   6. Recompensas
  */
@@ -53,11 +53,21 @@ const MIN_STEP_SECONDS = 1e-6;
 // Trava de segurança: nenhum trecho simulado passa deste número de eventos
 const MAX_ITERATIONS = 5_000_000;
 
+// Nome de quem bate nos eventos de golpe que não vêm de um encantado
+export const DIRECT_ATTACKER_ID = 'manual';
+
 export interface SimulationOptions {
   startTimestamp: number; // instante real (ms) em que o trecho começa
   clockMsPerSecond?: number; // quanto o relógio real anda por segundo simulado
   random?: RandomSource;
   onEvent?: (event: CombatEvent) => void;
+}
+
+// Um golpe já calculado: quem bateu, quanto tirou e se foi crítico
+interface Hit {
+  attackerId: string;
+  damage: number;
+  isCrit: boolean;
 }
 
 // Tudo que as funções internas precisam, para não passar seis parâmetros adiante
@@ -186,21 +196,42 @@ function resolveReadyAttacks(context: SimulationContext, modifiers: Modifiers): 
   }
 }
 
-// Aplica o dano de um golpe e, se a vida zerar, resolve a derrota do inimigo
+// Calcula o golpe de um encantado, com chance de crítico, e aplica no inimigo
 function performAttack(
   context: SimulationContext,
   encantadoId: string,
   modifiers: Modifiers,
 ): void {
-  const { state, random, emit } = context;
+  const { state, random } = context;
   const encantado = getEncantado(encantadoId);
   const level = state.roster[encantadoId].level;
   const baseDamage = getAttackDamage(encantado, level, modifiers, state.combat.isBoss);
   const isCrit = rollChance(modifiers.critChance, random);
   const damage = isCrit ? baseDamage * BALANCE.critMultiplier : baseDamage;
 
-  state.combat.enemyHp = Math.max(0, state.combat.enemyHp - damage);
-  emit({ type: 'hit', attackerId: encantadoId, damage, isCrit });
+  applyDamage(context, { attackerId: encantadoId, damage, isCrit }, modifiers);
+}
+
+// Causa dano direto no inimigo em campo, fora do ritmo dos ataques (clique, teste).
+// Se a vida zerar, a derrota segue o caminho normal, com recompensas e próximo inimigo.
+export function dealDirectDamage(
+  state: GameState,
+  damage: number,
+  options: SimulationOptions,
+): SimulationSummary {
+  const context = createContext(state, options);
+  const modifiers = context.modifiersByPhase[getDayPhase(context.timestamp)];
+
+  applyDamage(context, { attackerId: DIRECT_ATTACKER_ID, damage, isCrit: false }, modifiers);
+  return context.summary;
+}
+
+// Tira vida do inimigo e, se ela zerar, resolve a derrota
+function applyDamage(context: SimulationContext, hit: Hit, modifiers: Modifiers): void {
+  const { state, emit } = context;
+
+  state.combat.enemyHp = Math.max(0, state.combat.enemyHp - hit.damage);
+  emit({ type: 'hit', ...hit });
 
   if (state.combat.enemyHp <= 0) {
     handleEnemyDefeated(context, modifiers);
