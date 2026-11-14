@@ -5,7 +5,7 @@
  * Custo = baseCost × costFactor^nível. Bônus = bonusPerLevel × nível.
  */
 
-import type { UpgradeDef } from '../types/game';
+import type { UpgradeDef } from '../domain/types';
 
 // =============================================================================
 // =============================================================================

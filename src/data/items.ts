@@ -5,7 +5,7 @@
  * os encantados pedem para fechar um pacto.
  */
 
-import type { ItemDef } from '../types/game';
+import type { ItemDef } from '../domain/types';
 
 // =============================================================================
 // =============================================================================

@@ -1,8 +1,9 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/engine/formulas.ts
+ * Arquivo: src/domain/formulas.ts
  * O que faz: todas as contas de balanceamento. São funções puras: recebem
- * números, devolvem números e não alteram nada.
+ * números, devolvem números e não alteram nada. As constantes vêm de
+ * src/data/balance.ts.
  *
  * Mapa:
  *   1. Visagens e recompensas
@@ -13,20 +14,41 @@
  */
 
 import { BALANCE } from '../data/balance';
-import type { EncantadoDef, EnemyDef, Modifiers, UpgradeDef } from '../types/game';
+import type { EncantadoDef, EnemyDef, Modifiers, UpgradeDef } from './types';
 
 // =============================================================================
 // =============================================================================
 // V I S A G E N S   E   R E C O M P E N S A S
 
-// Vida = enemyBaseHp × enemyHpGrowth^(estágio − 1) × multiplicadores
+/**
+ * Vida máxima de um inimigo.
+ *
+ * Fórmula: enemyBaseHp × enemyHpGrowth^(estágio − 1) × hpMultiplier do inimigo,
+ * vezes bossHpMultiplier quando é chefe.
+ *
+ * @param stage Estágio em que o inimigo aparece, a partir de 1.
+ * @param enemy Definição do inimigo.
+ * @param isBoss Se ele entra como chefe do estágio.
+ * @returns Vida máxima, arredondada para cima. Nunca menor que 1.
+ */
 export function getEnemyMaxHp(stage: number, enemy: EnemyDef, isBoss: boolean): number {
   const baseHp = growByStage(BALANCE.enemyBaseHp, BALANCE.enemyHpGrowth, stage);
   const bossMultiplier = isBoss ? BALANCE.bossHpMultiplier : 1;
-  return Math.ceil(baseHp * enemy.hpMultiplier * bossMultiplier);
+  return Math.max(1, Math.ceil(baseHp * enemy.hpMultiplier * bossMultiplier));
 }
 
-// Patacas = goldBase × goldGrowth^(estágio − 1) × multiplicadores. Nunca menos que 1.
+/**
+ * Patacas que um inimigo derrotado entrega.
+ *
+ * Fórmula: goldBase × goldGrowth^(estágio − 1) × goldMultiplier do inimigo ×
+ * multiplicador de Patacas da comitiva, vezes bossGoldMultiplier quando é chefe.
+ *
+ * @param stage Estágio do inimigo, a partir de 1.
+ * @param enemy Definição do inimigo.
+ * @param isBoss Se ele era o chefe do estágio.
+ * @param goldMultiplier Multiplicador vindo de melhorias, sinergias e Raízes.
+ * @returns Patacas, arredondadas. Nunca menos que 1, para toda derrota render algo.
+ */
 export function getGoldReward(
   stage: number,
   enemy: EnemyDef,
@@ -56,7 +78,18 @@ export function getXpToNextLevel(level: number): number {
   return Math.round(BALANCE.xpToLevelBase * Math.pow(level, BALANCE.xpToLevelExponent));
 }
 
-// Dano de um golpe, sem crítico = ataque base × (1 + damagePerLevel × nível) × multiplicadores
+/**
+ * Dano de um golpe, antes do crítico.
+ *
+ * Fórmula: ataque base × (1 + damagePerLevel × nível) × multiplicador de dano,
+ * vezes o multiplicador de dano em chefes quando o alvo é um chefe.
+ *
+ * @param encantado Definição de quem ataca.
+ * @param level Nível atual de quem ataca, a partir de 1.
+ * @param modifiers Multiplicadores da comitiva (melhorias, sinergias e Raízes).
+ * @param isBoss Se o alvo é o chefe do estágio.
+ * @returns Dano do golpe. O crítico é aplicado por quem chama.
+ */
 export function getAttackDamage(
   encantado: EncantadoDef,
   level: number,
@@ -78,12 +111,12 @@ export function getAttackInterval(encantado: EncantadoDef, modifiers: Modifiers)
 // =============================================================================
 // M E L H O R I A S
 
-// Custo do próximo nível = baseCost × costFactor^nível
+// Custo do próximo nível = baseCost × costFactor^nível, arredondado para cima
 export function getUpgradeCost(upgrade: UpgradeDef, level: number): number {
   return Math.ceil(upgrade.baseCost * Math.pow(upgrade.costFactor, level));
 }
 
-// Diz se a melhoria já chegou ao nível máximo
+// Diz se a melhoria já chegou ao nível máximo. Melhoria sem maxLevel nunca chega.
 export function isUpgradeMaxed(upgrade: UpgradeDef, level: number): boolean {
   return upgrade.maxLevel !== undefined && level >= upgrade.maxLevel;
 }

@@ -3,10 +3,15 @@
  * Arquivo: src/components/DebugView.tsx
  * O que faz: painel de debug. Mostra os números crus da store e dá botões
  * para mexer no jogo, para validar o motor sem depender da interface final.
- * Lê tudo direto da store do Zustand. Não liga o laço do jogo: isso é do App.
+ *
+ * Componente "burro": só mostra o que recebe dos seletores da store e chama
+ * ações da store. Não consulta src/data, não chama src/domain e não faz conta
+ * de jogo. Os dados chegam prontos de src/store/selectors.ts. O painel também
+ * não liga o laço do jogo: isso é do App.
  *
  * Como adaptar:
- *   - nova métrica: uma linha na lista "metrics" da seção;
+ *   - nova métrica: uma linha na lista "metrics" da seção (se o dado ainda não
+ *     chega pronto, acrescente o campo na visão em src/store/selectors.ts);
  *   - novo botão: uma linha na lista "actions" da seção;
  *   - nova seção: escreva o componente e acrescente uma linha em SECTIONS;
  *   - mostrar só algumas seções: <DebugView sectionIds={['loop', 'save']} />.
@@ -25,23 +30,20 @@
  *  11. Peças reutilizáveis
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import {
-  ENCANTADOS,
-  ITEMS,
-  UPGRADES,
-  getEncantado,
-  getEnemy,
-  getItem,
-  getZoneForStage,
-} from '../data';
-import { getClockInfo } from '../engine/clock';
-import { getUpgradeCost, getXpToNextLevel, isUpgradeMaxed } from '../engine/formulas';
-import { getSavedGameSize } from '../store/saveManager';
+  selectCombatView,
+  selectLoopView,
+  selectOfflineView,
+  selectPartyView,
+  selectResourcesView,
+  selectUpgradeViews,
+} from '../store/selectors';
+import type { CombatView, NamedAmount, OfflineView, PartyView } from '../store/selectors';
+import type { SaveReceipt } from '../store/types';
 import { useGameStore } from '../store/useGameStore';
-import type { OfflineReport } from '../types/game';
 import { formatClockTime, formatDuration, formatNumber, formatPercent } from '../utils/format';
 
 // =============================================================================
@@ -60,7 +62,7 @@ const ABSENCE_OPTIONS = [
 ];
 
 // De quanto em quanto tempo o painel mede os ticks por segundo
-const TICK_SAMPLE_MS = 1000;
+const RATE_SAMPLE_MS = 1000;
 
 // Apagar tudo pede três cliques seguidos. Parou de clicar, volta ao começo.
 const RESET_LABELS = ['Apagar tudo', 'Tem certeza? Clique de novo', 'Última chance: apagar tudo'];
@@ -166,40 +168,41 @@ export default function DebugView({ sectionIds }: DebugViewProps) {
 
 // Prova de que o laço está rodando: contador de ticks, ritmo e horário do último tick
 function LoopSection() {
-  const tickCount = useGameStore((store) => store.tickCount);
-  const lastSaveTimestamp = useGameStore((store) => store.lastSaveTimestamp);
-  const playTimeSeconds = useGameStore((store) => store.stats.playTimeSeconds);
-  const isOpenInAnotherTab = useGameStore((store) => store.isOpenInAnotherTab);
-  const ticksPerSecond = useTicksPerSecond();
+  const loop = useGameStore(selectLoopView);
+  const ticksPerSecond = useRatePerSecond(loop.tickCount);
 
   const metrics: Metric[] = [
-    { label: 'Situação', value: describeLoopStatus(ticksPerSecond, isOpenInAnotherTab) },
-    { label: 'Ticks desde que a página abriu', value: String(tickCount) },
+    { label: 'Situação', value: describeLoopStatus(ticksPerSecond, loop.isOpenInAnotherTab) },
+    { label: 'Ticks desde que a página abriu', value: String(loop.tickCount) },
     { label: 'Ticks no último segundo', value: String(ticksPerSecond ?? 0) },
-    { label: 'Último tick', value: formatClockTime(lastSaveTimestamp) },
-    { label: 'Tempo de jogo', value: formatDuration(playTimeSeconds) },
+    { label: 'Último tick', value: formatClockTime(loop.lastTickTimestamp) },
+    { label: 'Tempo de jogo', value: formatDuration(loop.playTimeSeconds) },
   ];
 
   return <MetricList metrics={metrics} />;
 }
 
-// Conta quantos ticks rodaram a cada segundo. Null enquanto a primeira medida não fecha.
-function useTicksPerSecond(): number | null {
-  const [ticksPerSecond, setTicksPerSecond] = useState<number | null>(null);
+// Mede quanto um contador sobe por segundo. Null enquanto a primeira medida não fecha.
+function useRatePerSecond(counter: number): number | null {
+  const latestCounter = useRef(counter);
+  const [rate, setRate] = useState<number | null>(null);
 
   useEffect(() => {
-    let previousCount = useGameStore.getState().tickCount;
+    latestCounter.current = counter;
+  }, [counter]);
+
+  useEffect(() => {
+    let previousCounter = latestCounter.current;
 
     const intervalId = window.setInterval(() => {
-      const currentCount = useGameStore.getState().tickCount;
-      setTicksPerSecond(currentCount - previousCount);
-      previousCount = currentCount;
-    }, TICK_SAMPLE_MS);
+      setRate(latestCounter.current - previousCounter);
+      previousCounter = latestCounter.current;
+    }, RATE_SAMPLE_MS);
 
     return () => window.clearInterval(intervalId);
   }, []);
 
-  return ticksPerSecond;
+  return rate;
 }
 
 // Texto da situação do laço
@@ -220,7 +223,7 @@ function describeLoopStatus(ticksPerSecond: number | null, isOpenInAnotherTab: b
 
 // Simula o jogo fechado por um tempo e mostra o relatório de volta que o motor gerou
 function OfflineSection() {
-  const offlineReport = useGameStore((store) => store.offlineReport);
+  const offline = useGameStore(selectOfflineView);
   const skipTime = useGameStore((store) => store.debugSkipTime);
   const dismissOfflineReport = useGameStore((store) => store.dismissOfflineReport);
 
@@ -229,15 +232,15 @@ function OfflineSection() {
       label: option.label,
       run: () => skipTime(option.seconds),
     })),
-    { label: 'Fechar relatório', run: dismissOfflineReport, disabled: offlineReport === null },
+    { label: 'Fechar relatório', run: dismissOfflineReport, disabled: offline === null },
   ];
 
   return (
     <>
-      {offlineReport === null ? (
+      {offline === null ? (
         <p>Nenhum relatório de ausência aberto.</p>
       ) : (
-        <MetricList metrics={getOfflineMetrics(offlineReport)} />
+        <MetricList metrics={getOfflineMetrics(offline)} />
       )}
       <ActionButtons actions={actions} />
     </>
@@ -245,32 +248,28 @@ function OfflineSection() {
 }
 
 // Linhas do relatório de volta: tempo fora, tempo que rendeu e tudo que foi ganho
-function getOfflineMetrics(report: OfflineReport): Metric[] {
-  const { summary } = report;
-  const bosses = `${summary.bossesDefeated} vencidos, ${summary.bossesFailed} perdidos`;
+function getOfflineMetrics(offline: OfflineView): Metric[] {
+  const bosses = `${offline.bossesDefeated} vencidos, ${offline.bossesFailed} perdidos`;
 
   return [
-    { label: 'Tempo fora', value: formatDuration(report.secondsAway) },
-    { label: 'Tempo que rendeu', value: formatDuration(report.secondsSimulated) },
-    { label: 'Patacas ganhas', value: formatNumber(summary.gold) },
-    { label: 'XP por encantado', value: formatNumber(summary.xp) },
-    { label: 'Visagens derrotadas', value: formatNumber(summary.kills) },
+    { label: 'Tempo fora', value: formatDuration(offline.secondsAway) },
+    { label: 'Tempo que rendeu', value: formatDuration(offline.secondsSimulated) },
+    { label: 'Patacas ganhas', value: formatNumber(offline.gold) },
+    { label: 'XP por encantado', value: formatNumber(offline.xp) },
+    { label: 'Visagens derrotadas', value: formatNumber(offline.kills) },
     { label: 'Chefes', value: bosses },
-    { label: 'Estágios avançados', value: String(summary.stagesAdvanced) },
-    ...getCounterMetrics(summary.items, (itemId) => getItem(itemId).name),
-    ...getCounterMetrics(summary.trails, (id) => `Rastros: ${getEncantado(id).name}`),
-    ...getCounterMetrics(summary.levelUps, (id) => `Níveis: ${getEncantado(id).name}`),
+    { label: 'Estágios avançados', value: String(offline.stagesAdvanced) },
+    ...getGainMetrics(offline.items, ''),
+    ...getGainMetrics(offline.trails, 'Rastros: '),
+    ...getGainMetrics(offline.levelUps, 'Níveis: '),
   ];
 }
 
-// Uma linha para cada entrada de um contador do tipo { id: quantidade }
-function getCounterMetrics(
-  counters: Record<string, number>,
-  describe: (id: string) => string,
-): Metric[] {
-  return Object.entries(counters).map(([id, amount]) => ({
-    label: describe(id),
-    value: `+${formatNumber(amount)}`,
+// Uma linha "+quantidade" para cada ganho da lista
+function getGainMetrics(gains: readonly NamedAmount[], labelPrefix: string): Metric[] {
+  return gains.map((gain) => ({
+    label: labelPrefix + gain.name,
+    value: `+${formatNumber(gain.amount)}`,
   }));
 }
 
@@ -281,40 +280,30 @@ function getCounterMetrics(
 
 // Zona, estágio, inimigo em campo e a vida dele
 function CombatSection() {
-  const combat = useGameStore((store) => store.combat);
-  const metrics = useCombatMetrics();
+  const combat = useGameStore(selectCombatView);
 
   return (
     <>
-      <MetricList metrics={metrics} />
-      <ProgressBar fraction={combat.enemyHp / combat.enemyMaxHp} />
+      <MetricList metrics={getCombatMetrics(combat)} />
+      <ProgressBar fraction={combat.enemyHpFraction} />
     </>
   );
 }
 
-// Métricas do combate, lidas da store
-function useCombatMetrics(): Metric[] {
-  const stage = useGameStore((store) => store.stage);
-  const maxStage = useGameStore((store) => store.maxStage);
-  const killsInStage = useGameStore((store) => store.killsInStage);
-  const autoProgress = useGameStore((store) => store.autoProgress);
-  const combat = useGameStore((store) => store.combat);
-  const lastSaveTimestamp = useGameStore((store) => store.lastSaveTimestamp);
-  const zone = getZoneForStage(stage);
-  const clock = getClockInfo(lastSaveTimestamp);
+// Linhas do combate
+function getCombatMetrics(combat: CombatView): Metric[] {
   const currentHp = formatNumber(Math.ceil(combat.enemyHp));
-  const enemyHp = `${currentHp} de ${formatNumber(combat.enemyMaxHp)}`;
   const bossTime = combat.isBoss ? `${combat.bossTimeLeft.toFixed(1)} s` : 'sem chefe em campo';
 
   return [
-    { label: 'Zona', value: zone.name },
-    { label: 'Estágio', value: `${stage} (liberado até o ${maxStage})` },
-    { label: 'Inimigo', value: getEnemy(combat.enemyId).name + (combat.isBoss ? ' (chefe)' : '') },
-    { label: 'Vida do inimigo', value: enemyHp },
+    { label: 'Zona', value: combat.zoneName },
+    { label: 'Estágio', value: `${combat.stage} (liberado até o ${combat.maxStage})` },
+    { label: 'Inimigo', value: combat.enemyName + (combat.isBoss ? ' (chefe)' : '') },
+    { label: 'Vida do inimigo', value: `${currentHp} de ${formatNumber(combat.enemyMaxHp)}` },
     { label: 'Tempo do chefe', value: bossTime },
-    { label: 'Visagens no estágio', value: `${killsInStage} de ${zone.killsToBoss}` },
-    { label: 'Avanço automático', value: autoProgress ? 'ligado' : 'desligado' },
-    { label: 'Relógio do sertão', value: `${clock.dayPhase}, lua ${clock.moonPhase}` },
+    { label: 'Visagens no estágio', value: `${combat.killsInStage} de ${combat.killsToBoss}` },
+    { label: 'Avanço automático', value: combat.autoProgress ? 'ligado' : 'desligado' },
+    { label: 'Relógio do sertão', value: `${combat.dayPhase}, lua ${combat.moonPhase}` },
   ];
 }
 
@@ -325,31 +314,22 @@ function useCombatMetrics(): Metric[] {
 
 // Patacas, Raízes, Oferendas, Rastros e os totais da partida
 function ResourcesSection() {
-  const gold = useGameStore((store) => store.gold);
-  const roots = useGameStore((store) => store.roots);
-  const inventory = useGameStore((store) => store.inventory);
-  const trails = useGameStore((store) => store.trails);
-  const stats = useGameStore((store) => store.stats);
+  const resources = useGameStore(selectResourcesView);
 
   const metrics: Metric[] = [
-    { label: 'Patacas', value: formatNumber(gold) },
-    { label: 'Raízes', value: formatNumber(roots) },
-    ...ITEMS.map((item) => ({ label: item.name, value: String(inventory[item.id] ?? 0) })),
-    ...getTrailMetrics(trails),
-    { label: 'Visagens derrotadas', value: formatNumber(stats.totalKills) },
-    { label: 'Chefes vencidos', value: formatNumber(stats.bossesDefeated) },
-    { label: 'Patacas ganhas no total', value: formatNumber(stats.totalGoldEarned) },
+    { label: 'Patacas', value: formatNumber(resources.gold) },
+    { label: 'Raízes', value: formatNumber(resources.roots) },
+    ...resources.items.map((item) => ({ label: item.name, value: String(item.amount) })),
+    ...resources.trails.map((trail) => ({
+      label: `Rastros: ${trail.name}`,
+      value: `${trail.owned} de ${trail.needed}`,
+    })),
+    { label: 'Visagens derrotadas', value: formatNumber(resources.totalKills) },
+    { label: 'Chefes vencidos', value: formatNumber(resources.bossesDefeated) },
+    { label: 'Patacas ganhas no total', value: formatNumber(resources.totalGoldEarned) },
   ];
 
   return <MetricList metrics={metrics} />;
-}
-
-// Uma linha de Rastros para cada encantado que entra por pacto
-function getTrailMetrics(trails: Record<string, number>): Metric[] {
-  return ENCANTADOS.filter((encantado) => encantado.pact !== null).map((encantado) => ({
-    label: `Rastros: ${encantado.name}`,
-    value: `${trails[encantado.id] ?? 0} de ${encantado.pact?.trailsNeeded ?? 0}`,
-  }));
 }
 
 
@@ -359,39 +339,31 @@ function getTrailMetrics(trails: Record<string, number>): Metric[] {
 
 // Escolha do encantado inicial ou, depois dela, nível, XP e barra de ataque de cada um
 function PartySection() {
-  const roster = useGameStore((store) => store.roster);
-  const party = useGameStore((store) => store.party);
-  const attackProgress = useGameStore((store) => store.combat.attackProgress);
-  const ownedIds = Object.keys(roster);
+  const party = useGameStore(selectPartyView);
 
-  if (ownedIds.length === 0) {
-    return <StarterChoice />;
+  if (!party.hasStarter) {
+    return <StarterChoice starters={party.starters} />;
   }
 
-  const metrics: Metric[] = ownedIds.map((encantadoId) => {
-    const { level, xp } = roster[encantadoId];
-    const xpText = `XP ${formatNumber(xp)} de ${formatNumber(getXpToNextLevel(level))}`;
-    const attackText = party.includes(encantadoId)
-      ? `ataque ${formatPercent(attackProgress[encantadoId] ?? 0)}`
+  const metrics: Metric[] = party.members.map((member) => {
+    const xpText = `XP ${formatNumber(member.xp)} de ${formatNumber(member.xpToNextLevel)}`;
+    const attackText = member.isInParty
+      ? `ataque ${formatPercent(member.attackProgress)}`
       : 'fora da comitiva';
 
-    return {
-      label: `${getEncantado(encantadoId).name}, nível ${level}`,
-      value: `${xpText}, ${attackText}`,
-    };
+    return { label: `${member.name}, nível ${member.level}`, value: `${xpText}, ${attackText}` };
   });
 
   return <MetricList metrics={metrics} />;
 }
 
 // Um botão por encantado inicial. O jogo fica parado até a escolha.
-function StarterChoice() {
+function StarterChoice({ starters }: { starters: PartyView['starters'] }) {
   const chooseStarter = useGameStore((store) => store.chooseStarter);
-  const starters = ENCANTADOS.filter((encantado) => encantado.isStarter);
 
-  const actions: DebugAction[] = starters.map((encantado) => ({
-    label: `${encantado.name} (${encantado.origin})`,
-    run: () => chooseStarter(encantado.id),
+  const actions: DebugAction[] = starters.map((starter) => ({
+    label: `${starter.name} (${starter.origin})`,
+    run: () => chooseStarter(starter.id),
   }));
 
   return (
@@ -409,20 +381,16 @@ function StarterChoice() {
 
 // Um botão de compra por melhoria, com nível e custo
 function UpgradesSection() {
-  const gold = useGameStore((store) => store.gold);
-  const upgradeLevels = useGameStore((store) => store.upgrades);
+  const upgrades = useGameStore(selectUpgradeViews);
   const buyUpgrade = useGameStore((store) => store.buyUpgrade);
 
-  const actions: DebugAction[] = UPGRADES.map((upgrade) => {
-    const level = upgradeLevels[upgrade.id] ?? 0;
-    const cost = getUpgradeCost(upgrade, level);
-    const isMaxed = isUpgradeMaxed(upgrade, level);
-    const costText = isMaxed ? 'nível máximo' : `${formatNumber(cost)} Patacas`;
+  const actions: DebugAction[] = upgrades.map((upgrade) => {
+    const costText = upgrade.isMaxed ? 'nível máximo' : `${formatNumber(upgrade.cost)} Patacas`;
 
     return {
-      label: `${upgrade.name}, nível ${level}: ${costText}`,
+      label: `${upgrade.name}, nível ${upgrade.level}: ${costText}`,
       run: () => buyUpgrade(upgrade.id),
-      disabled: isMaxed || gold < cost,
+      disabled: !upgrade.canBuy,
     };
   });
 
@@ -436,7 +404,7 @@ function UpgradesSection() {
 
 // Botões que mexem no jogo fora do ritmo normal
 function TestControlsSection() {
-  const autoProgress = useGameStore((store) => store.autoProgress);
+  const combat = useGameStore(selectCombatView);
   const hitEnemy = useGameStore((store) => store.debugHitEnemy);
   const grantGold = useGameStore((store) => store.debugGrantGold);
   const setAutoProgress = useGameStore((store) => store.setAutoProgress);
@@ -453,10 +421,10 @@ function TestControlsSection() {
       run: () => grantGold(amount),
     })),
     {
-      label: autoProgress ? 'Desligar avanço automático' : 'Ligar avanço automático',
-      run: () => setAutoProgress(!autoProgress),
+      label: combat.autoProgress ? 'Desligar avanço automático' : 'Ligar avanço automático',
+      run: () => setAutoProgress(!combat.autoProgress),
     },
-    { label: 'Desafiar chefe', run: () => challengeBoss() },
+    { label: 'Desafiar chefe', run: () => challengeBoss(), disabled: !combat.canChallengeBoss },
   ];
 
   return <ActionButtons actions={actions} />;
@@ -488,68 +456,59 @@ function SaveSection() {
   );
 }
 
-// Estado e botões da seção de salvamento
+// Estado e botões da seção de salvamento. As ações vêm da store.
 function useSaveControls() {
+  const saveNow = useGameStore((store) => store.saveNow);
+  const exportSave = useGameStore((store) => store.exportSave);
+  const importSave = useGameStore((store) => store.importSave);
+  const hardReset = useGameStore((store) => store.hardReset);
   const [code, setCode] = useState('');
   const [message, setMessage] = useState('');
   const resetStep = useStepConfirmation(RESET_LABELS.length, RESET_TIMEOUT_MS);
 
-  const saveNow = (): void => {
-    useGameStore.getState().saveNow();
-    setMessage(describeSavedGame());
-  };
-
-  const exportSave = async (): Promise<void> => {
-    const exportedCode = useGameStore.getState().exportSave();
+  const handleExport = async (): Promise<void> => {
+    const exportedCode = exportSave();
     setCode(exportedCode);
     const wasCopied = await copyToClipboard(exportedCode);
     setMessage(wasCopied ? SAVE_MESSAGES.copied : SAVE_MESSAGES.notCopied);
   };
 
-  const importSave = (): void => {
-    setMessage(importFromCode(code));
+  const handleImport = (): void => {
+    if (code.trim() === '') {
+      setMessage(SAVE_MESSAGES.emptyCode);
+      return;
+    }
+    const result = importSave(code);
+    setMessage(result.ok ? SAVE_MESSAGES.imported : result.error);
   };
 
-  const hardReset = (): void => {
-    const isConfirmed = resetStep.advance();
-
-    if (isConfirmed) {
-      useGameStore.getState().hardReset();
+  const handleReset = (): void => {
+    if (resetStep.advance()) {
+      hardReset();
       setCode('');
       setMessage(SAVE_MESSAGES.reset);
     }
   };
 
   const actions: DebugAction[] = [
-    { label: 'Gravar agora', run: saveNow },
-    { label: 'Exportar', run: () => void exportSave() },
-    { label: 'Importar', run: importSave },
-    { label: RESET_LABELS[resetStep.step], run: hardReset, isDanger: true },
+    { label: 'Gravar agora', run: () => setMessage(describeSaveReceipt(saveNow())) },
+    { label: 'Exportar', run: () => void handleExport() },
+    { label: 'Importar', run: handleImport },
+    { label: RESET_LABELS[resetStep.step] ?? '', run: handleReset, isDanger: true },
   ];
 
   return { code, setCode, message, actions };
 }
 
-// Importa o código e devolve a mensagem do que aconteceu
-function importFromCode(code: string): string {
-  if (code.trim() === '') {
-    return SAVE_MESSAGES.emptyCode;
-  }
-
-  const result = useGameStore.getState().importSave(code);
-  return result.ok ? SAVE_MESSAGES.imported : result.error;
-}
-
 // Texto que confirma a gravação, com o horário e o tamanho do que está no localStorage
-function describeSavedGame(): string {
-  const savedSize = getSavedGameSize();
-
-  if (savedSize === null) {
+function describeSaveReceipt(receipt: SaveReceipt): string {
+  if (receipt.sizeInCharacters === null) {
     return SAVE_MESSAGES.notSaved;
   }
 
-  const time = formatClockTime(Date.now());
-  return `Gravado às ${time}. O salvamento tem ${savedSize} caracteres no localStorage.`;
+  const time = formatClockTime(receipt.savedAt);
+  const size = receipt.sizeInCharacters;
+  return `Gravado às ${time}. O salvamento tem ${size} caracteres no localStorage.`;
 }
 
 // Copia o texto para a área de transferência. Devolve se deu certo.

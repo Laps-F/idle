@@ -1,6 +1,6 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/engine/clock.ts
+ * Arquivo: src/domain/clock.ts
  * O que faz: o relógio do sertão. Dia, noite e lua saem direto do horário
  * do aparelho, sem guardar nada. Por isso funciona offline e sem servidor.
  *
@@ -12,7 +12,7 @@
  */
 
 import { BALANCE, MS_PER_SECOND } from '../data/balance';
-import type { ClockRequirement, DayPhase, MoonPhase } from '../types/game';
+import type { ClockRequirement, DayPhase, MoonPhase } from './types';
 
 // =============================================================================
 // =============================================================================
@@ -22,7 +22,8 @@ import type { ClockRequirement, DayPhase, MoonPhase } from '../types/game';
 const NIGHT_START = 0.5;
 
 // Ordem das fases dentro de um ciclo da lua
-const MOON_PHASES: MoonPhase[] = ['nova', 'crescente', 'cheia', 'minguante'];
+const FIRST_MOON_PHASE: MoonPhase = 'nova';
+const MOON_PHASES: MoonPhase[] = [FIRST_MOON_PHASE, 'crescente', 'cheia', 'minguante'];
 
 export interface ClockInfo {
   dayPhase: DayPhase;
@@ -65,7 +66,8 @@ export function getMoonPhase(timestamp: number): MoonPhase {
   const dayIndex = Math.floor(timestamp / BALANCE.dayLengthMs);
   const dayInCycle = dayIndex % BALANCE.moonCycleDays;
   const daysPerPhase = BALANCE.moonCycleDays / MOON_PHASES.length;
-  return MOON_PHASES[Math.floor(dayInCycle / daysPerPhase)];
+  const phaseIndex = Math.floor(dayInCycle / daysPerPhase);
+  return MOON_PHASES[phaseIndex] ?? FIRST_MOON_PHASE;
 }
 
 

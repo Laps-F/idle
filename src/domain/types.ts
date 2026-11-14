@@ -1,7 +1,8 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/types/game.ts
- * O que faz: reúne todas as tipagens do jogo. Não tem lógica.
+ * Arquivo: src/domain/types.ts
+ * O que faz: reúne as entidades e tipagens do jogo. Não tem lógica.
+ * Os arquivos de src/data importam daqui só os tipos, para tipar os dados.
  *
  * Mapa:
  *   1. Tipos básicos
@@ -37,9 +38,6 @@ export type ModifierStat =
 
 // Valores finais já calculados. critChance é probabilidade (0 a 1), o resto é multiplicador.
 export type Modifiers = Record<ModifierStat, number>;
-
-// Função que devolve um número entre 0 e 1. Permite trocar o Math.random nos testes.
-export type RandomSource = () => number;
 
 
 // =============================================================================
@@ -205,6 +203,19 @@ export interface OfflineReport {
   secondsAway: number; // tempo real fora do jogo
   secondsSimulated: number; // tempo que rendeu, depois do teto e da eficiência
   summary: SimulationSummary;
+}
+
+// O que uma simulação devolve: o estado novo, o resumo e os eventos (quando pedidos)
+export interface SimulationResult {
+  state: GameState;
+  summary: SimulationSummary;
+  events: CombatEvent[];
+}
+
+// O que o cálculo de ausência devolve. O relatório é null quando não havia comitiva.
+export interface OfflineResult {
+  state: GameState;
+  report: OfflineReport | null;
 }
 
 // Eventos para a interface desenhar dano flutuante, registro de combate e avisos

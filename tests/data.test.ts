@@ -1,13 +1,14 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/__tests__/data.test.ts
+ * Arquivo: tests/data.test.ts
  * O que faz: confere se os dados de src/data não apontam para ids que não
  * existem. Rode com "npm test" depois de mexer em qualquer arquivo de dados.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { ENCANTADOS, ENEMIES, UPGRADES, ZONES, hasEncantado, hasEnemy, hasItem } from '../data';
+import { ENCANTADOS, ENEMIES, UPGRADES, ZONES } from '../src/data';
+import { getZoneForStage, hasEncantado, hasEnemy, hasItem } from '../src/domain/catalog';
 
 describe('dados do jogo', () => {
   it('não repete ids', () => {
@@ -56,5 +57,12 @@ describe('dados do jogo', () => {
 
   it('tem pelo menos um encantado inicial', () => {
     expect(ENCANTADOS.some((encantado) => encantado.isStarter)).toBe(true);
+  });
+
+  it('acha a zona de qualquer estágio', () => {
+    expect(getZoneForStage(1).id).toBe('mata-atlantica');
+    expect(getZoneForStage(10).id).toBe('mata-atlantica');
+    expect(getZoneForStage(0).id).toBe('mata-atlantica');
+    expect(getZoneForStage(9999).id).toBe(ZONES[ZONES.length - 1]?.id);
   });
 });

@@ -1,11 +1,18 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/utils/random.ts
- * O que faz: sorteios do jogo. Toda função recebe a fonte de números
- * aleatórios, o que permite repetir uma simulação nos testes.
+ * O que faz: sorteios. Toda função recebe a fonte de números aleatórios em
+ * vez de chamar o Math.random por conta própria. Com a mesma fonte, o
+ * resultado é sempre o mesmo, o que mantém as funções puras e testáveis.
  */
 
-import type { RandomSource } from '../types/game';
+// =============================================================================
+// =============================================================================
+// T I P O S
+
+// Função que devolve um número em [0, 1), como o Math.random
+export type RandomSource = () => number;
+
 
 // =============================================================================
 // =============================================================================
@@ -22,13 +29,34 @@ export function randomInteger(min: number, max: number, random: RandomSource): n
   return min + Math.floor(random() * optionCount);
 }
 
-// Um elemento qualquer da lista
+/**
+ * Sorteia um elemento da lista.
+ *
+ * @param options Lista de onde sortear. Precisa ter pelo menos um elemento.
+ * @param random Fonte de números aleatórios.
+ * @returns Um dos elementos da lista.
+ * @throws Error se a lista estiver vazia, porque não há o que devolver.
+ */
 export function pickRandom<T>(options: readonly T[], random: RandomSource): T {
-  const index = Math.floor(random() * options.length);
-  return options[Math.min(index, options.length - 1)];
+  const index = Math.min(Math.floor(random() * options.length), options.length - 1);
+  const picked = options[index];
+
+  if (picked === undefined) {
+    throw new Error('pickRandom recebeu uma lista vazia.');
+  }
+
+  return picked;
 }
 
-// Gerador com semente (mulberry32): a mesma semente devolve sempre a mesma sequência
+/**
+ * Cria um gerador com semente (algoritmo mulberry32).
+ *
+ * Serve para repetir uma simulação: a mesma semente devolve sempre a mesma
+ * sequência. Não é seguro para criptografia.
+ *
+ * @param seed Semente. Só os 32 bits inteiros são usados (1.9 e 1 dão a mesma sequência).
+ * @returns Função que devolve um número em [0, 1) a cada chamada.
+ */
 export function createSeededRandom(seed: number): RandomSource {
   let current = seed >>> 0;
 

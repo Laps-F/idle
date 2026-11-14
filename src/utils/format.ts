@@ -24,7 +24,18 @@ const SECONDS_PER_HOUR = 3600;
 // =============================================================================
 // N Ú M E R O S
 
-// 950 -> "950", 1234 -> "1,23K", 5600000 -> "5,60M". Acima de Qi usa notação científica.
+/**
+ * Escreve um número grande de forma curta, com sufixo de mil em mil.
+ *
+ * Exemplos: 950 -> "950", 1234 -> "1,23K", 5600000 -> "5,60M".
+ *
+ * @param value Número a mostrar.
+ * @returns Texto com vírgula decimal e sufixo K, M, B, T, Qa ou Qi.
+ *
+ * Casos de borda: abaixo de mil mostra só a parte inteira, sem arredondar para cima.
+ * Acima de Qi (10^21) usa notação científica, como "4,00e+21". NaN e infinito viram "0",
+ * para a tela nunca mostrar um valor quebrado.
+ */
 export function formatNumber(value: number): string {
   if (!Number.isFinite(value)) {
     return '0';
@@ -53,7 +64,16 @@ export function formatPercent(fraction: number): string {
 // =============================================================================
 // T E M P O
 
-// 75 -> "1min 15s", 3725 -> "1h 02min 05s"
+/**
+ * Escreve uma duração em horas, minutos e segundos.
+ *
+ * Exemplos: 9 -> "9s", 75 -> "1min 15s", 3725 -> "1h 02min 05s".
+ *
+ * @param totalSeconds Duração em segundos. A parte decimal é descartada.
+ * @returns Texto com as unidades que fazem sentido para o tamanho da duração.
+ *
+ * Caso de borda: valor negativo é tratado como zero.
+ */
 export function formatDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
   const hours = Math.floor(seconds / SECONDS_PER_HOUR);

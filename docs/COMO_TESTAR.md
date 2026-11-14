@@ -36,7 +36,9 @@ npm test
 ```
 
 O esperado é terminar com todos os arquivos e testes como `passed`. Esses testes conferem os
-dados, as fórmulas, o combate, os pactos, o progresso offline, o salvamento e o painel de debug.
+dados, as fórmulas, o combate, as ações, os pactos, o progresso offline, o salvamento, o painel
+de debug e as regras de arquitetura (pastas, importações, pureza do domínio e proibição de
+`any`).
 
 Dois comandos extras, que também devem terminar sem erro:
 

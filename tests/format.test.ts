@@ -1,12 +1,12 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/__tests__/format.test.ts
+ * Arquivo: tests/format.test.ts
  * O que faz: testa a formatação de números e de tempo que aparece na tela.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDuration, formatNumber, formatPercent } from '../utils/format';
+import { formatDuration, formatNumber, formatPercent } from '../src/utils/format';
 
 describe('formatação', () => {
   it('abrevia números grandes com K, M, B, T, Qa e Qi', () => {

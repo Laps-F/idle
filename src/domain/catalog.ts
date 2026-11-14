@@ -1,0 +1,128 @@
+/*
+ * Encantados - idle de coleção com folclore brasileiro
+ * Arquivo: src/domain/catalog.ts
+ * O que faz: consulta as definições de src/data por id e descobre a zona de
+ * um estágio. É a única porta por onde o resto do código busca um dado
+ * específico, em vez de percorrer as listas.
+ *
+ * Mapa:
+ *   1. Índices por id
+ *   2. Consultas por id
+ *   3. Zonas e estágios
+ *   4. Ferramentas
+ */
+
+import { ENCANTADOS, ENEMIES, ITEMS, UPGRADES, ZONES } from '../data';
+import type { EncantadoDef, EnemyDef, ItemDef, UpgradeDef, ZoneDef } from './types';
+
+// =============================================================================
+// =============================================================================
+// Í N D I C E S   P O R   I D
+
+const ENCANTADOS_BY_ID = indexById(ENCANTADOS);
+const ENEMIES_BY_ID = indexById(ENEMIES);
+const ITEMS_BY_ID = indexById(ITEMS);
+const UPGRADES_BY_ID = indexById(UPGRADES);
+
+
+// =============================================================================
+// =============================================================================
+// C O N S U L T A S   P O R   I D
+
+// Definição do encantado. Lança erro se o id não existir.
+export function getEncantado(id: string): EncantadoDef {
+  return getOrThrow(ENCANTADOS_BY_ID, id, 'Encantado');
+}
+
+// Diz se existe um encantado com esse id
+export function hasEncantado(id: string): boolean {
+  return ENCANTADOS_BY_ID.has(id);
+}
+
+// Definição da visagem ou do chefe. Lança erro se o id não existir.
+export function getEnemy(id: string): EnemyDef {
+  return getOrThrow(ENEMIES_BY_ID, id, 'Inimigo');
+}
+
+// Diz se existe um inimigo com esse id
+export function hasEnemy(id: string): boolean {
+  return ENEMIES_BY_ID.has(id);
+}
+
+// Definição da Oferenda. Lança erro se o id não existir.
+export function getItem(id: string): ItemDef {
+  return getOrThrow(ITEMS_BY_ID, id, 'Item');
+}
+
+// Diz se existe um item com esse id
+export function hasItem(id: string): boolean {
+  return ITEMS_BY_ID.has(id);
+}
+
+// Definição da melhoria. Lança erro se o id não existir.
+export function getUpgrade(id: string): UpgradeDef {
+  return getOrThrow(UPGRADES_BY_ID, id, 'Melhoria');
+}
+
+// Diz se existe uma melhoria com esse id
+export function hasUpgrade(id: string): boolean {
+  return UPGRADES_BY_ID.has(id);
+}
+
+
+// =============================================================================
+// =============================================================================
+// Z O N A S   E   E S T Á G I O S
+
+/**
+ * Descobre a zona a que um estágio pertence.
+ *
+ * Os estágios são contados em sequência pela ordem das zonas em src/data/zones.ts:
+ * a primeira zona ocupa os estágios 1 a stageCount, a segunda continua daí.
+ *
+ * @param stage Número do estágio, a partir de 1.
+ * @returns A definição da zona.
+ * @throws Error se não houver nenhuma zona cadastrada.
+ *
+ * Casos de borda: estágio além da última zona devolve a última, porque o jogo
+ * continua nela até existir a próxima. Estágio menor que 1 devolve a primeira.
+ */
+export function getZoneForStage(stage: number): ZoneDef {
+  let lastStageOfZone = 0;
+
+  for (const zone of ZONES) {
+    lastStageOfZone += zone.stageCount;
+    if (stage <= lastStageOfZone) {
+      return zone;
+    }
+  }
+
+  const lastZone = ZONES[ZONES.length - 1];
+
+  if (lastZone === undefined) {
+    throw new Error('Nenhuma zona cadastrada em src/data/zones.ts.');
+  }
+
+  return lastZone;
+}
+
+
+// =============================================================================
+// =============================================================================
+// F E R R A M E N T A S
+
+// Monta um mapa id -> definição para consulta rápida
+function indexById<T extends { id: string }>(definitions: readonly T[]): Map<string, T> {
+  return new Map(definitions.map((definition) => [definition.id, definition]));
+}
+
+// Busca no mapa e avisa com clareza quando um dado aponta para um id que não existe
+function getOrThrow<T>(definitionsById: Map<string, T>, id: string, kind: string): T {
+  const definition = definitionsById.get(id);
+
+  if (definition === undefined) {
+    throw new Error(`${kind} com id "${id}" não existe em src/data.`);
+  }
+
+  return definition;
+}

@@ -1,6 +1,6 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/engine/modifiers.ts
+ * Arquivo: src/domain/modifiers.ts
  * O que faz: junta melhorias, sinergias e Raízes nos multiplicadores finais
  * que o combate usa.
  *
@@ -11,11 +11,11 @@
  */
 
 import { BALANCE } from '../data/balance';
-import { getEncantado } from '../data';
 import { SYNERGIES } from '../data/synergies';
 import { UPGRADES } from '../data/upgrades';
-import type { DayPhase, GameState, ModifierStat, Modifiers, SynergyDef } from '../types/game';
+import { getEncantado } from './catalog';
 import { getRootsMultiplier } from './formulas';
+import type { DayPhase, GameState, ModifierStat, Modifiers, SynergyDef } from './types';
 
 // =============================================================================
 // =============================================================================
@@ -38,7 +38,17 @@ export function getActiveSynergies(party: readonly string[], dayPhase: DayPhase)
 // =============================================================================
 // M U L T I P L I C A D O R E S   F I N A I S
 
-// Multiplicadores do combate: (1 + melhorias) × (1 + sinergias) × Raízes
+/**
+ * Calcula os multiplicadores finais que o combate usa.
+ *
+ * Para cada atributo: (1 + soma das melhorias) × (1 + soma das sinergias).
+ * Dano e Patacas ainda são multiplicados pelo bônus das Raízes.
+ * A chance de crítico é uma soma: base + melhorias + sinergias, limitada a 100%.
+ *
+ * @param state Estado do jogo. Só é lido.
+ * @param dayPhase Fase do dia. Algumas sinergias só valem de dia ou de noite.
+ * @returns Multiplicadores por atributo. critChance é uma probabilidade de 0 a 1.
+ */
 export function getModifiers(state: GameState, dayPhase: DayPhase): Modifiers {
   const upgradeBonus = sumUpgradeBonuses(state.upgrades);
   const synergyBonus = sumSynergyBonuses(getActiveSynergies(state.party, dayPhase));

@@ -6,7 +6,7 @@
  * a segunda continua daí. A última zona da lista não tem fim.
  */
 
-import type { ZoneDef } from '../types/game';
+import type { ZoneDef } from '../domain/types';
 
 // =============================================================================
 // =============================================================================

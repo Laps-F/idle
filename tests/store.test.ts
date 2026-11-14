@@ -1,6 +1,6 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/__tests__/store.test.ts
+ * Arquivo: tests/store.test.ts
  * O que faz: testa a store como a interface vai usar: tick, ausência,
  * gravação no localStorage, exportar, importar e apagar tudo.
  * O localStorage e o relógio são simulados, porque o teste roda fora do navegador.
@@ -8,13 +8,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BALANCE, MS_PER_SECOND } from '../data';
-import { SAVE_STORAGE_KEY } from '../store/saveManager';
+import { BALANCE, MS_PER_SECOND } from '../src/data';
+import { SAVE_STORAGE_KEY } from '../src/store/saveManager';
 
 const START = 1_800_000_000_000;
 const ONE_HOUR_MS = 3600 * MS_PER_SECOND;
 
-type StoreModule = typeof import('../store/useGameStore');
+type StoreModule = typeof import('../src/store/useGameStore');
 
 // localStorage simples em memória
 function createMemoryStorage(): Storage {
@@ -35,7 +35,7 @@ function createMemoryStorage(): Storage {
 // Carrega a store do zero, como se a página tivesse acabado de abrir
 async function openGame(): Promise<StoreModule['useGameStore']> {
   vi.resetModules();
-  const module: StoreModule = await import('../store/useGameStore');
+  const module: StoreModule = await import('../src/store/useGameStore');
   return module.useGameStore;
 }
 
@@ -259,7 +259,7 @@ describe('salvamento', () => {
     expect(state.stage).toBe(1);
     expect(state.party).toEqual(['saci']);
     expect(Object.keys(state.roster)).toEqual(['saci']);
-    expect(state.roster.saci.level).toBe(1);
+    expect(state.roster.saci?.level).toBe(1);
     expect(state.upgrades).toEqual({ 'passo-ligeiro': 50 });
     expect(state.inventory).toEqual({ 'mel-silvestre': 2 });
     expect(state.combat.enemyHp).toBeGreaterThan(0);
@@ -335,7 +335,7 @@ describe('duas abas', () => {
 
   it('avisa quando outra aba escreve a própria marca', async () => {
     vi.stubGlobal('window', new EventTarget());
-    const { claimActiveTab } = await import('../store/tabGuard');
+    const { claimActiveTab } = await import('../src/store/tabGuard');
     const onTakenOver = vi.fn();
     const stopWatching = claimActiveTab(onTakenOver);
     const ownTabId = localStorage.getItem('encantados-aba-ativa');

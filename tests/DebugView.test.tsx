@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/__tests__/DebugView.test.tsx
+ * Arquivo: tests/DebugView.test.tsx
  * O que faz: testa o painel de debug em um navegador simulado: o que ele
  * mostra e o que cada botão faz na store.
  */
@@ -11,9 +11,9 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import DebugView from '../components/DebugView';
-import { SAVE_STORAGE_KEY } from '../store/saveManager';
-import { useGameStore } from '../store/useGameStore';
+import DebugView from '../src/components/DebugView';
+import { SAVE_STORAGE_KEY } from '../src/store/saveManager';
+import { useGameStore } from '../src/store/useGameStore';
 
 let host: HTMLDivElement;
 let root: Root;

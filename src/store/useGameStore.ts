@@ -4,6 +4,13 @@
  * O que faz: é o estado global do jogo (Zustand). Guarda o GameState, expõe
  * as ações que a interface chama e grava tudo no localStorage.
  *
+ * A store só coordena. Ela não tem regra de jogo: pega o estado atual, chama
+ * uma função pura de src/domain, recebe o estado novo e grava. As regras
+ * ficam em src/domain e os números em src/data.
+ *
+ * Imutabilidade: o estado nunca é alterado no lugar. Toda mudança cria
+ * objetos novos e entra pelo "set" do Zustand.
+ *
  * Como o tempo funciona: lastSaveTimestamp marca até onde o jogo já foi
  * simulado. Cada tick mede quanto tempo real passou desde então e simula
  * exatamente esse intervalo. Intervalo curto é jogo aberto. Intervalo longo
@@ -14,96 +21,50 @@
  * desenho. Toda ação da pessoa primeiro simula o jogo até o instante do clique
  * e só depois é aplicada. Assim uma compra nunca vale para o tempo que já passou.
  *
- * A store só coordena. As regras ficam em src/engine e os números em src/data.
+ * É aqui, e não no domínio, que o relógio (Date.now) e o sorteio (Math.random)
+ * são lidos. O domínio recebe os dois por parâmetro.
  *
  * Mapa:
- *   1. Tipos
- *   2. Constantes
- *   3. Store
- *   4. Ações de simulação (tick, progresso offline e troca de aba)
- *   5. Ações de jogo (comitiva, melhorias, pactos, estágios)
- *   6. Ações de salvamento (exportar, importar, apagar tudo)
- *   7. Ações de teste (usadas pelo painel de debug)
- *   8. Ferramentas
+ *   1. Constantes e tipos internos
+ *   2. Store
+ *   3. Ações de simulação (tick, progresso offline e troca de aba)
+ *   4. Ações de jogo (comitiva, melhorias, pactos, estágios)
+ *   5. Ações de salvamento (gravar, exportar, importar, apagar tudo)
+ *   6. Ações de teste (usadas pelo painel de debug)
+ *   7. Ferramentas
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { BALANCE, MS_PER_SECOND } from '../data/balance';
-import { getEncantado, getUpgrade, getZoneForStage, hasEncantado, hasUpgrade } from '../data';
-import { getUpgradeCost, isUpgradeMaxed } from '../engine/formulas';
-import { applyOfflineProgress, mergeOfflineReports } from '../engine/offline';
-import { sealPact } from '../engine/pact';
-import { advanceSimulation, dealDirectDamage } from '../engine/simulation';
 import {
-  cloneGameState,
-  createInitialState,
-  pickGameState,
-  spawnBoss,
-  spawnCommonEnemy,
-} from '../engine/state';
-import type { CombatEvent, GameState, OfflineReport } from '../types/game';
+  buyUpgrade,
+  challengeBoss,
+  chooseStarter,
+  goToStage,
+  grantGold,
+  setAutoProgress,
+  togglePartyMember,
+} from '../domain/actions';
+import { applyOfflineProgress, mergeOfflineReports } from '../domain/offline';
+import { sealPact } from '../domain/pact';
+import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
+import { createInitialState, pickGameState } from '../domain/state';
+import type { CombatEvent, GameState } from '../domain/types';
 import { preserveUnchangedReferences } from '../utils/object';
 import {
   createThrottledStorage,
   decodeSave,
   encodeSave,
-  migrateSave,
-  sanitizeGameState,
+  getSavedGameSize,
   SAVE_STORAGE_KEY,
 } from './saveManager';
+import type { GameActions, GameStore, SessionState } from './types';
 
 // =============================================================================
 // =============================================================================
-// T I P O S
-
-export type ImportResult = { ok: true } | { ok: false; error: string };
-
-export interface GameActions {
-  // Simulação
-  tick: (now?: number) => void;
-  dismissOfflineReport: () => void;
-  yieldToAnotherTab: () => void;
-
-  // Jogo
-  chooseStarter: (encantadoId: string) => boolean;
-  togglePartyMember: (encantadoId: string) => boolean;
-  buyUpgrade: (upgradeId: string) => boolean;
-  sealPact: (encantadoId: string) => boolean;
-  setAutoProgress: (enabled: boolean) => void;
-  challengeBoss: () => boolean;
-  goToStage: (stage: number) => boolean;
-
-  // Salvamento
-  saveNow: () => void;
-  exportSave: () => string;
-  importSave: (code: string) => ImportResult;
-  hardReset: () => void;
-
-  // Teste
-  debugHitEnemy: (hpFraction: number) => void;
-  debugGrantGold: (amount: number) => void;
-  debugSkipTime: (seconds: number) => void;
-}
-
-// Campos que existem só enquanto o jogo está aberto. Não vão para o localStorage.
-export interface SessionState {
-  offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
-  combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
-  isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
-  tickCount: number; // quantos ticks rodaram desde que a página abriu. Prova que o laço anda.
-}
-
-export type GameStore = GameState & SessionState & GameActions;
-
-type SetStore = (partial: Partial<GameStore>) => void;
-type GetStore = () => GameStore;
-
-
-// =============================================================================
-// =============================================================================
-// C O N S T A N T E S
+// C O N S T A N T E S   E   T I P O S   I N T E R N O S
 
 // Lista vazia única: reaproveitar a mesma referência evita redesenhar a interface à toa
 const NO_EVENTS: readonly CombatEvent[] = [];
@@ -119,6 +80,12 @@ const OPEN_IN_ANOTHER_TAB_ERROR = 'O jogo está aberto em outra aba. Recarregue 
 
 const saveStorage = createThrottledStorage(BALANCE.saveIntervalMs);
 
+type SetStore = (partial: Partial<GameStore>) => void;
+type GetStore = () => GameStore;
+
+// Regra do domínio: recebe o estado e devolve o estado novo, ou null se a ação não vale
+type Rule = (state: GameState) => GameState | null;
+
 
 // =============================================================================
 // =============================================================================
@@ -127,7 +94,7 @@ const saveStorage = createThrottledStorage(BALANCE.saveIntervalMs);
 export const useGameStore = create<GameStore>()(
   persist(
     (set, get) => ({
-      ...createInitialState(Date.now()),
+      ...createInitialState(Date.now(), Math.random),
       ...SESSION_DEFAULTS,
       ...createSimulationActions(set, get),
       ...createGameplayActions(set, get),
@@ -137,10 +104,10 @@ export const useGameStore = create<GameStore>()(
     {
       name: SAVE_STORAGE_KEY,
       version: BALANCE.saveVersion,
+      // A leitura já devolve o estado migrado e conferido (ver saveManager.ts)
       storage: saveStorage.storage,
+      // Só o estado do jogo é gravado. Ações e campos de sessão ficam de fora.
       partialize: (store) => pickGameState(store),
-      migrate: (saved, version) => migrateSave(saved, version) as GameState,
-      merge: (saved, current) => ({ ...current, ...sanitizeGameState(saved, Date.now()) }),
     },
   ),
 );
@@ -155,7 +122,27 @@ type SimulationActions = Pick<GameActions, 'tick' | 'dismissOfflineReport' | 'yi
 // O tick e o que depende do tempo
 function createSimulationActions(set: SetStore, get: GetStore): SimulationActions {
   return {
-    // Avança o jogo do último instante simulado até "now"
+    /**
+     * Avança o jogo do último instante simulado até "now".
+     *
+     * É o passo do laço do jogo. O intervalo entre dois ticks não é fixo: o
+     * navegador atrasa abas em segundo plano. Por isso o tick mede o tempo real
+     * que passou (delta-time) e simula exatamente esse intervalo.
+     *
+     * @param now Instante atual em milissegundos. Padrão: Date.now().
+     *
+     * Casos de borda:
+     * - Intervalo de até 2 minutos (offlineThresholdSeconds): jogo aberto, rende 100%.
+     *   Vale também para aba em segundo plano, que tica mais devagar.
+     * - Intervalo maior: ausência. Rende com teto e eficiência reduzida e preenche
+     *   "offlineReport". Se já havia um relatório aberto, os dois são somados.
+     * - "now" anterior ao último tick (relógio do aparelho voltou): nada rende e a
+     *   marca de tempo é acertada para "now".
+     * - "now" igual ao último tick: nada acontece e o tick não é contado.
+     * - Jogo aberto em outra aba: nada acontece.
+     * - Os eventos de combate só são entregues em intervalos de até 1 segundo.
+     *   Acima disso a aba estava em segundo plano e não há o que animar.
+     */
     tick: (now = Date.now()) => {
       const elapsedSeconds = (now - get().lastSaveTimestamp) / MS_PER_SECOND;
 
@@ -163,7 +150,6 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
         return;
       }
       if (elapsedSeconds < 0) {
-        // O relógio do aparelho voltou no tempo: só acerta a marca, sem render nada
         set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
       } else if (elapsedSeconds > BALANCE.offlineThresholdSeconds) {
         runOfflineTick(set, get, now);
@@ -174,8 +160,16 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
 
     dismissOfflineReport: () => set({ offlineReport: null }),
 
-    // Outra aba abriu o jogo. Duas abas gravando no mesmo salvamento apagariam o progresso
-    // uma da outra, então esta para de gravar e de simular. A aba nova continua de onde parou.
+    /**
+     * Entrega o jogo para outra aba que acabou de abrir.
+     *
+     * Duas abas gravando no mesmo salvamento apagariam o progresso uma da outra.
+     * Esta aba para de gravar e de simular, e a aba nova continua do último
+     * salvamento. O intervalo que esta aba jogou sem gravar não se perde: a aba
+     * nova simula esse tempo, porque o progresso é calculado pelo relógio.
+     *
+     * Caso de borda: não tem volta. Para jogar de novo nesta aba, é preciso recarregar.
+     */
     yieldToAnotherTab: () => {
       saveStorage.disable();
       set({ isOpenInAnotherTab: true, combatEvents: NO_EVENTS });
@@ -185,37 +179,35 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
 
 // Jogo aberto: simula o intervalo inteiro e entrega os eventos para a interface
 function runOnlineTick(set: SetStore, get: GetStore, now: number, elapsedSeconds: number): void {
-  const events: CombatEvent[] = [];
+  const current = pickGameState(get());
   // Com a aba em segundo plano o intervalo cresce, e animar centenas de golpes de uma vez não ajuda
   const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
-  const onEvent = isTabActive ? (event: CombatEvent) => events.push(event) : undefined;
+  const result = advanceSimulation(current, elapsedSeconds, {
+    startTimestamp: current.lastSaveTimestamp,
+    random: Math.random,
+    collectEvents: isTabActive,
+  });
+  const next: GameState = { ...result.state, lastSaveTimestamp: now };
 
-  const simulate = (draft: GameState): void => {
-    advanceSimulation(draft, elapsedSeconds, { startTimestamp: draft.lastSaveTimestamp, onEvent });
-    draft.lastSaveTimestamp = now;
-  };
-  const describeSession = (): Partial<SessionState> => ({
-    combatEvents: events.length > 0 ? events : NO_EVENTS,
+  commitState(set, current, next, {
+    combatEvents: result.events.length > 0 ? result.events : NO_EVENTS,
     tickCount: get().tickCount + 1,
   });
-
-  commitChange(set, get, simulate, describeSession);
 }
 
 // Volta de uma ausência: simula com teto e eficiência reduzida e guarda o relatório
 function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
-  const simulate = (draft: GameState): OfflineReport | null => applyOfflineProgress(draft, now);
-  const describeSession = (report: OfflineReport | null): Partial<SessionState> => {
-    const tickCount = get().tickCount + 1;
+  const current = pickGameState(get());
+  const result = applyOfflineProgress(current, now, Math.random);
+  const tickCount = get().tickCount + 1;
 
-    if (report === null) {
-      return { tickCount };
-    }
-    const offlineReport = mergeOfflineReports(get().offlineReport, report);
-    return { offlineReport, combatEvents: NO_EVENTS, tickCount };
-  };
+  if (result.report === null) {
+    commitState(set, current, result.state, { tickCount });
+    return;
+  }
 
-  commitChange(set, get, simulate, describeSession);
+  const offlineReport = mergeOfflineReports(get().offlineReport, result.report);
+  commitState(set, current, result.state, { offlineReport, combatEvents: NO_EVENTS, tickCount });
 }
 
 
@@ -234,136 +226,52 @@ type GameplayActions = Pick<
   | 'goToStage'
 >;
 
-// Tudo que a pessoa decide: comitiva, melhorias, pactos e estágios.
-// As ações que podem falhar devolvem true quando deram certo.
+// Tudo que a pessoa decide. Cada ação só liga a entrada à regra do domínio.
 function createGameplayActions(set: SetStore, get: GetStore): GameplayActions {
   return {
     chooseStarter: (encantadoId) =>
-      applyInput(set, get, (draft) => chooseStarter(draft, encantadoId)),
+      applyInput(set, get, (state) => chooseStarter(state, encantadoId)),
     togglePartyMember: (encantadoId) =>
-      applyInput(set, get, (draft) => togglePartyMember(draft, encantadoId)),
-    buyUpgrade: (upgradeId) =>
-      applyInput(set, get, (draft) => buyUpgrade(draft, upgradeId)),
+      applyInput(set, get, (state) => togglePartyMember(state, encantadoId)),
+    buyUpgrade: (upgradeId) => applyInput(set, get, (state) => buyUpgrade(state, upgradeId)),
     sealPact: (encantadoId) =>
-      applyInput(set, get, (draft) => sealPact(draft, encantadoId, Date.now())),
+      applyInput(set, get, (state) => sealPact(state, encantadoId, Date.now())),
     setAutoProgress: (enabled) => {
-      applyInput(set, get, (draft) => setAutoProgress(draft, enabled));
+      applyInput(set, get, (state) => setAutoProgress(state, enabled));
     },
-    challengeBoss: () => applyInput(set, get, (draft) => challengeBoss(draft)),
-    goToStage: (stage) => applyInput(set, get, (draft) => goToStage(draft, stage)),
+    challengeBoss: () => applyInput(set, get, (state) => challengeBoss(state)),
+    goToStage: (stage) => applyInput(set, get, (state) => goToStage(state, stage, Math.random)),
   };
 }
 
-// Entrada da pessoa: simula até o instante do clique e só então aplica a ação.
-// Sem isso, uma melhoria comprada agora valeria também para o tempo que já passou.
-function applyInput(set: SetStore, get: GetStore, change: (draft: GameState) => boolean): boolean {
+/**
+ * Aplica uma entrada da pessoa seguindo a ordem do laço: primeiro atualiza, depois aplica.
+ *
+ * Antes de aplicar a regra, roda um tick até o instante atual. Sem isso, uma
+ * melhoria comprada agora valeria também para o tempo que passou desde o último tick.
+ *
+ * @param set Função de gravação da store.
+ * @param get Função de leitura da store.
+ * @param rule Regra do domínio. Recebe o estado atual e devolve o estado novo, ou null.
+ * @returns true se a regra devolveu um estado novo e ele foi gravado.
+ *
+ * Casos de borda: com o jogo aberto em outra aba, nada é aplicado e o retorno é
+ * false. Quando a regra devolve null (ação não permitida), o estado não muda.
+ */
+function applyInput(set: SetStore, get: GetStore, rule: Rule): boolean {
   if (get().isOpenInAnotherTab) {
     return false;
   }
 
   get().tick(Date.now());
-  return commitChange(set, get, change);
-}
+  const current = pickGameState(get());
+  const next = rule(current);
 
-// Liga ou desliga o avanço automático de estágio
-function setAutoProgress(draft: GameState, enabled: boolean): boolean {
-  draft.autoProgress = enabled;
-  return true;
-}
-
-// Primeiro encantado da comitiva. Só vale uma vez, com o elenco vazio.
-function chooseStarter(draft: GameState, encantadoId: string): boolean {
-  const hasNoRoster = Object.keys(draft.roster).length === 0;
-  const isStarter = hasEncantado(encantadoId) && getEncantado(encantadoId).isStarter;
-
-  if (!hasNoRoster || !isStarter) {
+  if (next === null) {
     return false;
   }
 
-  draft.roster[encantadoId] = { id: encantadoId, level: 1, xp: 0, bond: 0 };
-  draft.party = [encantadoId];
-  draft.combat.attackProgress = { [encantadoId]: 0 };
-  return true;
-}
-
-// Tira da comitiva quem está nela, ou coloca quem está fora
-function togglePartyMember(draft: GameState, encantadoId: string): boolean {
-  return draft.party.includes(encantadoId)
-    ? removeFromParty(draft, encantadoId)
-    : addToParty(draft, encantadoId);
-}
-
-// Sai da comitiva, desde que não seja o último
-function removeFromParty(draft: GameState, encantadoId: string): boolean {
-  const isLastMember = draft.party.length <= 1;
-
-  if (isLastMember) {
-    return false;
-  }
-
-  draft.party = draft.party.filter((memberId) => memberId !== encantadoId);
-  delete draft.combat.attackProgress[encantadoId];
-  return true;
-}
-
-// Entra na comitiva, desde que esteja no elenco e haja vaga
-function addToParty(draft: GameState, encantadoId: string): boolean {
-  const isOwned = encantadoId in draft.roster;
-  const hasRoom = draft.party.length < BALANCE.maxPartySize;
-
-  if (!isOwned || !hasRoom) {
-    return false;
-  }
-
-  draft.party.push(encantadoId);
-  draft.combat.attackProgress[encantadoId] = 0;
-  return true;
-}
-
-// Compra um nível da melhoria, se houver Patacas e o nível máximo não tiver chegado
-function buyUpgrade(draft: GameState, upgradeId: string): boolean {
-  if (!hasUpgrade(upgradeId)) {
-    return false;
-  }
-
-  const upgrade = getUpgrade(upgradeId);
-  const level = draft.upgrades[upgradeId] ?? 0;
-  const cost = getUpgradeCost(upgrade, level);
-  const canBuy = draft.gold >= cost && !isUpgradeMaxed(upgrade, level);
-
-  if (!canBuy) {
-    return false;
-  }
-
-  draft.gold -= cost;
-  draft.upgrades[upgradeId] = level + 1;
-  return true;
-}
-
-// Chama o chefe na hora, para quem joga com o avanço automático desligado
-function challengeBoss(draft: GameState): boolean {
-  const zone = getZoneForStage(draft.stage);
-  const canChallenge = !draft.combat.isBoss && draft.killsInStage >= zone.killsToBoss;
-
-  if (!canChallenge) {
-    return false;
-  }
-
-  spawnBoss(draft);
-  return true;
-}
-
-// Muda para um estágio já liberado, para voltar e juntar Oferendas
-function goToStage(draft: GameState, stage: number): boolean {
-  const isUnlocked = Number.isInteger(stage) && stage >= 1 && stage <= draft.maxStage;
-
-  if (!isUnlocked) {
-    return false;
-  }
-
-  draft.stage = stage;
-  draft.killsInStage = 0;
-  spawnCommonEnemy(draft, Math.random);
+  commitState(set, current, next);
   return true;
 }
 
@@ -377,19 +285,32 @@ type SaveActions = Pick<GameActions, 'saveNow' | 'exportSave' | 'importSave' | '
 // Gravar agora, exportar, importar e apagar tudo
 function createSaveActions(set: SetStore, get: GetStore): SaveActions {
   return {
-    // Grava no localStorage sem esperar o intervalo. O laço do jogo chama ao fechar a aba.
-    saveNow: () => saveStorage.flush(),
+    // Grava no localStorage sem esperar o intervalo e devolve o comprovante
+    saveNow: () => {
+      saveStorage.flush();
+      return { savedAt: Date.now(), sizeInCharacters: getSavedGameSize() };
+    },
 
     // Código para copiar e guardar fora do navegador
     exportSave: () => encodeSave(pickGameState(get()), Date.now()),
 
-    // Troca o jogo atual pelo do código. Se o código for inválido, nada muda.
+    /**
+     * Troca o jogo atual pelo jogo de um código de exportação.
+     *
+     * @param code Código gerado por "exportSave".
+     * @returns { ok: true } se importou, ou { ok: false, error } com a mensagem para a pessoa.
+     *
+     * Casos de borda: código inválido, de outro jogo ou de versão mais nova não muda
+     * nada. Importar não rende progresso offline. O relatório de ausência aberto é
+     * fechado. O jogo importado é gravado na hora. Com o jogo aberto em outra aba,
+     * a importação é recusada.
+     */
     importSave: (code) => {
       if (get().isOpenInAnotherTab) {
         return { ok: false, error: OPEN_IN_ANOTHER_TAB_ERROR };
       }
 
-      const decoded = decodeSave(code, Date.now());
+      const decoded = decodeSave(code, Date.now(), Math.random);
 
       if (!decoded.ok) {
         return decoded;
@@ -399,10 +320,18 @@ function createSaveActions(set: SetStore, get: GetStore): SaveActions {
       return { ok: true };
     },
 
-    // Apaga tudo e começa de novo. A confirmação dupla fica por conta da interface.
+    /**
+     * Apaga o jogo inteiro e começa de novo.
+     *
+     * Não pede confirmação: isso é papel da interface, que só chama esta ação
+     * depois de a pessoa confirmar.
+     *
+     * Casos de borda: o jogo novo é gravado na hora, por cima do antigo, e não há
+     * como desfazer. Com o jogo aberto em outra aba, nada é apagado.
+     */
     hardReset: () => {
       if (!get().isOpenInAnotherTab) {
-        replaceGame(set, createInitialState(Date.now()));
+        replaceGame(set, createInitialState(Date.now(), Math.random));
       }
     },
   };
@@ -422,17 +351,17 @@ function replaceGame(set: SetStore, state: GameState): void {
 type DebugActions = Pick<GameActions, 'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime'>;
 
 // Atalhos para o painel de debug mexer no jogo sem esperar o ritmo normal.
-// Passam pelo mesmo caminho das ações de jogo: simulam até agora e só então alteram.
+// Passam pelo mesmo caminho das ações de jogo: simulam até agora e só então aplicam.
 function createDebugActions(set: SetStore, get: GetStore): DebugActions {
   return {
     // Tira do inimigo uma fração da vida máxima (1 = derrota na hora)
     debugHitEnemy: (hpFraction) => {
-      applyInput(set, get, (draft) => hitEnemy(draft, hpFraction));
+      applyInput(set, get, (state) => hitEnemy(state, hpFraction));
     },
 
     // Soma Patacas direto no saldo
     debugGrantGold: (amount) => {
-      applyInput(set, get, (draft) => grantGold(draft, amount));
+      applyInput(set, get, (state) => grantGold(state, amount));
     },
 
     // Faz de conta que o jogo ficou fechado por "seconds" segundos: recua a marca do tempo
@@ -449,26 +378,15 @@ function createDebugActions(set: SetStore, get: GetStore): DebugActions {
   };
 }
 
-// Golpe direto. A derrota entrega as recompensas normais e chama o próximo inimigo.
-function hitEnemy(draft: GameState, hpFraction: number): boolean {
-  const damage = draft.combat.enemyMaxHp * hpFraction;
+// Golpe direto de uma fração da vida máxima. Null quando o golpe não tira nada.
+function hitEnemy(state: GameState, hpFraction: number): GameState | null {
+  const damage = state.combat.enemyMaxHp * hpFraction;
+  const result = dealDirectDamage(state, damage, {
+    startTimestamp: state.lastSaveTimestamp,
+    random: Math.random,
+  });
 
-  if (!(damage > 0)) {
-    return false;
-  }
-
-  dealDirectDamage(draft, damage, { startTimestamp: draft.lastSaveTimestamp });
-  return true;
-}
-
-// Patacas de teste. Não entram na estatística de Patacas ganhas.
-function grantGold(draft: GameState, amount: number): boolean {
-  if (!(amount > 0)) {
-    return false;
-  }
-
-  draft.gold += amount;
-  return true;
+  return result.state === state ? null : result.state;
 }
 
 
@@ -476,24 +394,14 @@ function grantGold(draft: GameState, amount: number): boolean {
 // =============================================================================
 // F E R R A M E N T A S
 
-// Aplica uma mudança numa cópia do estado e grava o resultado na store, numa gravação só.
-// O motor altera a cópia à vontade e o estado antigo nunca é tocado.
-// "describeSession" permite mudar junto os campos que não são salvos (relatório, eventos).
-function commitChange<Result>(
+// Grava o estado novo na store, em uma gravação só, junto com os campos de sessão.
+// Campo que não mudou de conteúdo mantém a referência antiga, para a interface
+// redesenhar só o que mudou de verdade.
+function commitState(
   set: SetStore,
-  get: GetStore,
-  change: (draft: GameState) => Result,
-  describeSession: (result: Result) => Partial<SessionState> = keepSession,
-): Result {
-  const previous = pickGameState(get());
-  const draft = cloneGameState(previous);
-  const result = change(draft);
-
-  set({ ...preserveUnchangedReferences(previous, draft), ...describeSession(result) });
-  return result;
-}
-
-// Padrão do commitChange: os campos de sessão ficam como estão
-function keepSession(): Partial<SessionState> {
-  return {};
+  previous: GameState,
+  next: GameState,
+  session: Partial<SessionState> = {},
+): void {
+  set({ ...preserveUnchangedReferences(previous, next), ...session });
 }

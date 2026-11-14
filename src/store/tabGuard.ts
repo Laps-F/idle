@@ -9,6 +9,7 @@
  * O navegador avisa as outras abas dessa escrita pelo evento "storage".
  */
 
+import { createUniqueId } from '../utils/id';
 import { writeToLocalStorage } from './saveManager';
 
 // =============================================================================
@@ -17,10 +18,18 @@ import { writeToLocalStorage } from './saveManager';
 
 const ACTIVE_TAB_KEY = 'encantados-aba-ativa';
 
-// Marca esta aba como a dona do jogo e chama "onTakenOver" se outra aba assumir.
-// Devolve a função que para de escutar.
+/**
+ * Marca esta aba como a dona do jogo e avisa quando outra aba assumir.
+ *
+ * @param onTakenOver Chamada quando outra aba escreve a própria marca.
+ * @returns Função que para de escutar. Chame ao desligar o laço do jogo.
+ *
+ * Casos de borda: o evento "storage" só chega nas OUTRAS abas, então a aba não
+ * reage à própria marca. Sem localStorage, a marca não é gravada e nenhuma aba
+ * é avisada: as abas voltam a concorrer, mas o jogo continua funcionando.
+ */
 export function claimActiveTab(onTakenOver: () => void): () => void {
-  const tabId = createTabId();
+  const tabId = createUniqueId(Date.now(), Math.random);
 
   const handleStorage = (event: StorageEvent): void => {
     const wasTakenOver = event.key === ACTIVE_TAB_KEY && event.newValue !== tabId;
@@ -33,10 +42,4 @@ export function claimActiveTab(onTakenOver: () => void): () => void {
   writeToLocalStorage(ACTIVE_TAB_KEY, tabId);
   window.addEventListener('storage', handleStorage);
   return () => window.removeEventListener('storage', handleStorage);
-}
-
-// Marca única desta aba: o instante em que abriu mais um trecho sorteado
-function createTabId(): string {
-  const randomPart = Math.random().toString(36).slice(2);
-  return `${Date.now()}-${randomPart}`;
 }

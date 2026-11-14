@@ -5,7 +5,7 @@
  * comitiva tem encantados suficientes da mesma origem.
  */
 
-import type { SynergyDef } from '../types/game';
+import type { SynergyDef } from '../domain/types';
 
 // =============================================================================
 // =============================================================================

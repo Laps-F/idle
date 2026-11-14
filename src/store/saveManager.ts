@@ -7,8 +7,11 @@
  *   - atualiza salvamentos de versões antigas;
  *   - confere e conserta um salvamento antes de usar.
  *
+ * Regra de tipagem: tudo que vem de fora (localStorage, código colado) entra
+ * como "unknown" e só vira GameState depois de passar pela conferência.
+ *
  * Mapa:
- *   1. Constantes e tipos
+ *   1. Constantes e tipos (incluindo os payloads de salvamento)
  *   2. Gravação no localStorage
  *   3. Exportação e importação
  *   4. Migração entre versões
@@ -19,11 +22,12 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 
 import { BALANCE } from '../data/balance';
-import { getUpgrade, getZoneForStage, hasEncantado, hasItem, hasUpgrade } from '../data';
-import { createInitialState } from '../engine/state';
-import type { CombatState, GameState, GameStats, OwnedEncantado } from '../types/game';
+import { getUpgrade, getZoneForStage, hasEncantado, hasItem, hasUpgrade } from '../domain/catalog';
+import { createCommonEnemyCombat, createInitialState } from '../domain/state';
+import type { CombatState, GameState, GameStats, OwnedEncantado } from '../domain/types';
 import { decodeBase64, encodeBase64 } from '../utils/base64';
 import { isRecord } from '../utils/object';
+import type { RandomSource } from '../utils/random';
 
 // =============================================================================
 // =============================================================================
@@ -44,6 +48,28 @@ const IMPORT_ERRORS = {
     'Esse salvamento veio de uma versão mais nova do jogo. Atualize a página e tente de novo.',
 } as const;
 
+// Payload gravado no localStorage: o estado do jogo e a versão do formato
+export type PersistedSave = StorageValue<GameState>;
+
+// Payload do código de exportação, antes de virar Base64
+export interface ExportedSave {
+  game: string; // sempre SAVE_SIGNATURE
+  version: number; // versão do formato do estado
+  exportedAt: number; // instante da exportação, em ms
+  state: GameState;
+}
+
+// Salvamento lido de fora, ainda sem conferência: só se sabe a versão
+interface UnverifiedSave {
+  version: number;
+  state: unknown;
+}
+
+// Código de exportação lido de fora, ainda sem conferência
+interface UnverifiedExport extends UnverifiedSave {
+  game: string;
+}
+
 export interface ThrottledStorage {
   storage: PersistStorage<GameState>;
   flush: () => void; // grava agora o que estiver pendente
@@ -52,13 +78,6 @@ export interface ThrottledStorage {
 
 export type DecodeResult = { ok: true; state: GameState } | { ok: false; error: string };
 
-interface ExportedSave {
-  game: string;
-  version: number;
-  exportedAt: number;
-  state: unknown;
-}
-
 type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
 
 
@@ -66,10 +85,25 @@ type Migration = (save: Record<string, unknown>) => Record<string, unknown>;
 // =============================================================================
 // G R A V A Ç Ã O   N O   L O C A L S T O R A G E
 
-// Armazenamento para o persist do Zustand que junta as gravações.
-// O tick muda o estado 10 vezes por segundo; gravar no disco nesse ritmo travaria o jogo.
+/**
+ * Cria o armazenamento que o persist do Zustand usa, com gravação espaçada.
+ *
+ * O tick muda o estado 10 vezes por segundo, e gravar no disco nesse ritmo
+ * travaria o jogo. Este armazenamento guarda só o último estado recebido e
+ * grava no localStorage no máximo uma vez a cada "intervalMs".
+ *
+ * @param intervalMs Intervalo mínimo entre duas gravações, em milissegundos.
+ * @returns O armazenamento, mais "flush" (grava agora) e "disable" (para de gravar).
+ *
+ * Casos de borda:
+ * - A leitura já devolve o estado migrado e conferido. Salvamento ilegível vira
+ *   jogo novo, e o texto original fica guardado em uma chave de cópia.
+ * - Sem localStorage (modo privado, cookies bloqueados), ler devolve null e
+ *   gravar não faz nada. O jogo roda, só não salva.
+ * - Depois de "disable", nenhuma gravação acontece até a página ser recarregada.
+ */
 export function createThrottledStorage(intervalMs: number): ThrottledStorage {
-  let pending: { name: string; value: StorageValue<GameState> } | null = null;
+  let pending: { name: string; value: PersistedSave } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let isEnabled = true;
 
@@ -92,7 +126,7 @@ export function createThrottledStorage(intervalMs: number): ThrottledStorage {
   };
 
   const storage: PersistStorage<GameState> = {
-    getItem: (name) => readSave(name),
+    getItem: (name) => readSave(name, Date.now(), Math.random),
     setItem: (name, value) => {
       if (isEnabled) {
         pending = { name, value };
@@ -108,19 +142,41 @@ export function createThrottledStorage(intervalMs: number): ThrottledStorage {
   return { storage, flush, disable };
 }
 
-// Lê o salvamento. Se estiver ilegível, guarda uma cópia e devolve null (jogo novo).
-function readSave(name: string): StorageValue<GameState> | null {
+// Lê o salvamento, migra e confere. Se estiver ilegível, guarda uma cópia e devolve null.
+function readSave(name: string, now: number, random: RandomSource): PersistedSave | null {
   const raw = getLocalStorage()?.getItem(name) ?? null;
 
   if (raw === null) {
     return null;
   }
 
-  try {
-    return JSON.parse(raw) as StorageValue<GameState>;
-  } catch (error) {
-    console.warn('Salvamento ilegível. Uma cópia foi guardada e o jogo começa do zero.', error);
+  const unverified = parseUnverifiedSave(raw);
+
+  if (unverified === null) {
+    console.warn('Salvamento ilegível. Uma cópia foi guardada e o jogo começa do zero.');
     writeToLocalStorage(name + CORRUPTED_BACKUP_SUFFIX, raw);
+    return null;
+  }
+
+  const migrated = migrateSave(unverified.state, unverified.version);
+  return { state: sanitizeGameState(migrated, now, random), version: BALANCE.saveVersion };
+}
+
+// Texto do localStorage -> salvamento ainda sem conferência. Null se não for JSON no formato certo.
+function parseUnverifiedSave(raw: string): UnverifiedSave | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const hasExpectedShape = isRecord(parsed) && 'state' in parsed;
+
+    if (!hasExpectedShape) {
+      return null;
+    }
+
+    // Salvamento sem versão é tratado como da versão atual
+    const version = typeof parsed.version === 'number' ? parsed.version : BALANCE.saveVersion;
+    return { version, state: parsed.state };
+  } catch {
+    // Texto que não é JSON: quem chama guarda a cópia e avisa
     return null;
   }
 }
@@ -166,9 +222,24 @@ export function encodeSave(state: GameState, now: number): string {
   return encodeBase64(JSON.stringify(exported));
 }
 
-// Código de exportação -> estado conferido, ou a mensagem do que deu errado
-export function decodeSave(code: string, now: number): DecodeResult {
-  const exported = parseExportedSave(code);
+/**
+ * Transforma um código de exportação em um estado pronto para usar.
+ *
+ * @param code Código gerado por encodeSave (JSON em Base64).
+ * @param now Instante atual em ms. Vira a marca de tempo do estado importado.
+ * @param random Fonte de sorteio, usada se o combate do código precisar ser refeito.
+ * @returns O estado migrado e conferido, ou a mensagem do que deu errado.
+ *
+ * Casos de borda:
+ * - Código cortado, que não é Base64 ou não é JSON: erro "não consegui ler".
+ * - Código de outro jogo: erro próprio.
+ * - Código de uma versão mais nova que a do jogo: erro pedindo para atualizar a página.
+ * - Importar nunca rende progresso offline: a marca de tempo recomeça em "now",
+ *   não importa há quanto tempo o código foi exportado.
+ * - Campos estragados ou adulterados são consertados pela conferência, em vez de recusados.
+ */
+export function decodeSave(code: string, now: number, random: RandomSource): DecodeResult {
+  const exported = parseUnverifiedExport(code);
 
   if (exported === null) {
     return { ok: false, error: IMPORT_ERRORS.unreadable };
@@ -180,19 +251,23 @@ export function decodeSave(code: string, now: number): DecodeResult {
     return { ok: false, error: IMPORT_ERRORS.newerVersion };
   }
 
-  const state = sanitizeGameState(migrateSave(exported.state, exported.version), now);
-  // Importar não rende progresso offline: o relógio recomeça agora
-  state.lastSaveTimestamp = now;
-  return { ok: true, state };
+  const migrated = migrateSave(exported.state, exported.version);
+  const state = sanitizeGameState(migrated, now, random);
+  return { ok: true, state: { ...state, lastSaveTimestamp: now } };
 }
 
 // Decodifica o código. Devolve null se não for Base64, JSON ou não tiver o formato esperado.
-function parseExportedSave(code: string): ExportedSave | null {
+function parseUnverifiedExport(code: string): UnverifiedExport | null {
   try {
     const parsed: unknown = JSON.parse(decodeBase64(code));
-    const hasExpectedShape =
-      isRecord(parsed) && typeof parsed.game === 'string' && typeof parsed.version === 'number';
-    return hasExpectedShape ? (parsed as unknown as ExportedSave) : null;
+
+    if (!isRecord(parsed)) {
+      return null;
+    }
+
+    const { game, version, state } = parsed;
+    const hasExpectedShape = typeof game === 'string' && typeof version === 'number';
+    return hasExpectedShape ? { game, version, state } : null;
   } catch {
     // Código cortado ou digitado errado: quem chama mostra a mensagem para a pessoa
     return null;
@@ -209,7 +284,17 @@ function parseExportedSave(code: string): ExportedSave | null {
 // BALANCE.saveVersion e registre aqui como converter o formato antigo.
 const MIGRATIONS: Record<number, Migration> = {};
 
-// Aplica, em ordem, as migrações que faltam para o salvamento chegar à versão atual
+/**
+ * Aplica, em ordem, as migrações que faltam para o salvamento chegar à versão atual.
+ *
+ * @param save Estado lido de fora, ainda sem conferência.
+ * @param fromVersion Versão em que o salvamento foi gravado.
+ * @returns O estado no formato da versão atual, ainda sem conferência.
+ *
+ * Casos de borda: versão igual ou maior que a atual não muda nada. Versão sem
+ * migração registrada é pulada. Estado que não é um objeto é devolvido como veio,
+ * e a conferência cuida dele depois.
+ */
 export function migrateSave(save: unknown, fromVersion: number): unknown {
   let migrated = save;
 
@@ -229,37 +314,53 @@ export function migrateSave(save: unknown, fromVersion: number): unknown {
 // =============================================================================
 // C O N F E R Ê N C I A   D O   S A L V A M E N T O
 
-// Monta um estado válido a partir de qualquer coisa lida do disco ou importada.
-// Campo ausente ou estragado recebe o valor de um jogo novo.
-export function sanitizeGameState(raw: unknown, now: number): GameState {
-  const fresh = createInitialState(now);
-
+/**
+ * Monta um estado válido a partir de qualquer coisa lida do disco ou importada.
+ *
+ * É a fronteira entre o mundo de fora e o jogo: recebe "unknown" e devolve um
+ * GameState em que o motor pode confiar.
+ *
+ * @param raw Estado lido de fora. Pode ser qualquer coisa.
+ * @param now Instante atual em ms. Limita a marca de tempo e serve de valor padrão.
+ * @param random Fonte de sorteio, usada se o combate precisar ser refeito.
+ * @returns Um GameState completo e coerente.
+ *
+ * Casos de borda:
+ * - "raw" que não é um objeto: devolve um jogo novo.
+ * - Campo ausente ou do tipo errado: recebe o valor de um jogo novo.
+ * - Número negativo, NaN ou infinito: vira o mínimo permitido ou o valor padrão.
+ * - Id que não existe mais nos dados (encantado, item, melhoria): é descartado.
+ * - Comitiva com gente fora do elenco, repetida ou acima do limite: é corrigida.
+ *   Elenco sem comitiva recebe o primeiro do elenco, para o jogo não ficar parado.
+ * - Marca de tempo no futuro: é trazida para "now", para não render tempo que não passou.
+ * - Combate com inimigo que não é da zona, sem vida ou com chefe sem tempo: é refeito.
+ */
+export function sanitizeGameState(raw: unknown, now: number, random: RandomSource): GameState {
   if (!isRecord(raw)) {
-    return fresh;
+    return createInitialState(now, random);
   }
 
   const roster = sanitizeRoster(raw.roster);
+  const party = sanitizeParty(raw.party, roster);
   const stage = toInteger(raw.stage, 1, 1);
-  const state: GameState = {
+
+  return {
     version: BALANCE.saveVersion,
     gold: toNumber(raw.gold, 0, 0),
     stage,
     maxStage: Math.max(stage, toInteger(raw.maxStage, stage, 1)),
     killsInStage: Math.min(toInteger(raw.killsInStage, 0, 0), getZoneForStage(stage).killsToBoss),
     autoProgress: raw.autoProgress !== false,
-    party: sanitizeParty(raw.party, roster),
+    party,
     roster,
     trails: sanitizeCounters(raw.trails, hasEncantado),
     inventory: sanitizeCounters(raw.inventory, hasItem),
     upgrades: sanitizeUpgrades(raw.upgrades),
     roots: toInteger(raw.roots, 0, 0),
-    combat: fresh.combat,
+    combat: sanitizeCombat(raw.combat, stage, party, random),
     lastSaveTimestamp: Math.min(toNumber(raw.lastSaveTimestamp, now, 0), now),
     stats: sanitizeStats(raw.stats),
   };
-
-  state.combat = sanitizeCombat(raw.combat, state, now);
-  return state;
 }
 
 // Elenco: só encantados que existem, com nível a partir de 1
@@ -286,7 +387,7 @@ function sanitizeRoster(raw: unknown): Record<string, OwnedEncantado> {
 
 // Comitiva: só quem está no elenco, sem repetição e dentro do limite de vagas
 function sanitizeParty(raw: unknown, roster: Record<string, OwnedEncantado>): string[] {
-  const candidates = Array.isArray(raw) ? raw : [];
+  const candidates: unknown[] = Array.isArray(raw) ? raw : [];
   const isOwnedId = (encantadoId: unknown): encantadoId is string =>
     typeof encantadoId === 'string' && encantadoId in roster;
   const members = candidates.filter(isOwnedId);
@@ -322,9 +423,9 @@ function sanitizeCounters(
 function sanitizeUpgrades(raw: unknown): Record<string, number> {
   const levels = sanitizeCounters(raw, hasUpgrade);
 
-  for (const upgradeId of Object.keys(levels)) {
+  for (const [upgradeId, level] of Object.entries(levels)) {
     const maxLevel = getUpgrade(upgradeId).maxLevel ?? Infinity;
-    levels[upgradeId] = Math.min(levels[upgradeId], maxLevel);
+    levels[upgradeId] = Math.min(level, maxLevel);
   }
 
   return levels;
@@ -343,14 +444,21 @@ function sanitizeStats(raw: unknown): GameStats {
 }
 
 // Combate: mantém o inimigo salvo se ele fizer sentido no estágio. Senão, entra uma visagem nova.
-function sanitizeCombat(raw: unknown, state: GameState, now: number): CombatState {
-  const zone = getZoneForStage(state.stage);
-  const freshCombat = createInitialState(now).combat;
+function sanitizeCombat(
+  raw: unknown,
+  stage: number,
+  party: readonly string[],
+  random: RandomSource,
+): CombatState {
+  const savedProgress = isRecord(raw) ? raw.attackProgress : undefined;
+  const attackProgress = sanitizeAttackProgress(savedProgress, party);
+  const freshCombat = createCommonEnemyCombat(stage, attackProgress, random);
 
   if (!isRecord(raw) || typeof raw.enemyId !== 'string') {
     return freshCombat;
   }
 
+  const zone = getZoneForStage(stage);
   const isBoss = raw.isBoss === true && raw.enemyId === zone.bossId;
   const isCommonEnemy = raw.isBoss !== true && zone.enemyIds.includes(raw.enemyId);
   const enemyMaxHp = toNumber(raw.enemyMaxHp, 0, 0);
@@ -363,14 +471,7 @@ function sanitizeCombat(raw: unknown, state: GameState, now: number): CombatStat
     return freshCombat;
   }
 
-  return {
-    enemyId: raw.enemyId,
-    enemyHp,
-    enemyMaxHp,
-    isBoss,
-    bossTimeLeft,
-    attackProgress: sanitizeAttackProgress(raw.attackProgress, state.party),
-  };
+  return { enemyId: raw.enemyId, enemyHp, enemyMaxHp, isBoss, bossTimeLeft, attackProgress };
 }
 
 // Barras de ataque: uma por encantado da comitiva, entre 0 e 1

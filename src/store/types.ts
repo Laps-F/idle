@@ -1,0 +1,82 @@
+/*
+ * Encantados - idle de coleção com folclore brasileiro
+ * Arquivo: src/store/types.ts
+ * O que faz: tipagens da store: o que ela guarda além do estado do jogo, as
+ * ações que expõe e o que algumas ações devolvem.
+ *
+ * Mapa:
+ *   1. Resultados de ações
+ *   2. Estado de sessão
+ *   3. Ações
+ *   4. Store completa
+ */
+
+import type { CombatEvent, GameState, OfflineReport } from '../domain/types';
+
+// =============================================================================
+// =============================================================================
+// R E S U L T A D O S   D E   A Ç Õ E S
+
+// Importação: deu certo, ou a mensagem do que deu errado
+export type ImportResult = { ok: true } | { ok: false; error: string };
+
+// Comprovante de uma gravação manual
+export interface SaveReceipt {
+  savedAt: number; // instante da gravação, em ms
+  sizeInCharacters: number | null; // tamanho do que está no localStorage. Null se não há nada.
+}
+
+
+// =============================================================================
+// =============================================================================
+// E S T A D O   D E   S E S S Ã O
+
+// Campos que existem só enquanto o jogo está aberto. Não vão para o localStorage.
+export interface SessionState {
+  offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
+  combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
+  isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
+  tickCount: number; // quantos ticks rodaram desde que a página abriu. Prova que o laço anda.
+}
+
+// O que os seletores leem: estado do jogo mais estado de sessão, sem as ações
+export type GameSnapshot = GameState & SessionState;
+
+
+// =============================================================================
+// =============================================================================
+// A Ç Õ E S
+
+export interface GameActions {
+  // Simulação
+  tick: (now?: number) => void;
+  dismissOfflineReport: () => void;
+  yieldToAnotherTab: () => void;
+
+  // Jogo. Devolvem true quando a ação foi aplicada.
+  chooseStarter: (encantadoId: string) => boolean;
+  togglePartyMember: (encantadoId: string) => boolean;
+  buyUpgrade: (upgradeId: string) => boolean;
+  sealPact: (encantadoId: string) => boolean;
+  setAutoProgress: (enabled: boolean) => void;
+  challengeBoss: () => boolean;
+  goToStage: (stage: number) => boolean;
+
+  // Salvamento
+  saveNow: () => SaveReceipt;
+  exportSave: () => string;
+  importSave: (code: string) => ImportResult;
+  hardReset: () => void;
+
+  // Teste
+  debugHitEnemy: (hpFraction: number) => void;
+  debugGrantGold: (amount: number) => void;
+  debugSkipTime: (seconds: number) => void;
+}
+
+
+// =============================================================================
+// =============================================================================
+// S T O R E   C O M P L E T A
+
+export type GameStore = GameState & SessionState & GameActions;

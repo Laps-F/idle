@@ -21,7 +21,7 @@ do guia de manutenção.
 ```bash
 npm install
 npm run dev        # abre o jogo em http://localhost:5173
-npm test           # roda os testes dos dados, do motor, da store e do painel
+npm test           # roda os testes dos dados, do domínio, da store, do painel e da arquitetura
 npm run typecheck  # confere as tipagens
 npm run build      # gera a versão final em dist/
 ```
@@ -30,8 +30,18 @@ npm run build      # gera a versão final em dist/
 
 ```
 src/
-  types/game.ts        todas as tipagens
-  data/                números e textos do jogo, sem lógica
+  domain/              regras de negócio puras, sem React, sem relógio e sem sorteio próprio
+    types.ts           entidades e tipagens do jogo
+    catalog.ts         consulta dos dados por id e zona de cada estágio
+    formulas.ts        contas de vida, Patacas, XP, custo e Raízes
+    clock.ts           dia, noite e lua a partir de um horário
+    modifiers.ts       junta melhorias, sinergias e Raízes
+    state.ts           jogo novo e combate contra visagem ou chefe
+    simulation.ts      combate: avança qualquer intervalo de tempo
+    actions.ts         regras das ações da pessoa (comitiva, melhorias, chefe, estágio)
+    pact.ts            confere e fecha pactos
+    offline.ts         ganhos do tempo ausente
+  data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
     encantados.ts      encantados e seus pactos
     enemies.ts         visagens e chefes, com as tabelas de itens
@@ -39,29 +49,30 @@ src/
     upgrades.ts        melhorias compradas com Patacas
     synergies.ts       bônus de origem da comitiva
     zones.ts           zonas, estágios e Rastros
-    index.ts           consulta das definições por id
-  engine/              regras do jogo em TypeScript puro, sem React
-    formulas.ts        contas de vida, Patacas, XP, custo e Raízes
-    clock.ts           dia, noite e lua a partir do horário do aparelho
-    modifiers.ts       junta melhorias, sinergias e Raízes
-    state.ts           estado inicial e entrada de inimigos
-    simulation.ts      combate: avança qualquer intervalo de tempo
-    pact.ts            confere e fecha pactos
-    offline.ts         ganhos do tempo ausente
-  store/
-    useGameStore.ts    estado global (Zustand), tick e ações
+    index.ts           ponto único de importação dos datasets
+  store/               estado global (Zustand), tempo e salvamento
+    types.ts           tipagens da store: ações, estado de sessão, retornos
+    useGameStore.ts    a store: tick e ações, que só chamam o domínio
+    selectors.ts       dados prontos para a tela, com reaproveitamento de resultado
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
     gameLoop.ts        liga o tick e grava ao esconder ou fechar a aba
     tabGuard.ts        garante que só uma aba cuida do jogo
-  components/
+  components/          componentes visuais burros
     DebugView.tsx      painel de debug: métricas, indicador de tick, ausência e controles
-  utils/               sorteios, comparação de objetos, Base64 e formatação de números
-  __tests__/           testes automáticos
+  utils/               funções utilitárias puras
+    format.ts          números grandes, porcentagem, duração e horário
+    random.ts          sorteios e gerador com semente
+    id.ts              gerador de identificador único
+    object.ts          comparação de objetos
+    base64.ts          Base64 com acentos
   App.tsx              liga o laço do jogo e mostra a tela
+tests/                 testes automáticos, incluindo o que vigia a arquitetura
+docs/                  guia de manutenção, roteiro de teste e histórico
 ```
 
-A regra da casa: número de balanceamento mora em `src/data`, regra mora em `src/engine`, e a
-store só coordena. Para mudar o ritmo do jogo, mexa em `src/data/balance.ts`.
+As regras de cada pasta estão na seção 1 do guia de manutenção. Em resumo: número mora em
+`src/data`, regra mora em `src/domain` como função pura, a store só coordena e os componentes
+só mostram. O teste `tests/architecture.test.ts` falha se alguma dessas regras for quebrada.
 
 ## Como o tempo funciona
 

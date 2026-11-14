@@ -21,7 +21,13 @@ export function encodeBase64(text: string): string {
   return btoa(binary);
 }
 
-// Base64 -> texto comum. Lança erro se o código não for Base64 válido.
+/**
+ * Converte Base64 de volta para texto comum (UTF-8).
+ *
+ * @param code Texto em Base64. Espaços e quebras de linha nas pontas são ignorados.
+ * @returns O texto original, com os acentos preservados.
+ * @throws DOMException se o código tiver caracteres que não são de Base64.
+ */
 export function decodeBase64(code: string): string {
   const binary = atob(code.trim());
   const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));

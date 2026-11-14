@@ -10,7 +10,7 @@
  *   3. Lista completa
  */
 
-import type { EncantadoDef } from '../types/game';
+import type { EncantadoDef } from '../domain/types';
 
 // =============================================================================
 // =============================================================================
