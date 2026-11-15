@@ -9,7 +9,7 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join, posix, relative, sep } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -36,7 +36,7 @@ const ALLOWED_PACKAGES: Record<Layer, readonly string[]> = {
   data: [],
   domain: [],
   store: ['zustand', 'zustand/middleware'],
-  components: ['react'],
+  components: ['react', 'lucide-react'],
 };
 
 // O que tiraria a pureza do domínio: relógio, sorteio, navegador e saída no console
@@ -94,15 +94,15 @@ function readSourceFile(fullPath: string): SourceFile {
   return { path, layer, code, imports: readImports(code) };
 }
 
-// Camada de destino de um import relativo, como "../domain/types". Null se não for de src.
+// Camada de destino de um import relativo, como "../../domain/types". Null se não for de src.
+// O caminho é resolvido a partir da pasta do arquivo, então vale para qualquer profundidade.
 function getImportedLayer(file: SourceFile, specifier: string): Layer | null {
   if (!specifier.startsWith('.')) {
     return null;
   }
 
-  const segments = specifier.split('/');
-  const goesUp = segments[0] === '..';
-  const target = goesUp ? segments[1] : file.layer;
+  const resolved = posix.normalize(posix.join(posix.dirname(file.path), specifier));
+  const target = resolved.split('/')[0];
   return LAYERS.find((candidate) => candidate === target) ?? null;
 }
 

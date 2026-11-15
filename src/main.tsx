@@ -1,10 +1,20 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import '@fontsource/bowlby-one';
+import '@fontsource-variable/bitter';
+import './index.css';
 
-createRoot(document.getElementById('root')!).render(
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+
+import App from './App.tsx';
+
+const rootElement = document.getElementById('root');
+
+if (rootElement === null) {
+  throw new Error('Elemento #root não encontrado em index.html.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <App />
   </StrictMode>,
-)
+);

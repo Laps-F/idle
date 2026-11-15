@@ -71,6 +71,11 @@ export function applyOfflineProgress(
   };
 }
 
+// Diz se a ausência rendeu alguma coisa. Sem ganho, não há o que mostrar na volta.
+export function hasOfflineGains(report: OfflineReport): boolean {
+  return report.summary.kills > 0 || report.summary.gold > 0;
+}
+
 // Tempo que rende = menor(tempo ausente, teto) × eficiência
 export function getOfflineSimulatedSeconds(secondsAway: number): number {
   const cappedSeconds = Math.min(secondsAway, BALANCE.offlineCapSeconds);

@@ -47,7 +47,7 @@ import {
   setAutoProgress,
   togglePartyMember,
 } from '../domain/actions';
-import { applyOfflineProgress, mergeOfflineReports } from '../domain/offline';
+import { applyOfflineProgress, hasOfflineGains, mergeOfflineReports } from '../domain/offline';
 import { sealPact } from '../domain/pact';
 import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
 import { createInitialState, pickGameState } from '../domain/state';
@@ -136,6 +136,7 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      *   Vale também para aba em segundo plano, que tica mais devagar.
      * - Intervalo maior: ausência. Rende com teto e eficiência reduzida e preenche
      *   "offlineReport". Se já havia um relatório aberto, os dois são somados.
+     *   Ausência que não rendeu nada (sem comitiva, por exemplo) não gera relatório.
      * - "now" anterior ao último tick (relógio do aparelho voltou): nada rende e a
      *   marca de tempo é acertada para "now".
      * - "now" igual ao último tick: nada acontece e o tick não é contado.
@@ -201,7 +202,8 @@ function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
   const result = applyOfflineProgress(current, now, Math.random);
   const tickCount = get().tickCount + 1;
 
-  if (result.report === null) {
+  // Ausência sem ganho nenhum não abre o modal de volta
+  if (result.report === null || !hasOfflineGains(result.report)) {
     commitState(set, current, result.state, { tickCount });
     return;
   }

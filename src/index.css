@@ -1,2 +1,190 @@
-/* Tailwind cuida do estilo. O visual de cordel entra junto com a interface final. */
+/*
+ * Encantados - idle de coleção com folclore brasileiro
+ * Arquivo: src/index.css
+ * O que faz: estilo global. Define o tema de cordel no Tailwind (cores e
+ * fontes) e as animações em CSS puro. Animação em CSS roda fora do React,
+ * então barra e número flutuante não custam redesenho de componente.
+ *
+ * A ideia visual: o folheto de cordel. A página é papel pardo, os painéis são
+ * papel jornal e a arena é a capa do folheto, impressa em papel colorido (uma
+ * cor por bioma) com a xilogravura em tinta preta.
+ *
+ * Mapa:
+ *   1. Tema (cores e fontes)
+ *   2. Base da página
+ *   3. Barras movidas por ref
+ *   4. Números flutuantes e carimbos
+ *   5. Movimento reduzido
+ */
+
 @import 'tailwindcss';
+
+/* ============================================================================= */
+/* ============================================================================= */
+/* T E M A */
+
+@theme {
+  /* Tinta de xilogravura, papel pardo da página e papel jornal dos painéis */
+  --color-tinta: #1b1612;
+  --color-pardo: #c9b48c;
+  --color-jornal: #f1ead8;
+  --color-jornal-escuro: #e0d6bd;
+
+  /* Urucum para vida, perigo e crítico. Anil para a noite. */
+  --color-urucum: #b3301a;
+  --color-anil: #2c3e6b;
+
+  --font-display: 'Bowlby One', 'Arial Black', sans-serif;
+  --font-body: 'Bitter Variable', 'Bitter', Georgia, serif;
+}
+
+
+/* ============================================================================= */
+/* ============================================================================= */
+/* B A S E   D A   P Á G I N A */
+
+:root {
+  /* Cor do papel da capa. O componente GameScreen troca conforme o bioma. */
+  --capa: #a9d3a0;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-pardo);
+  color: var(--color-tinta);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+/* Foco de teclado sempre visível. Fica na camada base para um utilitário poder desligar
+   onde não faz sentido, como na moldura de uma janela. */
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--color-urucum);
+    outline-offset: 2px;
+  }
+}
+
+
+/* ============================================================================= */
+/* ============================================================================= */
+/* B A R R A S   M O V I D A S   P O R   R E F */
+
+/* O preenchimento cresce por "transform", que o navegador anima sem refazer o layout.
+   O hook useStoreMeter escreve o scaleX a cada tick e a transição suaviza entre os ticks. */
+.meter-fill {
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 100ms linear;
+  will-change: transform;
+}
+
+/* Barras desenhadas pelo React (vida, XP) mudam poucas vezes por segundo */
+.meter-fill-soft {
+  transform-origin: left center;
+  transition: transform 160ms ease-out;
+}
+
+
+/* ============================================================================= */
+/* ============================================================================= */
+/* N Ú M E R O S   F L U T U A N T E S   E   C A R I M B O S */
+
+/* Número de dano: nasce como um carimbo e sobe apagando */
+.float-text {
+  position: absolute;
+  bottom: 56%;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-tinta);
+  -webkit-text-stroke: 3px var(--capa);
+  paint-order: stroke fill;
+  animation: float-up 900ms ease-out forwards;
+}
+
+.float-text-crit {
+  font-size: 2.25rem;
+  color: var(--color-urucum);
+}
+
+/* Patacas ganhas: menores e mais acima, para não cobrir o nome nem a vida */
+.float-text-gain {
+  bottom: 62%;
+  font-size: 1.125rem;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(1.5) rotate(var(--tilt, 0deg));
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(var(--tilt, 0deg));
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-72px) scale(1) rotate(var(--tilt, 0deg));
+  }
+}
+
+/* Tranco curto no inimigo quando leva um golpe */
+.hit-shake {
+  animation: hit-shake 140ms ease-out;
+}
+
+@keyframes hit-shake {
+  0% {
+    transform: translate(0, 0);
+  }
+  35% {
+    transform: translate(-5px, 2px) rotate(-1.5deg);
+  }
+  70% {
+    transform: translate(4px, -1px) rotate(1deg);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Inimigo novo entra como um carimbo batido no papel */
+.stamp-in {
+  animation: stamp-in 220ms ease-out;
+}
+
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+
+/* ============================================================================= */
+/* ============================================================================= */
+/* M O V I M E N T O   R E D U Z I D O */
+
+@media (prefers-reduced-motion: reduce) {
+  .float-text,
+  .hit-shake,
+  .stamp-in {
+    animation: none;
+  }
+
+  .float-text {
+    display: none;
+  }
+
+  .meter-fill,
+  .meter-fill-soft {
+    transition: none;
+  }
+}

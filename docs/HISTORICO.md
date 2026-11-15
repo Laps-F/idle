@@ -2,6 +2,50 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 15/11/2026: interface de produção do MVP
+
+A tela do jogo, no visual de folheto de cordel. O painel de debug continua em `/?debug`.
+
+Tela:
+
+- `src/App.tsx`: escolhe entre a tela do jogo e o painel de debug.
+- `src/components/GameScreen.tsx` (novo): disposição em tela única, abas laterais e janelas
+  automáticas. Traz a árvore de componentes no cabeçalho do arquivo.
+- `src/components/header/` (novo): `AppHeader`, `ResourceBar`, `StageBadge` e `SaveMenu`.
+- `src/components/arena/` (novo): `ArenaPanel`, `EnemyCover`, `AttackBars`,
+  `FloatingTextLayer` e `EventLog`.
+- `src/components/party/` (novo): `PartyPanel` e `AlmanacPanel`.
+- `src/components/progress/` (novo): `UpgradesPanel` e `StagesPanel`.
+- `src/components/modals/` (novo): `Modal`, `StarterModal`, `OfflineModal`, `SaveModals` e
+  `OtherTabNotice`.
+- `src/components/ui/` (novo): `Figure`, `Meter` (com `LiveMeter`), `Button` e `Tabs`.
+- `src/components/art/figures.tsx` (novo): nove xilogravuras em SVG (cinco encantados, três
+  visagens e o Corpo-Seco).
+- `src/components/hooks/` (novo): `useStoreMeter` (barra movida por ref) e `useCombatFeed`
+  (eventos de combate por fora do React).
+- `src/components/theme.ts` (novo): papel de cada bioma e textos de apresentação.
+- `src/index.css`: tema de cordel no Tailwind e animações em CSS. `src/main.tsx`: fontes.
+
+Store e domínio:
+
+- `src/store/selectors.ts`: visões granulares para a tela (cabeçalho, estágio, relógio,
+  inimigo, vida, comitiva, sinergias, pactos, avisos das abas, escolha inicial) e as leituras
+  de alta frequência `readAttackProgress` e `readBossTimeFraction`.
+- `src/store/eventViews.ts` (novo): traduz os eventos de combate em golpes e linhas de registro.
+- `src/domain/offline.ts`: `hasOfflineGains`. Ausência que não rendeu nada deixou de gerar
+  relatório, para a janela de volta não abrir vazia.
+- `src/utils/format.ts`: `formatDecimal`.
+
+Dependências novas: `lucide-react` (ícones), `@fontsource/bowlby-one` e
+`@fontsource-variable/bitter` (fontes, servidas junto com o jogo).
+
+Testes:
+
+- `tests/GameScreen.test.tsx` (novo): cada painel e janela, e a prova de que a barra de ataque
+  anda sem redesenhar o componente.
+- `tests/architecture.test.ts`: `lucide-react` liberado para `components`. Corrigida uma falha
+  do próprio teste: ele não enxergava importações feitas de dentro de subpastas.
+
 ## 14/11/2026: adequação às diretrizes de arquitetura e Clean Code
 
 Revisão de todo o código contra as diretrizes de arquitetura. O jogo se comporta igual.

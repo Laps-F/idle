@@ -18,7 +18,7 @@ Outros documentos:
 | `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, progresso offline | `data`, `utils` |
 | `src/store` | Estado global (Zustand): o `tick`, o controle do tempo, o salvamento no `localStorage` e os seletores | `domain`, `data`, `utils`, Zustand |
 | `src/data` | Datasets estáticos e tipados: inimigos, itens, zonas, tabelas de itens, constantes | só os tipos de `domain` |
-| `src/components` | Componentes visuais "burros": mostram o que recebem e chamam ações | `store`, `utils`, React |
+| `src/components` | Componentes visuais "burros": mostram o que recebem e chamam ações | `store`, `utils`, React, Lucide (ícones) |
 | `src/utils` | Funções utilitárias puras: formatadores, sorteio, ids, comparação | nada |
 
 Fora das pastas, `src` só tem `App.tsx`, `main.tsx` e `index.css`. Os testes ficam em `tests/`,
@@ -56,6 +56,13 @@ na raiz do projeto.
 - Lê a store por seletores de `src/store/selectors.ts`, que já entregam os dados prontos
   (nomes resolvidos, custos calculados). Chama ações da store.
 - Não importa `domain` nem `data` e não faz conta de jogo. Só formata texto com `src/utils`.
+- **Seletores granulares.** Nunca `useGameStore()` sem seletor. Cada componente lê só o que
+  mostra: um valor simples (`useGameStore((store) => store.buyUpgrade)`) ou uma visão de
+  `selectors.ts`, que devolve a mesma referência enquanto o conteúdo não muda.
+- **Alta frequência fora do React.** O que muda a cada tick (barra de ataque, tempo do chefe)
+  não passa por estado nem por seletor de React. O componente usa `LiveMeter`, que escuta a
+  store por fora e escreve o `transform` direto no elemento. A transição de CSS suaviza o
+  movimento. Números flutuantes e o tranco do inimigo também são feitos direto no elemento.
 
 **`src/utils` é puro e não depende de ninguém.**
 
@@ -145,16 +152,49 @@ e grava o estado que ela devolveu.
 | Quando o laço roda, quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
 
-### Tela (`src/components`) e ferramentas (`src/utils`)
+### Tela (`src/components`)
 
 | Quero mudar | Arquivo |
 |---|---|
+| Qual tela abre (jogo ou painel de debug) | `src/App.tsx` |
+| A disposição dos painéis na tela, as abas de cada lateral, as janelas automáticas | `src/components/GameScreen.tsx` |
+| Cor do papel de cada bioma, textos de origem, raridade, fase do dia e lua | `src/components/theme.ts` |
+| Cores e fontes do tema, animações (número flutuante, tranco, carimbo, barras) | `src/index.css` |
+| O que aparece no cabeçalho | `src/components/header/AppHeader.tsx` |
+| Recursos do cabeçalho (Patacas, Raízes, Oferendas) | `src/components/header/ResourceBar.tsx` |
+| Zona, estágio e relógio no cabeçalho | `src/components/header/StageBadge.tsx` |
+| Botões de exportar, importar e apagar tudo | `src/components/header/SaveMenu.tsx` |
+| Janelas de exportar, importar e apagar tudo (textos e confirmações) | `src/components/modals/SaveModals.tsx` |
+| O que o painel central reúne | `src/components/arena/ArenaPanel.tsx` |
+| Capa do folheto: inimigo, vida, tempo do chefe, caminho até o chefe | `src/components/arena/EnemyCover.tsx` |
+| Barras de ataque da comitiva | `src/components/arena/AttackBars.tsx` |
+| Números que sobem a cada golpe e a cada ganho | `src/components/arena/FloatingTextLayer.tsx` |
+| Registro "O que aconteceu": frases, ícones e quantas linhas guarda | `src/components/arena/EventLog.tsx` |
+| Cartões da comitiva e lista de sinergias | `src/components/party/PartyPanel.tsx` |
+| Almanaque: folha de cada pacto e a lista do que falta | `src/components/party/AlmanacPanel.tsx` |
+| Lista de melhorias e botão de compra | `src/components/progress/UpgradesPanel.tsx` |
+| Navegação de estágios, avanço automático e desafio ao chefe | `src/components/progress/StagesPanel.tsx` |
+| Janela de boas-vindas de volta | `src/components/modals/OfflineModal.tsx` |
+| Janela de escolha do encantado inicial | `src/components/modals/StarterModal.tsx` |
+| Aviso de jogo aberto em outra aba | `src/components/modals/OtherTabNotice.tsx` |
+| Base de todas as janelas (fundo, foco, Esc) | `src/components/modals/Modal.tsx` |
+| Desenho de um encantado ou inimigo | `src/components/art/figures.tsx` |
+| Como a figura é mostrada e o filtro de borda irregular | `src/components/ui/Figure.tsx` |
+| Aparência das barras, dos botões e das abas | `src/components/ui/Meter.tsx`, `Button.tsx`, `Tabs.tsx` |
+| Como uma barra anda sem redesenhar o componente | `src/components/hooks/useStoreMeter.ts` |
+| Como um componente recebe os eventos de combate | `src/components/hooks/useCombatFeed.ts` |
 | Painel de debug: métricas, botões, seções | `src/components/DebugView.tsx` |
-| O que o jogo mostra ao abrir | `src/App.tsx` |
+
+Os dados que cada componente recebe vêm de `src/store/selectors.ts`. Os eventos de combate
+viram golpes e linhas de registro em `src/store/eventViews.ts`.
+
+### Ferramentas (`src/utils`)
+
+| Quero mudar | Arquivo |
+|---|---|
 | Como números, porcentagens e durações aparecem | `src/utils/format.ts` |
 | Sorteios e gerador com semente | `src/utils/random.ts` |
 | Gerador de identificador único | `src/utils/id.ts` |
-| Estilo global | `src/index.css` (Tailwind) |
 
 ## 4. Receitas
 
@@ -211,6 +251,42 @@ Campo que só existe com o jogo aberto (não é salvo) vai em `SessionState`, em
    `createStableSelector`). É aqui que entram as consultas a `data` e as contas do `domain`.
 2. No componente, leia com `useGameStore(seletor)` e só formate o valor.
 
+### Acrescentar um painel ou uma aba à tela
+
+1. Monte a visão em `src/store/selectors.ts`, com `createStableSelector`. Junte só dados que
+   mudam no mesmo ritmo.
+2. Escreva o componente na pasta do assunto (`header`, `arena`, `party`, `progress`, `modals`).
+   Ele lê com `useGameStore(seletor)`, chama ações da store e só formata.
+3. Encaixe em `src/components/GameScreen.tsx`: como painel na grade ou como uma aba nova nas
+   listas de `PartyTabs` ou `ProgressTabs`. Para avisar com um número na aba, acrescente a
+   contagem em `selectBadges`.
+4. Atualize a árvore de componentes no cabeçalho de `GameScreen.tsx` e a tabela da seção 3.
+5. Teste em `tests/GameScreen.test.tsx`.
+
+### Acrescentar uma barra que anda a cada tick
+
+1. Crie uma função de leitura em `src/store/selectors.ts`, no bloco "Leituras de alta
+   frequência". Ela recebe o retrato da store e devolve uma fração de 0 a 1.
+2. No componente, use `<LiveMeter read={suaLeitura} />`. Se a leitura depende de uma prop,
+   crie a função com `useMemo`, como em `AttackBars.tsx`.
+3. Não leia esse valor com `useGameStore(...)`: isso redesenharia o componente 10 vezes por
+   segundo.
+
+### Acrescentar a figura de um encantado ou inimigo
+
+1. Desenhe em `src/components/art/figures.tsx`, na prancha de 120 por 120. A tinta é
+   `currentColor` e os cortes usam os estilos `CUT` e `CUT_FILL`.
+2. Registre em `FIGURES`, com o mesmo id usado em `src/data`. Sem registro, aparece a figura
+   genérica.
+
+### Acrescentar um tipo de linha ao registro
+
+1. O evento nasce em `src/domain/simulation.ts` e o tipo dele fica em `CombatEvent`
+   (`src/domain/types.ts`).
+2. Traduza o evento em `src/store/eventViews.ts`: tipo novo em `LogEntryKind` e um caso em
+   `toLogEntry`. O TypeScript acusa se faltar.
+3. Dê a frase e o ícone em `src/components/arena/EventLog.tsx`.
+
 ### Acrescentar algo ao painel de debug
 
 - Métrica: uma linha na lista `metrics` da seção.
@@ -224,7 +300,7 @@ Campo que só existe com o jogo aberto (não é salvo) vai em `SessionState`, em
 - Função curta. JSDoc nas funções complexas ou críticas, comentário de uma linha nas simples.
 - Constantes no topo do arquivo ou em `src/data/balance.ts`.
 - Nomes do código em inglês. Comentários e textos de tela em português.
-- Linhas com até 100 colunas.
+- Linhas com até 100 colunas. A exceção são os traçados das figuras em SVG.
 
 ## 6. O que atualizar junto com o código
 

@@ -4,8 +4,11 @@ Idle de coleção com folclore brasileiro, para navegador. Você percorre os bio
 comitiva de encantados (Saci, Curupira, Iara, Caipora, Boitatá) e enfrenta as visagens do
 Estio. Roda inteiro no navegador e salva no `localStorage`.
 
-Estado atual: motor e estado global prontos. A tela ainda é o painel de debug
-(`src/components/DebugView.tsx`), usado para validar o motor antes da interface final.
+Estado atual: MVP jogável. Motor, estado global e interface de produção prontos, com uma zona
+(Mata Atlântica), cinco encantados, melhorias, pactos, salvamento e progresso offline.
+
+O visual segue o folheto de cordel: página de papel pardo, painéis de papel jornal e a arena
+como capa do folheto, em papel colorido (uma cor por bioma) com as figuras em xilogravura.
 
 ## Documentação
 
@@ -20,7 +23,7 @@ do guia de manutenção.
 
 ```bash
 npm install
-npm run dev        # abre o jogo em http://localhost:5173
+npm run dev        # abre o jogo em http://localhost:5173 (painel de debug em /?debug)
 npm test           # roda os testes dos dados, do domínio, da store, do painel e da arquitetura
 npm run typecheck  # confere as tipagens
 npm run build      # gera a versão final em dist/
@@ -54,10 +57,21 @@ src/
     types.ts           tipagens da store: ações, estado de sessão, retornos
     useGameStore.ts    a store: tick e ações, que só chamam o domínio
     selectors.ts       dados prontos para a tela, com reaproveitamento de resultado
+    eventViews.ts      eventos de combate traduzidos em golpes e linhas de registro
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
     gameLoop.ts        liga o tick e grava ao esconder ou fechar a aba
     tabGuard.ts        garante que só uma aba cuida do jogo
   components/          componentes visuais burros
+    GameScreen.tsx     a tela do jogo: cabeçalho, arena, abas laterais e janelas
+    theme.ts           cor do papel de cada bioma e textos de origem, raridade e relógio
+    header/            cabeçalho: recursos, zona e estágio, controles de salvamento
+    arena/             capa com o inimigo, barras de ataque, números flutuantes e registro
+    party/             comitiva, sinergias e Almanaque de pactos
+    progress/          melhorias e navegação de estágios
+    modals/            janelas: escolha inicial, boas-vindas de volta, salvamento, outra aba
+    ui/                peças reutilizáveis: figura, barras, botão e abas
+    art/               xilogravuras em SVG
+    hooks/             barra movida por ref e escuta dos eventos de combate
     DebugView.tsx      painel de debug: métricas, indicador de tick, ausência e controles
   utils/               funções utilitárias puras
     format.ts          números grandes, porcentagem, duração e horário
@@ -107,9 +121,49 @@ escondidas. O desenho fica com o React e com CSS.
 - Mudou o formato do `GameState`? Suba `saveVersion` em `balance.ts` e registre a conversão em
   `MIGRATIONS`, dentro de `saveManager.ts`.
 
+## Árvore de componentes
+
+```
+App                          liga o laço do jogo e escolhe a tela
+├─ GameScreen                tela do jogo
+│  ├─ AppHeader
+│  │  ├─ ResourceBar         Patacas, Raízes e Oferendas
+│  │  ├─ StageBadge          zona, estágio e relógio do sertão
+│  │  └─ SaveMenu            Exportar, Importar e Apagar tudo
+│  │     └─ ExportModal, ImportModal, ResetModal
+│  ├─ ArenaPanel             centro
+│  │  ├─ EnemyCover          capa do folheto
+│  │  │  ├─ EnemyFigure      xilogravura e nome do inimigo
+│  │  │  ├─ EnemyHealth      barra de vida
+│  │  │  ├─ BossTimer        tempo do chefe (barra por ref)
+│  │  │  ├─ BossTrack        visagens até o chefe
+│  │  │  └─ FloatingTextLayer  números que sobem (fora do React)
+│  │  ├─ AttackBars          barras de ataque (por ref)
+│  │  └─ EventLog            registro compacto
+│  ├─ Tabs "Comitiva"        lateral esquerda
+│  │  ├─ PartyPanel          elenco e sinergias
+│  │  └─ AlmanacPanel        pactos
+│  ├─ Tabs "Progresso"       lateral direita
+│  │  ├─ UpgradesPanel       melhorias
+│  │  └─ StagesPanel         estágios e chefe
+│  └─ StarterModal, OfflineModal, OtherTabNotice
+└─ DebugView                 painel de debug, em /?debug
+```
+
+Como a tela se mantém leve:
+
+- Cada componente lê da store só o que mostra, por um seletor que devolve a mesma referência
+  enquanto o conteúdo não muda. Em 30 segundos de jogo (300 ticks) a tela inteira redesenha
+  cerca de 30 vezes, acompanhando os golpes, e não os ticks.
+- As barras de ataque e a do tempo do chefe andam por ref e transição de CSS. O componente
+  delas não redesenha.
+- Os números flutuantes e o tranco do inimigo são feitos direto no elemento, com animação de
+  CSS.
+
 ## Painel de debug
 
-O `DebugView` lê tudo direto da store e não liga o laço (isso é do `App`). Para adaptar:
+Abra `/?debug`. O `DebugView` lê tudo direto da store e não liga o laço (isso é do `App`).
+Para adaptar:
 
 - nova métrica: uma linha na lista `metrics` da seção;
 - novo botão: uma linha na lista `actions` da seção;
@@ -120,6 +174,7 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold` e `debugSk
 
 ## Próximas etapas
 
-1. Interface em painéis: comitiva, arena, melhorias e Almanaque.
-2. Modal de volta, menu de salvamento e números flutuantes.
-3. Lua nos pactos, equipamentos e Rebrota.
+1. Novos biomas, com visagens, chefes e encantados próprios.
+2. Lua nos pactos, laços e bônus do Almanaque.
+3. Equipamentos e Rebrota.
+4. Som, com a Web Audio API.

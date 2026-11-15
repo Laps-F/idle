@@ -16,6 +16,7 @@
 // Sufixos de mil em mil: K = mil, M = milhão, B = bilhão, T = trilhão, Qa, Qi
 const NUMBER_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi'];
 const THOUSAND = 1000;
+const SMALL_NUMBER_LIMIT = 100; // abaixo disso, uma casa decimal ainda ajuda a ler
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
 
@@ -52,6 +53,12 @@ export function formatNumber(value: number): string {
 
   const scaled = value / Math.pow(THOUSAND, suffixIndex);
   return scaled.toFixed(2).replace('.', ',') + NUMBER_SUFFIXES[suffixIndex];
+}
+
+// Número pequeno com uma casa decimal ("3,3"). A partir de 100 segue a regra de formatNumber.
+export function formatDecimal(value: number): string {
+  const isSmall = Number.isFinite(value) && Math.abs(value) < SMALL_NUMBER_LIMIT;
+  return isSmall ? value.toFixed(1).replace('.', ',') : formatNumber(value);
 }
 
 // 0.256 -> "26%"

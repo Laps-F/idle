@@ -6,31 +6,202 @@
  * para um componente mostrar. Assim os componentes ficam "burros": não
  * consultam dados nem fazem conta de jogo.
  *
- * Uso: const combat = useGameStore(selectCombatView);
+ * Uso: const enemy = useGameStore(selectEnemyView);
+ *
+ * Granularidade: cada visão junta só o que muda no mesmo ritmo. A vida do
+ * inimigo muda a cada golpe, o nome dele só a cada derrota, as Patacas a cada
+ * derrota. Separar evita que um painel redesenhe por causa do dado de outro.
  *
  * Otimização: cada seletor guarda o último resultado e devolve a MESMA
  * referência enquanto o conteúdo não muda. O componente só redesenha quando
  * algum valor que ele mostra mudou de verdade.
  *
+ * O que muda a cada tick (barra de ataque, tempo do chefe) não passa por
+ * seletor de React. Fica nas funções "read", que os componentes usam com
+ * refs para mexer direto no estilo, sem redesenhar.
+ *
  * Mapa:
  *   1. Tipos das visões
  *   2. Seletores
- *   3. Construção de cada visão
- *   4. Ferramentas
+ *   3. Leituras de alta frequência (para refs)
+ *   4. Construção: cabeçalho, estágio e relógio
+ *   5. Construção: arena
+ *   6. Construção: comitiva e pactos
+ *   7. Construção: melhorias e avisos
+ *   8. Construção: ausência e escolha inicial
+ *   9. Construção: visões do painel de debug
+ *  10. Ferramentas
  */
 
-import { ENCANTADOS, ITEMS, UPGRADES } from '../data';
+import { BALANCE, ENCANTADOS, ITEMS, SYNERGIES, UPGRADES } from '../data';
 import { canChallengeBoss } from '../domain/actions';
 import { getEncantado, getEnemy, getItem, getZoneForStage } from '../domain/catalog';
-import { getClockInfo } from '../domain/clock';
-import { getUpgradeCost, getXpToNextLevel, isUpgradeMaxed } from '../domain/formulas';
-import type { DayPhase, MoonPhase, Origin } from '../domain/types';
+import { getClockInfo, getDayPhase } from '../domain/clock';
+import {
+  getAttackDamage,
+  getAttackInterval,
+  getUpgradeCost,
+  getXpToNextLevel,
+  isUpgradeMaxed,
+} from '../domain/formulas';
+import { getModifiers } from '../domain/modifiers';
+import { getPactStatus } from '../domain/pact';
+import type { BiomeId, DayPhase, MoonPhase, Origin, Rarity } from '../domain/types';
 import { isDeepEqual } from '../utils/object';
 import type { GameSnapshot } from './types';
 
 // =============================================================================
 // =============================================================================
 // T I P O S   D A S   V I S Õ E S
+
+// Um nome com uma quantidade, como "Mel silvestre: 3"
+export interface NamedAmount {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+// Cabeçalho: os recursos que a pessoa junta
+export interface HeaderView {
+  gold: number;
+  roots: number;
+  items: NamedAmount[];
+}
+
+// Onde a comitiva está e o que falta para o chefe
+export interface StageView {
+  zoneName: string;
+  biome: BiomeId;
+  stage: number;
+  maxStage: number;
+  previousStage: number; // estágio para onde o botão "anterior" leva
+  nextStage: number; // estágio para onde o botão "próximo" leva
+  killsInStage: number;
+  killsToBoss: number;
+  killsRemaining: number; // visagens que faltam para o chefe aparecer
+  isBossFight: boolean;
+  autoProgress: boolean;
+  canChallengeBoss: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+}
+
+export interface ClockView {
+  dayPhase: DayPhase;
+  moonPhase: MoonPhase;
+}
+
+// Quem está em campo. Só muda quando entra outro inimigo.
+export interface EnemyIdentityView {
+  enemyId: string;
+  name: string;
+  isBoss: boolean;
+}
+
+// Vida do inimigo. Muda a cada golpe.
+export interface EnemyHealthView {
+  hp: number;
+  maxHp: number;
+  hpFraction: number; // de 0 a 1
+}
+
+// Quem ataca, para as barras de ação da arena
+export interface FighterView {
+  id: string;
+  name: string;
+  origin: Origin;
+}
+
+export interface PartyCardView {
+  id: string;
+  name: string;
+  origin: Origin;
+  rarity: Rarity;
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
+  xpFraction: number; // de 0 a 1
+  damagePerHit: number;
+  attackInterval: number; // em segundos
+  isInParty: boolean;
+  canToggle: boolean; // se o botão de entrar ou sair da comitiva vale agora
+}
+
+export interface SynergyView {
+  origin: Origin;
+  name: string;
+  description: string;
+  membersInParty: number;
+  membersNeeded: number;
+  isActive: boolean;
+}
+
+export interface OfferingView {
+  id: string;
+  name: string;
+  owned: number;
+  needed: number;
+}
+
+export interface PactView {
+  id: string;
+  name: string;
+  origin: Origin;
+  rarity: Rarity;
+  verse: string;
+  isOwned: boolean;
+  trailsOwned: number;
+  trailsNeeded: number;
+  offerings: OfferingView[];
+  requiredDayPhase: DayPhase | null;
+  requiredMoonPhase: MoonPhase | null;
+  isClockRight: boolean;
+  canSeal: boolean;
+}
+
+export interface UpgradeView {
+  id: string;
+  name: string;
+  description: string;
+  level: number;
+  cost: number;
+  isMaxed: boolean;
+  canBuy: boolean;
+}
+
+// Contagens para os avisos das abas
+export interface BadgeView {
+  buyableUpgrades: number;
+  sealablePacts: number;
+}
+
+export interface StarterOptionView {
+  id: string;
+  name: string;
+  origin: Origin;
+  verse: string;
+  baseAttack: number;
+  attackInterval: number;
+}
+
+export interface OfflineView {
+  secondsAway: number;
+  secondsSimulated: number;
+  wasCapped: boolean; // se a ausência passou do teto
+  capSeconds: number;
+  efficiency: number; // de 0 a 1
+  gold: number;
+  xp: number;
+  kills: number;
+  bossesDefeated: number;
+  bossesFailed: number;
+  stagesAdvanced: number;
+  items: NamedAmount[];
+  trails: NamedAmount[];
+  levelUps: NamedAmount[];
+}
+
+// ---------- Visões do painel de debug ----------
 
 export interface LoopView {
   tickCount: number;
@@ -47,21 +218,14 @@ export interface CombatView {
   isBoss: boolean;
   enemyHp: number;
   enemyMaxHp: number;
-  enemyHpFraction: number; // de 0 a 1
-  bossTimeLeft: number; // em segundos
+  enemyHpFraction: number;
+  bossTimeLeft: number;
   killsInStage: number;
   killsToBoss: number;
   autoProgress: boolean;
   canChallengeBoss: boolean;
   dayPhase: DayPhase;
   moonPhase: MoonPhase;
-}
-
-// Um nome com uma quantidade, como "Mel silvestre: 3"
-export interface NamedAmount {
-  id: string;
-  name: string;
-  amount: number;
 }
 
 export interface TrailView {
@@ -81,12 +245,6 @@ export interface ResourcesView {
   totalGoldEarned: number;
 }
 
-export interface StarterView {
-  id: string;
-  name: string;
-  origin: Origin;
-}
-
 export interface PartyMemberView {
   id: string;
   name: string;
@@ -94,36 +252,13 @@ export interface PartyMemberView {
   xp: number;
   xpToNextLevel: number;
   isInParty: boolean;
-  attackProgress: number; // de 0 a 1
+  attackProgress: number;
 }
 
 export interface PartyView {
   hasStarter: boolean;
-  starters: StarterView[];
+  starters: StarterOptionView[];
   members: PartyMemberView[];
-}
-
-export interface UpgradeView {
-  id: string;
-  name: string;
-  level: number;
-  cost: number;
-  isMaxed: boolean;
-  canBuy: boolean;
-}
-
-export interface OfflineView {
-  secondsAway: number;
-  secondsSimulated: number;
-  gold: number;
-  xp: number;
-  kills: number;
-  bossesDefeated: number;
-  bossesFailed: number;
-  stagesAdvanced: number;
-  items: NamedAmount[];
-  trails: NamedAmount[];
-  levelUps: NamedAmount[];
 }
 
 
@@ -131,57 +266,78 @@ export interface OfflineView {
 // =============================================================================
 // S E L E T O R E S
 
+// Interface de produção
+export const selectHeaderView = createStableSelector(buildHeaderView);
+export const selectStageView = createStableSelector(buildStageView);
+export const selectClockView = createStableSelector(buildClockView);
+export const selectEnemyIdentity = createStableSelector(buildEnemyIdentity);
+export const selectEnemyHealth = createStableSelector(buildEnemyHealth);
+export const selectFighters = createStableSelector(buildFighters);
+export const selectPartyCards = createStableSelector(buildPartyCards);
+export const selectSynergies = createStableSelector(buildSynergies);
+export const selectPacts = createStableSelector(buildPacts);
+export const selectUpgradeViews = createStableSelector(buildUpgradeViews);
+export const selectBadges = createStableSelector(buildBadges);
+export const selectStarterOptions = createStableSelector(buildStarterOptions);
+export const selectOfflineView = createStableSelector(buildOfflineView);
+
+// Painel de debug
 export const selectLoopView = createStableSelector(buildLoopView);
 export const selectCombatView = createStableSelector(buildCombatView);
 export const selectResourcesView = createStableSelector(buildResourcesView);
 export const selectPartyView = createStableSelector(buildPartyView);
-export const selectUpgradeViews = createStableSelector(buildUpgradeViews);
-export const selectOfflineView = createStableSelector(buildOfflineView);
 
-
-// =============================================================================
-// =============================================================================
-// C O N S T R U Ç Ã O   D E   C A D A   V I S Ã O
-
-// Dados que provam que o laço está rodando
-function buildLoopView(snapshot: GameSnapshot): LoopView {
-  return {
-    tickCount: snapshot.tickCount,
-    lastTickTimestamp: snapshot.lastSaveTimestamp,
-    playTimeSeconds: snapshot.stats.playTimeSeconds,
-    isOpenInAnotherTab: snapshot.isOpenInAnotherTab,
-  };
+// Seletores atômicos: devolvem um valor simples, que o Zustand compara direto
+export function selectHasStarter(snapshot: GameSnapshot): boolean {
+  return Object.keys(snapshot.roster).length > 0;
 }
 
-// Zona, estágio, inimigo em campo e relógio do sertão
-function buildCombatView(snapshot: GameSnapshot): CombatView {
+export function selectIsOpenInAnotherTab(snapshot: GameSnapshot): boolean {
+  return snapshot.isOpenInAnotherTab;
+}
+
+// Texto que muda toda vez que entra um inimigo novo em campo, mesmo que seja do mesmo tipo.
+// Serve de "key" no React, para a figura repetir a entrada e a barra de vida nascer cheia.
+export function selectEnemySpawnKey(snapshot: GameSnapshot): string {
+  const { stats, stage, combat } = snapshot;
+  return `${stats.totalKills}-${stage}-${combat.isBoss ? 'chefe' : 'visagem'}`;
+}
+
+// Segundos inteiros que restam ao chefe. Muda uma vez por segundo, não a cada tick.
+export function selectBossSecondsLeft(snapshot: GameSnapshot): number {
+  return snapshot.combat.isBoss ? Math.ceil(snapshot.combat.bossTimeLeft) : 0;
+}
+
+
+// =============================================================================
+// =============================================================================
+// L E I T U R A S   D E   A L T A   F R E Q U Ê N C I A
+
+// Estes valores mudam a cada tick. Não use com useGameStore(...), que redesenharia o
+// componente 10 vezes por segundo. Use com o hook useStoreMeter, que escreve direto no estilo.
+
+// Barra de ataque de um encantado, de 0 a 1
+export function readAttackProgress(snapshot: GameSnapshot, encantadoId: string): number {
+  return snapshot.combat.attackProgress[encantadoId] ?? 0;
+}
+
+// Quanto do tempo do chefe ainda resta, de 0 a 1. Fica em 0 sem chefe em campo.
+export function readBossTimeFraction(snapshot: GameSnapshot): number {
   const { combat, stage } = snapshot;
-  const zone = getZoneForStage(stage);
-  const clock = getClockInfo(snapshot.lastSaveTimestamp);
 
-  return {
-    zoneName: zone.name,
-    stage,
-    maxStage: snapshot.maxStage,
-    enemyName: getEnemy(combat.enemyId).name,
-    isBoss: combat.isBoss,
-    enemyHp: combat.enemyHp,
-    enemyMaxHp: combat.enemyMaxHp,
-    enemyHpFraction: combat.enemyMaxHp > 0 ? combat.enemyHp / combat.enemyMaxHp : 0,
-    bossTimeLeft: combat.bossTimeLeft,
-    killsInStage: snapshot.killsInStage,
-    killsToBoss: zone.killsToBoss,
-    autoProgress: snapshot.autoProgress,
-    canChallengeBoss: canChallengeBoss(snapshot),
-    dayPhase: clock.dayPhase,
-    moonPhase: clock.moonPhase,
-  };
+  if (!combat.isBoss) {
+    return 0;
+  }
+
+  return combat.bossTimeLeft / getZoneForStage(stage).bossTimeLimit;
 }
 
-// Patacas, Raízes, Oferendas, Rastros e totais da partida
-function buildResourcesView(snapshot: GameSnapshot): ResourcesView {
-  const pactEncantados = ENCANTADOS.filter((encantado) => encantado.pact !== null);
 
+// =============================================================================
+// =============================================================================
+// C A B E Ç A L H O ,   E S T Á G I O   E   R E L Ó G I O
+
+function buildHeaderView(snapshot: GameSnapshot): HeaderView {
   return {
     gold: snapshot.gold,
     roots: snapshot.roots,
@@ -190,37 +346,145 @@ function buildResourcesView(snapshot: GameSnapshot): ResourcesView {
       name: item.name,
       amount: snapshot.inventory[item.id] ?? 0,
     })),
-    trails: pactEncantados.map((encantado) => ({
-      id: encantado.id,
-      name: encantado.name,
-      owned: snapshot.trails[encantado.id] ?? 0,
-      needed: encantado.pact?.trailsNeeded ?? 0,
-    })),
-    totalKills: snapshot.stats.totalKills,
-    bossesDefeated: snapshot.stats.bossesDefeated,
-    totalGoldEarned: snapshot.stats.totalGoldEarned,
   };
 }
 
-// Elenco com nível, XP e barra de ataque, mais as opções de encantado inicial
-function buildPartyView(snapshot: GameSnapshot): PartyView {
-  const owned = Object.values(snapshot.roster);
-  const starters = ENCANTADOS.filter((encantado) => encantado.isStarter);
+function buildStageView(snapshot: GameSnapshot): StageView {
+  const { stage, maxStage } = snapshot;
+  const zone = getZoneForStage(stage);
 
   return {
-    hasStarter: owned.length > 0,
-    starters: starters.map(({ id, name, origin }) => ({ id, name, origin })),
-    members: owned.map((member) => ({
-      id: member.id,
-      name: getEncantado(member.id).name,
-      level: member.level,
-      xp: member.xp,
-      xpToNextLevel: getXpToNextLevel(member.level),
-      isInParty: snapshot.party.includes(member.id),
-      attackProgress: snapshot.combat.attackProgress[member.id] ?? 0,
-    })),
+    zoneName: zone.name,
+    biome: zone.biome,
+    stage,
+    maxStage,
+    previousStage: Math.max(1, stage - 1),
+    nextStage: Math.min(maxStage, stage + 1),
+    killsInStage: snapshot.killsInStage,
+    killsToBoss: zone.killsToBoss,
+    killsRemaining: Math.max(0, zone.killsToBoss - snapshot.killsInStage),
+    isBossFight: snapshot.combat.isBoss,
+    autoProgress: snapshot.autoProgress,
+    canChallengeBoss: canChallengeBoss(snapshot),
+    canGoBack: stage > 1,
+    canGoForward: stage < maxStage,
   };
 }
+
+function buildClockView(snapshot: GameSnapshot): ClockView {
+  const clock = getClockInfo(snapshot.lastSaveTimestamp);
+  return { dayPhase: clock.dayPhase, moonPhase: clock.moonPhase };
+}
+
+
+// =============================================================================
+// =============================================================================
+// A R E N A
+
+function buildEnemyIdentity(snapshot: GameSnapshot): EnemyIdentityView {
+  const { enemyId, isBoss } = snapshot.combat;
+  return { enemyId, name: getEnemy(enemyId).name, isBoss };
+}
+
+function buildEnemyHealth(snapshot: GameSnapshot): EnemyHealthView {
+  const { enemyHp, enemyMaxHp } = snapshot.combat;
+  return { hp: enemyHp, maxHp: enemyMaxHp, hpFraction: enemyMaxHp > 0 ? enemyHp / enemyMaxHp : 0 };
+}
+
+function buildFighters(snapshot: GameSnapshot): FighterView[] {
+  return snapshot.party.map((encantadoId) => {
+    const { name, origin } = getEncantado(encantadoId);
+    return { id: encantadoId, name, origin };
+  });
+}
+
+
+// =============================================================================
+// =============================================================================
+// C O M I T I V A   E   P A C T O S
+
+// Cada encantado do elenco, com o dano e o ritmo que ele tem agora
+function buildPartyCards(snapshot: GameSnapshot): PartyCardView[] {
+  const modifiers = getModifiers(snapshot, getDayPhase(snapshot.lastSaveTimestamp));
+  const hasRoom = snapshot.party.length < BALANCE.maxPartySize;
+  const canLeave = snapshot.party.length > 1;
+
+  return Object.values(snapshot.roster).map((owned) => {
+    const definition = getEncantado(owned.id);
+    const xpToNextLevel = getXpToNextLevel(owned.level);
+    const isInParty = snapshot.party.includes(owned.id);
+
+    return {
+      id: owned.id,
+      name: definition.name,
+      origin: definition.origin,
+      rarity: definition.rarity,
+      level: owned.level,
+      xp: owned.xp,
+      xpToNextLevel,
+      xpFraction: xpToNextLevel > 0 ? owned.xp / xpToNextLevel : 0,
+      damagePerHit: getAttackDamage(definition, owned.level, modifiers, false),
+      attackInterval: getAttackInterval(definition, modifiers),
+      isInParty,
+      canToggle: isInParty ? canLeave : hasRoom,
+    };
+  });
+}
+
+// Todas as sinergias, com quantos da origem estão na comitiva e se o bônus está valendo
+function buildSynergies(snapshot: GameSnapshot): SynergyView[] {
+  const dayPhase = getDayPhase(snapshot.lastSaveTimestamp);
+  const partyOrigins = snapshot.party.map((encantadoId) => getEncantado(encantadoId).origin);
+
+  return SYNERGIES.map((synergy) => {
+    const membersInParty = partyOrigins.filter((origin) => origin === synergy.origin).length;
+    const isPhaseRight = synergy.dayPhase === undefined || synergy.dayPhase === dayPhase;
+
+    return {
+      origin: synergy.origin,
+      name: synergy.name,
+      description: synergy.description,
+      membersInParty,
+      membersNeeded: synergy.membersNeeded,
+      isActive: membersInParty >= synergy.membersNeeded && isPhaseRight,
+    };
+  });
+}
+
+// Encantados que entram por pacto, com o que falta para cada um
+function buildPacts(snapshot: GameSnapshot): PactView[] {
+  const pactEncantados = ENCANTADOS.filter((encantado) => encantado.pact !== null);
+
+  return pactEncantados.map((encantado) => {
+    const status = getPactStatus(snapshot, encantado.id, snapshot.lastSaveTimestamp);
+
+    return {
+      id: encantado.id,
+      name: encantado.name,
+      origin: encantado.origin,
+      rarity: encantado.rarity,
+      verse: encantado.verse,
+      isOwned: status.isOwned,
+      trailsOwned: Math.min(status.trailsOwned, status.trailsNeeded),
+      trailsNeeded: status.trailsNeeded,
+      offerings: status.offerings.map((offering) => ({
+        id: offering.itemId,
+        name: getItem(offering.itemId).name,
+        owned: offering.owned,
+        needed: offering.needed,
+      })),
+      requiredDayPhase: encantado.pact?.dayPhase ?? null,
+      requiredMoonPhase: encantado.pact?.moonPhase ?? null,
+      isClockRight: status.isClockRight,
+      canSeal: status.canSeal,
+    };
+  });
+}
+
+
+// =============================================================================
+// =============================================================================
+// M E L H O R I A S   E   A V I S O S
 
 // Cada melhoria com o nível atual, o custo do próximo nível e se dá para comprar
 function buildUpgradeViews(snapshot: GameSnapshot): UpgradeView[] {
@@ -232,6 +496,7 @@ function buildUpgradeViews(snapshot: GameSnapshot): UpgradeView[] {
     return {
       id: upgrade.id,
       name: upgrade.name,
+      description: upgrade.description,
       level,
       cost,
       isMaxed,
@@ -239,6 +504,19 @@ function buildUpgradeViews(snapshot: GameSnapshot): UpgradeView[] {
     };
   });
 }
+
+// Quantas melhorias dá para comprar e quantos pactos dá para fechar agora
+function buildBadges(snapshot: GameSnapshot): BadgeView {
+  return {
+    buyableUpgrades: buildUpgradeViews(snapshot).filter((upgrade) => upgrade.canBuy).length,
+    sealablePacts: buildPacts(snapshot).filter((pact) => pact.canSeal).length,
+  };
+}
+
+
+// =============================================================================
+// =============================================================================
+// A U S Ê N C I A   E   E S C O L H A   I N I C I A L
 
 // Relatório de ausência com os nomes resolvidos. Null se não há relatório aberto.
 function buildOfflineView(snapshot: GameSnapshot): OfflineView | null {
@@ -254,6 +532,9 @@ function buildOfflineView(snapshot: GameSnapshot): OfflineView | null {
   return {
     secondsAway: report.secondsAway,
     secondsSimulated: report.secondsSimulated,
+    wasCapped: report.secondsAway > BALANCE.offlineCapSeconds,
+    capSeconds: BALANCE.offlineCapSeconds,
+    efficiency: BALANCE.offlineEfficiency,
     gold: summary.gold,
     xp: summary.xp,
     kills: summary.kills,
@@ -263,6 +544,94 @@ function buildOfflineView(snapshot: GameSnapshot): OfflineView | null {
     items: toNamedAmounts(summary.items, (id) => getItem(id).name),
     trails: toNamedAmounts(summary.trails, encantadoName),
     levelUps: toNamedAmounts(summary.levelUps, encantadoName),
+  };
+}
+
+// Encantados que podem ser escolhidos para começar
+function buildStarterOptions(): StarterOptionView[] {
+  return ENCANTADOS.filter((encantado) => encantado.isStarter).map((encantado) => ({
+    id: encantado.id,
+    name: encantado.name,
+    origin: encantado.origin,
+    verse: encantado.verse,
+    baseAttack: encantado.baseAttack,
+    attackInterval: encantado.attackInterval,
+  }));
+}
+
+
+// =============================================================================
+// =============================================================================
+// V I S Õ E S   D O   P A I N E L   D E   D E B U G
+
+// Dados que provam que o laço está rodando
+function buildLoopView(snapshot: GameSnapshot): LoopView {
+  return {
+    tickCount: snapshot.tickCount,
+    lastTickTimestamp: snapshot.lastSaveTimestamp,
+    playTimeSeconds: snapshot.stats.playTimeSeconds,
+    isOpenInAnotherTab: snapshot.isOpenInAnotherTab,
+  };
+}
+
+// Zona, estágio, inimigo em campo e relógio do sertão, tudo junto
+function buildCombatView(snapshot: GameSnapshot): CombatView {
+  const stage = buildStageView(snapshot);
+  const enemy = buildEnemyIdentity(snapshot);
+  const health = buildEnemyHealth(snapshot);
+  const clock = buildClockView(snapshot);
+
+  return {
+    zoneName: stage.zoneName,
+    stage: stage.stage,
+    maxStage: stage.maxStage,
+    enemyName: enemy.name,
+    isBoss: enemy.isBoss,
+    enemyHp: health.hp,
+    enemyMaxHp: health.maxHp,
+    enemyHpFraction: health.hpFraction,
+    bossTimeLeft: snapshot.combat.bossTimeLeft,
+    killsInStage: stage.killsInStage,
+    killsToBoss: stage.killsToBoss,
+    autoProgress: stage.autoProgress,
+    canChallengeBoss: stage.canChallengeBoss,
+    dayPhase: clock.dayPhase,
+    moonPhase: clock.moonPhase,
+  };
+}
+
+// Patacas, Raízes, Oferendas, Rastros e totais da partida
+function buildResourcesView(snapshot: GameSnapshot): ResourcesView {
+  const header = buildHeaderView(snapshot);
+
+  return {
+    ...header,
+    trails: buildPacts(snapshot).map((pact) => ({
+      id: pact.id,
+      name: pact.name,
+      owned: snapshot.trails[pact.id] ?? 0,
+      needed: pact.trailsNeeded,
+    })),
+    totalKills: snapshot.stats.totalKills,
+    bossesDefeated: snapshot.stats.bossesDefeated,
+    totalGoldEarned: snapshot.stats.totalGoldEarned,
+  };
+}
+
+// Elenco com nível, XP e barra de ataque, mais as opções de encantado inicial
+function buildPartyView(snapshot: GameSnapshot): PartyView {
+  return {
+    hasStarter: selectHasStarter(snapshot),
+    starters: buildStarterOptions(),
+    members: buildPartyCards(snapshot).map((card) => ({
+      id: card.id,
+      name: card.name,
+      level: card.level,
+      xp: card.xp,
+      xpToNextLevel: card.xpToNextLevel,
+      isInParty: card.isInParty,
+      attackProgress: readAttackProgress(snapshot, card.id),
+    })),
   };
 }
 
