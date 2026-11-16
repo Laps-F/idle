@@ -49,6 +49,41 @@ export function pickRandom<T>(options: readonly T[], random: RandomSource): T {
 }
 
 /**
+ * Sorteia um elemento respeitando os pesos: peso 3 sai três vezes mais que peso 1.
+ *
+ * @param options Lista de onde sortear. Cada elemento informa o próprio peso.
+ * @param random Fonte de números aleatórios.
+ * @returns Um dos elementos da lista.
+ * @throws Error se a lista estiver vazia ou se a soma dos pesos não for positiva.
+ *
+ * Caso de borda: elemento com peso zero ou negativo nunca é sorteado.
+ */
+export function pickWeighted<T extends { weight: number }>(
+  options: readonly T[],
+  random: RandomSource,
+): T {
+  const candidates = options.filter((option) => option.weight > 0);
+  const totalWeight = candidates.reduce((sum, option) => sum + option.weight, 0);
+  let remaining = random() * totalWeight;
+
+  for (const candidate of candidates) {
+    remaining -= candidate.weight;
+    if (remaining < 0) {
+      return candidate;
+    }
+  }
+
+  // Só chega aqui por arredondamento na última fatia, ou com a lista vazia
+  const lastCandidate = candidates[candidates.length - 1];
+
+  if (lastCandidate === undefined) {
+    throw new Error('pickWeighted recebeu uma lista sem nenhum peso positivo.');
+  }
+
+  return lastCandidate;
+}
+
+/**
  * Cria um gerador com semente (algoritmo mulberry32).
  *
  * Serve para repetir uma simulação: a mesma semente devolve sempre a mesma

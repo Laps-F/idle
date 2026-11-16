@@ -324,6 +324,10 @@ function ResourcesSection() {
       label: `Rastros: ${trail.name}`,
       value: `${trail.owned} de ${trail.needed}`,
     })),
+    { label: 'Cavacos', value: formatNumber(resources.shavings) },
+    { label: 'Amuletos na mochila', value: String(resources.amuletsInBag) },
+    { label: 'Amuletos vestidos', value: String(resources.amuletsWorn) },
+    { label: 'Amuletos encontrados no total', value: formatNumber(resources.amuletsFound) },
     { label: 'Visagens derrotadas', value: formatNumber(resources.totalKills) },
     { label: 'Chefes vencidos', value: formatNumber(resources.bossesDefeated) },
     { label: 'Patacas ganhas no total', value: formatNumber(resources.totalGoldEarned) },
@@ -409,6 +413,7 @@ function TestControlsSection() {
   const grantGold = useGameStore((store) => store.debugGrantGold);
   const setAutoProgress = useGameStore((store) => store.setAutoProgress);
   const challengeBoss = useGameStore((store) => store.challengeBoss);
+  const grantAmulet = useGameStore((store) => store.debugGrantAmulet);
 
   const actions: DebugAction[] = [
     {
@@ -425,6 +430,7 @@ function TestControlsSection() {
       run: () => setAutoProgress(!combat.autoProgress),
     },
     { label: 'Desafiar chefe', run: () => challengeBoss(), disabled: !combat.canChallengeBoss },
+    { label: 'Ganhar um amuleto', run: grantAmulet },
   ];
 
   return <ActionButtons actions={actions} />;

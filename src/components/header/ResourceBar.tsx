@@ -1,11 +1,11 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/header/ResourceBar.tsx
- * O que faz: mostra os recursos de quem joga: Patacas, Raízes e Oferendas.
+ * O que faz: mostra os recursos de quem joga: Patacas, Raízes, Cavacos e Oferendas.
  * Só formata os números que recebe do seletor.
  */
 
-import { Coins, Sprout } from 'lucide-react';
+import { Coins, Hammer, Sprout } from 'lucide-react';
 
 import { selectHeaderView } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
@@ -17,7 +17,7 @@ import { formatNumber } from '../../utils/format';
 
 const ICON_SIZE = 18;
 
-// Patacas em destaque, Raízes quando houver e uma etiqueta por Oferenda
+// Patacas em destaque, Raízes e Cavacos quando houver e uma etiqueta por Oferenda
 export function ResourceBar() {
   const header = useGameStore(selectHeaderView);
 
@@ -38,6 +38,16 @@ export function ResourceBar() {
             <span className="sr-only">Raízes</span>
           </dt>
           <dd className="font-display text-xl leading-none">{formatNumber(header.roots)}</dd>
+        </div>
+      )}
+
+      {header.hasFoundAmulets && (
+        <div className="flex items-center gap-1.5" title="Cavacos">
+          <dt className="flex items-center gap-1.5">
+            <Hammer size={ICON_SIZE} aria-hidden="true" />
+            <span className="sr-only">Cavacos</span>
+          </dt>
+          <dd className="font-display text-xl leading-none">{formatNumber(header.shavings)}</dd>
         </div>
       )}
 

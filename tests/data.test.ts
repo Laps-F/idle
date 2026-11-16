@@ -7,15 +7,36 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ENCANTADOS, ENEMIES, UPGRADES, ZONES } from '../src/data';
+import {
+  AMULET_BASES,
+  AMULET_RARITIES,
+  ENCANTADOS,
+  ENEMIES,
+  UPGRADES,
+  ZONES,
+} from '../src/data';
 import { getZoneForStage, hasEncantado, hasEnemy, hasItem } from '../src/domain/catalog';
 
 describe('dados do jogo', () => {
   it('não repete ids', () => {
-    for (const definitions of [ENCANTADOS, ENEMIES, UPGRADES, ZONES]) {
+    for (const definitions of [ENCANTADOS, ENEMIES, UPGRADES, ZONES, AMULET_BASES]) {
       const ids = definitions.map((definition) => definition.id);
       expect(new Set(ids).size).toBe(ids.length);
     }
+  });
+
+  it('tem amuletos com um atributo principal por tipo e raridades sem repetição', () => {
+    const stats = AMULET_BASES.map((base) => base.stat);
+    const rarities = AMULET_RARITIES.map((definition) => definition.rarity);
+
+    expect(new Set(stats).size).toBe(stats.length);
+    expect(new Set(rarities).size).toBe(rarities.length);
+    expect(AMULET_BASES.every((base) => base.baseBonus > 0)).toBe(true);
+    expect(AMULET_RARITIES.every((definition) => definition.weight > 0)).toBe(true);
+    expect(AMULET_RARITIES.every((definition) => definition.maxLevel > 0)).toBe(true);
+    // Todo amuleto precisa de atributos diferentes para o principal e os secundários
+    const mostExtras = Math.max(...AMULET_RARITIES.map((definition) => definition.extraBonuses));
+    expect(mostExtras).toBeLessThan(AMULET_BASES.length);
   });
 
   it('só pede em pactos Oferendas que existem', () => {

@@ -25,6 +25,7 @@
 import { BALANCE, MS_PER_SECOND } from '../data/balance';
 import { randomInteger, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
+import { receiveAmulet, rollAmuletDrop } from './amulets';
 import { getEncantado, getEnemy, getZoneForStage } from './catalog';
 import { getDayPhase, matchesClock } from './clock';
 import {
@@ -397,7 +398,7 @@ function spawnCommonEnemy(context: SimulationContext): void {
 // =============================================================================
 // R E C O M P E N S A S
 
-// Patacas, XP, Oferendas e Rastros de um inimigo derrotado
+// Patacas, XP, Oferendas, Rastros e, com sorte, um amuleto de um inimigo derrotado
 function grantKillRewards(context: SimulationContext, enemy: EnemyDef, modifiers: Modifiers): void {
   const { draft, summary } = context;
   const { isBoss } = draft.combat;
@@ -415,6 +416,7 @@ function grantKillRewards(context: SimulationContext, enemy: EnemyDef, modifiers
   grantXpToParty(context, xp);
   rollItemDrops(context, enemy, modifiers);
   rollTrails(context, modifiers);
+  rollAmulet(context, isBoss, modifiers);
 }
 
 // Cada encantado da comitiva recebe o XP inteiro e sobe de nível quando junta o bastante
@@ -437,6 +439,39 @@ function grantXpToParty(context: SimulationContext, xp: number): void {
       emit(context, { type: 'levelUp', encantadoId, level: owned.level });
     }
   }
+}
+
+// Sorteia a queda de um amuleto e, se cair, guarda na mochila ou desmancha.
+// As regras são de src/domain/amulets.ts. Aqui só se liga a derrota à queda.
+function rollAmulet(context: SimulationContext, isBoss: boolean, modifiers: Modifiers): void {
+  const { draft, summary, random } = context;
+  const dropInput = {
+    stage: draft.stage,
+    isBoss,
+    dropChanceMultiplier: modifiers.dropChance,
+    amuletNumber: draft.nextAmuletNumber,
+  };
+  const amulet = rollAmuletDrop(dropInput, random);
+
+  if (amulet === null) {
+    return;
+  }
+
+  const received = receiveAmulet(draft, amulet);
+  // receiveAmulet é pura e devolve um estado novo. Os campos dele são copiados para a
+  // cópia de trabalho, que precisa continuar sendo o mesmo objeto até o fim da simulação.
+  Object.assign(draft, received.state);
+
+  summary.amuletsFound += 1;
+  summary.amuletsSalvaged += received.wasSalvaged ? 1 : 0;
+  summary.shavings += received.shavings;
+  emit(context, {
+    type: 'amulet',
+    baseId: amulet.baseId,
+    rarity: amulet.rarity,
+    wasSalvaged: received.wasSalvaged,
+    shavings: received.shavings,
+  });
 }
 
 // Sorteia cada Oferenda da tabela do inimigo

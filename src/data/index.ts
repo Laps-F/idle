@@ -7,6 +7,7 @@
  * Para consultar uma definição por id, use src/domain/catalog.ts.
  */
 
+export { AMULET_BASES, AMULET_RARITIES } from './amulets';
 export { BALANCE, MS_PER_SECOND } from './balance';
 export { ENCANTADOS } from './encantados';
 export { ENEMIES } from './enemies';

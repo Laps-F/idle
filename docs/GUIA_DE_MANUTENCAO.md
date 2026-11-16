@@ -15,7 +15,7 @@ Outros documentos:
 
 | Pasta | O que tem | Pode importar de |
 |---|---|---|
-| `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, progresso offline | `data`, `utils` |
+| `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, amuletos, progresso offline | `data`, `utils` |
 | `src/store` | Estado global (Zustand): o `tick`, o controle do tempo, o salvamento no `localStorage` e os seletores | `domain`, `data`, `utils`, Zustand |
 | `src/data` | Datasets estáticos e tipados: inimigos, itens, zonas, tabelas de itens, constantes | só os tipos de `domain` |
 | `src/components` | Componentes visuais "burros": mostram o que recebem e chamam ações | `store`, `utils`, React, Lucide (ícones) |
@@ -118,6 +118,10 @@ e grava o estado que ela devolveu.
 | Bônus de uma sinergia de origem | `src/data/synergies.ts` |
 | Estágios de uma zona, inimigos, chefe, tempo do chefe, visagens até o chefe | `src/data/zones.ts` |
 | Chance de Rastro de um encantado e em que hora ele aparece | `src/data/zones.ts` |
+| Tipos de amuleto: nome, descrição, atributo principal e bônus base | `src/data/amulets.ts`, `AMULET_BASES` |
+| Raridades de amuleto: peso no sorteio, força, bônus secundários, entalhe máximo, valor de desmanche | `src/data/amulets.ts`, `AMULET_RARITIES` |
+| Chance de amuleto por chefe e por visagem, tamanho da mochila | `src/data/balance.ts`, constantes `amulet...` |
+| Custo e ganho do entalhe, devolução no desmanche, ganho por estágio | `src/data/balance.ts`, constantes `carve...`, `salvage...` e `amulet...` |
 
 ### Regras (`src/domain`)
 
@@ -130,7 +134,11 @@ e grava o estado que ela devolveu.
 | O que um inimigo derrotado entrega (Patacas, XP, itens, Rastros) | `src/domain/simulation.ts`, bloco "Recompensas" |
 | Dano direto fora do ritmo dos ataques (clique, teste) | `src/domain/simulation.ts`, `dealDirectDamage` |
 | Regras das ações da pessoa: comitiva, compra de melhoria, chefe, troca de estágio | `src/domain/actions.ts` |
-| Como melhorias, sinergias e Raízes se combinam | `src/domain/modifiers.ts` |
+| Como melhorias, sinergias, amuletos e Raízes se combinam | `src/domain/modifiers.ts` |
+| Sorteio da queda e geração dos atributos de um amuleto | `src/domain/amulets.ts`, bloco "Queda e geração" |
+| O que acontece com o amuleto que cai (mochila cheia, desmanche automático) | `src/domain/amulets.ts`, `receiveAmulet` |
+| Regras de vestir, tirar, desmanchar e entalhar | `src/domain/amulets.ts` |
+| Em que momento do combate o amuleto cai | `src/domain/simulation.ts`, `rollAmulet` |
 | Dia, noite e fases da lua | `src/domain/clock.ts` |
 | O que um pacto exige e o que acontece ao fechar | `src/domain/pact.ts` |
 | Cálculo do progresso offline e junção de relatórios | `src/domain/offline.ts` |
@@ -144,10 +152,12 @@ e grava o estado que ela devolveu.
 | O que o `tick` faz e quando conta como ausência | `src/store/useGameStore.ts`, bloco "Ações de simulação" |
 | Ligação entre uma ação e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de jogo" |
 | Exportar, importar, apagar tudo, gravar agora | `src/store/useGameStore.ts`, bloco "Ações de salvamento" |
+| Ligação entre uma ação de amuleto e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de amuletos" |
 | Atalhos de teste do painel de debug | `src/store/useGameStore.ts`, bloco "Ações de teste" |
 | Os dados prontos que um componente recebe | `src/store/selectors.ts` |
 | Chave do `localStorage`, formato do código exportado, mensagens de erro | `src/store/saveManager.ts` |
 | Conferência de um salvamento lido ou importado | `src/store/saveManager.ts`, bloco "Conferência do salvamento" |
+| Conferência dos amuletos de um salvamento | `src/store/saveManager.ts`, `sanitizeAmulets` e `sanitizeEquipped` |
 | Conversão de salvamentos de versões antigas | `src/store/saveManager.ts`, `MIGRATIONS` |
 | Quando o laço roda, quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
@@ -159,9 +169,10 @@ e grava o estado que ela devolveu.
 | Qual tela abre (jogo ou painel de debug) | `src/App.tsx` |
 | A disposição dos painéis na tela, as abas de cada lateral, as janelas automáticas | `src/components/GameScreen.tsx` |
 | Cor do papel de cada bioma, textos de origem, raridade, fase do dia e lua | `src/components/theme.ts` |
+| Carimbo de cada raridade, texto de cada bônus e opções do desmanche automático | `src/components/theme.ts`, bloco "Amuletos" |
 | Cores e fontes do tema, animações (número flutuante, tranco, carimbo, barras) | `src/index.css` |
 | O que aparece no cabeçalho | `src/components/header/AppHeader.tsx` |
-| Recursos do cabeçalho (Patacas, Raízes, Oferendas) | `src/components/header/ResourceBar.tsx` |
+| Recursos do cabeçalho (Patacas, Raízes, Cavacos, Oferendas) | `src/components/header/ResourceBar.tsx` |
 | Zona, estágio e relógio no cabeçalho | `src/components/header/StageBadge.tsx` |
 | Botões de exportar, importar e apagar tudo | `src/components/header/SaveMenu.tsx` |
 | Janelas de exportar, importar e apagar tudo (textos e confirmações) | `src/components/modals/SaveModals.tsx` |
@@ -174,11 +185,12 @@ e grava o estado que ela devolveu.
 | Almanaque: folha de cada pacto e a lista do que falta | `src/components/party/AlmanacPanel.tsx` |
 | Lista de melhorias e botão de compra | `src/components/progress/UpgradesPanel.tsx` |
 | Navegação de estágios, avanço automático e desafio ao chefe | `src/components/progress/StagesPanel.tsx` |
+| Aba de amuletos: quem veste, mochila, entalhe, desmanche e desmanche automático | `src/components/progress/AmuletsPanel.tsx` |
 | Janela de boas-vindas de volta | `src/components/modals/OfflineModal.tsx` |
 | Janela de escolha do encantado inicial | `src/components/modals/StarterModal.tsx` |
 | Aviso de jogo aberto em outra aba | `src/components/modals/OtherTabNotice.tsx` |
 | Base de todas as janelas (fundo, foco, Esc) | `src/components/modals/Modal.tsx` |
-| Desenho de um encantado ou inimigo | `src/components/art/figures.tsx` |
+| Desenho de um encantado, inimigo ou amuleto | `src/components/art/figures.tsx` |
 | Como a figura é mostrada e o filtro de borda irregular | `src/components/ui/Figure.tsx` |
 | Aparência das barras, dos botões e das abas | `src/components/ui/Meter.tsx`, `Button.tsx`, `Tabs.tsx` |
 | Como uma barra anda sem redesenhar o componente | `src/components/hooks/useStoreMeter.ts` |
@@ -192,8 +204,8 @@ viram golpes e linhas de registro em `src/store/eventViews.ts`.
 
 | Quero mudar | Arquivo |
 |---|---|
-| Como números, porcentagens e durações aparecem | `src/utils/format.ts` |
-| Sorteios e gerador com semente | `src/utils/random.ts` |
+| Como números, porcentagens, bônus com sinal, plurais e durações aparecem | `src/utils/format.ts` |
+| Sorteios (simples e por peso) e gerador com semente | `src/utils/random.ts` |
 | Gerador de identificador único | `src/utils/id.ts` |
 
 ## 4. Receitas
@@ -238,9 +250,14 @@ Todos os passos são obrigatórios. Pular um deles perde o campo ao salvar ou qu
 1. `src/domain/types.ts`: declare o campo em `GameState`.
 2. `src/domain/state.ts`: dê o valor inicial em `createInitialState` e inclua em `pickGameState`.
 3. `src/store/saveManager.ts`: trate o campo em `sanitizeGameState`.
-4. Se o formato de um campo antigo mudou: suba `saveVersion` em `src/data/balance.ts` e
-   registre a conversão em `MIGRATIONS`.
-5. Acrescente um caso no teste de salvamento, em `tests/store.test.ts`.
+4. Suba `saveVersion` em `src/data/balance.ts` e registre em `MIGRATIONS` a conversão a partir
+   da versão anterior, dando ao campo novo o valor de quem nunca o teve. A chave de
+   `MIGRATIONS` é a versão de origem: `MIGRATIONS[1]` leva um salvamento da versão 1 para a 2.
+5. Acrescente um caso no teste de salvamento, em `tests/store.test.ts`, que abre um salvamento
+   da versão anterior e confere que nada se perdeu.
+
+O exemplo pronto é a entrada dos amuletos: `MIGRATIONS[1]`, em `src/store/saveManager.ts`, e o
+bloco "amuletos e migração do salvamento", em `tests/store.test.ts`.
 
 Campo que só existe com o jogo aberto (não é salvo) vai em `SessionState`, em
 `src/store/types.ts`.
@@ -272,12 +289,48 @@ Campo que só existe com o jogo aberto (não é salvo) vai em `SessionState`, em
 3. Não leia esse valor com `useGameStore(...)`: isso redesenharia o componente 10 vezes por
    segundo.
 
-### Acrescentar a figura de um encantado ou inimigo
+### Acrescentar um tipo de amuleto
+
+1. `src/data/amulets.ts`: acrescente a entrada em `AMULET_BASES`, com um atributo principal que
+   nenhum outro tipo usa. O atributo precisa existir em `ModifierStat` (`src/domain/types.ts`).
+2. `src/components/art/figures.tsx`: desenhe a figura e registre em `FIGURES` com o mesmo id.
+3. Rode `npm test`. O teste de dados confere a tabela.
+
+Atributo novo (um que ainda não existe em `ModifierStat`) pede mais três passos: somar o
+atributo em `src/domain/modifiers.ts`, usá-lo na conta certa do domínio e dar o texto em
+`BONUS_LABELS`, em `src/components/theme.ts`.
+
+### Mudar a chance ou a força dos amuletos
+
+- Cai amuleto demais ou de menos: `amuletBossDropChance` e `amuletCommonDropChance`, em
+  `src/data/balance.ts`.
+- Raridade aparece demais ou de menos: o campo `weight` de `AMULET_RARITIES`. Os pesos são
+  proporções entre si e não precisam somar 100.
+- Amuleto forte ou fraco demais: `baseBonus` do tipo, `bonusMultiplier` da raridade ou
+  `amuletStageScaling` (ganho por estágio).
+- Entalhe caro ou barato demais: `carveCostBase`, `carveCostGrowth` e `carveCostMultiplier`.
+
+### Acrescentar a figura de um encantado, inimigo ou amuleto
 
 1. Desenhe em `src/components/art/figures.tsx`, na prancha de 120 por 120. A tinta é
    `currentColor` e os cortes usam os estilos `CUT` e `CUT_FILL`.
 2. Registre em `FIGURES`, com o mesmo id usado em `src/data`. Sem registro, aparece a figura
    genérica.
+
+### Acrescentar um sistema novo (o caminho que os amuletos seguiram)
+
+Siga esta ordem. Cada passo só depende dos anteriores.
+
+1. Domínio: tipos em `src/domain/types.ts` e um arquivo só do sistema em `src/domain`, com
+   funções puras. Sorteio entra por parâmetro (`RandomSource`). Ação recusada devolve `null`.
+2. Dados: tabelas em um arquivo novo de `src/data`, exportadas por `src/data/index.ts`, e as
+   constantes em `balance.ts`. Consulta por id em `src/domain/catalog.ts`.
+3. Store: campos em `GameState` (receita "Acrescentar um campo ao estado salvo"), ações em
+   `GameActions` ligadas com `applyInput`, gatilho dentro de `src/domain/simulation.ts` se o
+   sistema reage ao combate, e a visão da tela em `src/store/selectors.ts`.
+4. Tela: componente burro na pasta do assunto e a aba em `GameScreen.tsx`.
+5. Testes: um arquivo de teste do domínio (`tests/amulets.test.ts` é o modelo), casos de
+   salvamento em `tests/store.test.ts` e casos de tela em `tests/GameScreen.test.tsx`.
 
 ### Acrescentar um tipo de linha ao registro
 

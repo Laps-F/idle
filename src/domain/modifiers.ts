@@ -1,7 +1,7 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/domain/modifiers.ts
- * O que faz: junta melhorias, sinergias e Raízes nos multiplicadores finais
+ * O que faz: junta melhorias, sinergias, amuletos e Raízes nos multiplicadores finais
  * que o combate usa.
  *
  * Mapa:
@@ -13,9 +13,17 @@
 import { BALANCE } from '../data/balance';
 import { SYNERGIES } from '../data/synergies';
 import { UPGRADES } from '../data/upgrades';
+import { getPartyAmuletBonuses } from './amulets';
 import { getEncantado } from './catalog';
 import { getRootsMultiplier } from './formulas';
-import type { DayPhase, GameState, ModifierStat, Modifiers, SynergyDef } from './types';
+import type {
+  AmuletBonus,
+  DayPhase,
+  GameState,
+  ModifierStat,
+  Modifiers,
+  SynergyDef,
+} from './types';
 
 // =============================================================================
 // =============================================================================
@@ -41,9 +49,10 @@ export function getActiveSynergies(party: readonly string[], dayPhase: DayPhase)
 /**
  * Calcula os multiplicadores finais que o combate usa.
  *
- * Para cada atributo: (1 + soma das melhorias) × (1 + soma das sinergias).
+ * Para cada atributo: (1 + soma das melhorias) × (1 + soma das sinergias) ×
+ * (1 + soma dos amuletos vestidos pela comitiva).
  * Dano e Patacas ainda são multiplicados pelo bônus das Raízes.
- * A chance de crítico é uma soma: base + melhorias + sinergias, limitada a 100%.
+ * A chance de crítico é uma soma: base + melhorias + sinergias + amuletos, limitada a 100%.
  *
  * @param state Estado do jogo. Só é lido.
  * @param dayPhase Fase do dia. Algumas sinergias só valem de dia ou de noite.
@@ -52,9 +61,15 @@ export function getActiveSynergies(party: readonly string[], dayPhase: DayPhase)
 export function getModifiers(state: GameState, dayPhase: DayPhase): Modifiers {
   const upgradeBonus = sumUpgradeBonuses(state.upgrades);
   const synergyBonus = sumSynergyBonuses(getActiveSynergies(state.party, dayPhase));
+  const amuletBonus = sumAmuletBonuses(getPartyAmuletBonuses(state));
   const rootsMultiplier = getRootsMultiplier(state.roots);
-  const multiplierOf = (stat: ModifierStat) => (1 + upgradeBonus[stat]) * (1 + synergyBonus[stat]);
-  const critChance = BALANCE.baseCritChance + upgradeBonus.critChance + synergyBonus.critChance;
+  const multiplierOf = (stat: ModifierStat) =>
+    (1 + upgradeBonus[stat]) * (1 + synergyBonus[stat]) * (1 + amuletBonus[stat]);
+  const critChance =
+    BALANCE.baseCritChance +
+    upgradeBonus.critChance +
+    synergyBonus.critChance +
+    amuletBonus.critChance;
 
   return {
     damage: multiplierOf('damage') * rootsMultiplier,
@@ -114,7 +129,23 @@ function sumSynergyBonuses(synergies: readonly SynergyDef[]): Modifiers {
   return bonuses;
 }
 
+// Soma dos bônus dos amuletos em vigor, por atributo
+function sumAmuletBonuses(amuletBonuses: readonly AmuletBonus[]): Modifiers {
+  const bonuses = createEmptyBonuses();
+
+  for (const bonus of amuletBonuses) {
+    bonuses[bonus.stat] += bonus.value;
+  }
+
+  return bonuses;
+}
+
 // Tabela de bônus zerada
 function createEmptyBonuses(): Modifiers {
   return { damage: 0, bossDamage: 0, attackSpeed: 0, gold: 0, dropChance: 0, critChance: 0 };
+}
+
+// Diz se o texto é o nome de um atributo que melhoria, sinergia ou amuleto podem alterar
+export function isModifierStat(value: unknown): value is ModifierStat {
+  return typeof value === 'string' && value in createEmptyBonuses();
 }

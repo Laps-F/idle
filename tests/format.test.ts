@@ -6,7 +6,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDuration, formatNumber, formatPercent } from '../src/utils/format';
+import {
+  formatCount,
+  formatDuration,
+  formatNumber,
+  formatPercent,
+  formatSignedPercent,
+} from '../src/utils/format';
 
 describe('formatação', () => {
   it('abrevia números grandes com K, M, B, T, Qa e Qi', () => {
@@ -27,5 +33,21 @@ describe('formatação', () => {
     expect(formatDuration(9)).toBe('9s');
     expect(formatDuration(75)).toBe('1min 15s');
     expect(formatDuration(3725)).toBe('1h 02min 05s');
+  });
+});
+
+describe('formatSignedPercent e formatCount', () => {
+  it('mostra o bônus com sinal e uma casa decimal abaixo de 10%', () => {
+    expect(formatSignedPercent(0.052)).toBe('+5,2%');
+    expect(formatSignedPercent(0.12)).toBe('+12%');
+    expect(formatSignedPercent(0.0996)).toBe('+10%');
+    expect(formatSignedPercent(-0.05)).toBe('-5,0%');
+    expect(formatSignedPercent(0)).toBe('+0,0%');
+  });
+
+  it('escolhe singular ou plural pela quantidade', () => {
+    expect(formatCount(1, 'Cavaco', 'Cavacos')).toBe('1 Cavaco');
+    expect(formatCount(0, 'Cavaco', 'Cavacos')).toBe('0 Cavacos');
+    expect(formatCount(1500, 'Cavaco', 'Cavacos')).toBe('1,50K Cavacos');
   });
 });

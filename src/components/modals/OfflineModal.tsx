@@ -15,7 +15,12 @@
 import { selectOfflineView } from '../../store/selectors';
 import type { NamedAmount, OfflineView } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
-import { formatDuration, formatNumber, formatPercent } from '../../utils/format';
+import {
+  formatCount,
+  formatDuration,
+  formatNumber,
+  formatPercent,
+} from '../../utils/format';
 import { Button } from '../ui/Button';
 import { Modal } from './Modal';
 
@@ -97,6 +102,17 @@ function getGains(offline: OfflineView): Gain[] {
   }
   if (offline.stagesAdvanced > 0) {
     gains.push({ label: 'Estágios avançados', value: formatNumber(offline.stagesAdvanced) });
+  }
+  if (offline.amuletsFound > 0) {
+    gains.push({ label: 'Amuletos encontrados', value: formatNumber(offline.amuletsFound) });
+  }
+  if (offline.shavings > 0) {
+    const salvaged = formatCount(
+      offline.amuletsSalvaged,
+      'amuleto desmanchado',
+      'amuletos desmanchados',
+    );
+    gains.push({ label: `Cavacos de ${salvaged}`, value: `+${formatNumber(offline.shavings)}` });
   }
 
   return [

@@ -11,8 +11,8 @@
  *   3. Registro compacto
  */
 
-import { getEncantado, getEnemy, getItem } from '../domain/catalog';
-import type { CombatEvent } from '../domain/types';
+import { getAmuletBase, getEncantado, getEnemy, getItem } from '../domain/catalog';
+import type { CombatEvent, Rarity } from '../domain/types';
 
 // =============================================================================
 // =============================================================================
@@ -31,13 +31,16 @@ export type LogEntryKind =
   | 'stageAdvanced' // "amount" é o estágio novo
   | 'drop' // "name" é a Oferenda e "amount" a quantidade
   | 'trail' // "name" é o encantado e "amount" quantos Rastros
-  | 'levelUp'; // "name" é o encantado e "amount" o nível novo
+  | 'levelUp' // "name" é o encantado e "amount" o nível novo
+  | 'amuletFound' // "name" é o tipo do amuleto e "rarity" a raridade. Foi para a mochila.
+  | 'amuletSalvaged'; // amuleto desmanchado na hora. "amount" são os Cavacos rendidos.
 
 export interface LogEntry {
   kind: LogEntryKind;
   name: string;
   amount: number;
   count: number;
+  rarity?: Rarity; // só nas linhas de amuleto
 }
 
 // O que um tick deixou para a tela mostrar
@@ -93,6 +96,11 @@ function toLogEntry(event: Exclude<CombatEvent, { type: 'hit' }>): LogEntry {
       return { kind: 'bossFailed', name: getEnemy(event.enemyId).name, amount: 0, count: 1 };
     case 'stageAdvanced':
       return { kind: 'stageAdvanced', name: '', amount: event.stage, count: 1 };
+    case 'amulet': {
+      const kind = event.wasSalvaged ? 'amuletSalvaged' : 'amuletFound';
+      const name = getAmuletBase(event.baseId).name;
+      return { kind, name, amount: event.shavings, count: 1, rarity: event.rarity };
+    }
   }
 }
 

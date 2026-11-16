@@ -4,8 +4,9 @@ Idle de coleção com folclore brasileiro, para navegador. Você percorre os bio
 comitiva de encantados (Saci, Curupira, Iara, Caipora, Boitatá) e enfrenta as visagens do
 Estio. Roda inteiro no navegador e salva no `localStorage`.
 
-Estado atual: MVP jogável. Motor, estado global e interface de produção prontos, com uma zona
-(Mata Atlântica), cinco encantados, melhorias, pactos, salvamento e progresso offline.
+Estado atual: MVP jogável com o primeiro sistema de retenção. Motor, estado global e interface
+de produção prontos, com uma zona (Mata Atlântica), cinco encantados, melhorias, pactos,
+amuletos, salvamento e progresso offline.
 
 O visual segue o folheto de cordel: página de papel pardo, painéis de papel jornal e a arena
 como capa do folheto, em papel colorido (uma cor por bioma) com as figuras em xilogravura.
@@ -38,11 +39,12 @@ src/
     catalog.ts         consulta dos dados por id e zona de cada estágio
     formulas.ts        contas de vida, Patacas, XP, custo e Raízes
     clock.ts           dia, noite e lua a partir de um horário
-    modifiers.ts       junta melhorias, sinergias e Raízes
+    modifiers.ts       junta melhorias, sinergias, amuletos e Raízes
     state.ts           jogo novo e combate contra visagem ou chefe
     simulation.ts      combate: avança qualquer intervalo de tempo
     actions.ts         regras das ações da pessoa (comitiva, melhorias, chefe, estágio)
     pact.ts            confere e fecha pactos
+    amulets.ts         amuletos: queda, atributos, mochila, vestir, desmanche e entalhe
     offline.ts         ganhos do tempo ausente
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
@@ -52,6 +54,7 @@ src/
     upgrades.ts        melhorias compradas com Patacas
     synergies.ts       bônus de origem da comitiva
     zones.ts           zonas, estágios e Rastros
+    amulets.ts         tipos e raridades de amuleto
     index.ts           ponto único de importação dos datasets
   store/               estado global (Zustand), tempo e salvamento
     types.ts           tipagens da store: ações, estado de sessão, retornos
@@ -67,15 +70,15 @@ src/
     header/            cabeçalho: recursos, zona e estágio, controles de salvamento
     arena/             capa com o inimigo, barras de ataque, números flutuantes e registro
     party/             comitiva, sinergias e Almanaque de pactos
-    progress/          melhorias e navegação de estágios
+    progress/          melhorias, navegação de estágios e amuletos
     modals/            janelas: escolha inicial, boas-vindas de volta, salvamento, outra aba
     ui/                peças reutilizáveis: figura, barras, botão e abas
     art/               xilogravuras em SVG
     hooks/             barra movida por ref e escuta dos eventos de combate
     DebugView.tsx      painel de debug: métricas, indicador de tick, ausência e controles
   utils/               funções utilitárias puras
-    format.ts          números grandes, porcentagem, duração e horário
-    random.ts          sorteios e gerador com semente
+    format.ts          números grandes, porcentagem, bônus com sinal, plural, duração e horário
+    random.ts          sorteios (simples e por peso) e gerador com semente
     id.ts              gerador de identificador único
     object.ts          comparação de objetos
     base64.ts          Base64 com acentos
@@ -120,6 +123,23 @@ escondidas. O desenho fica com o React e com CSS.
   gravar (`isOpenInAnotherTab`) e a nova continua de onde o salvamento parou.
 - Mudou o formato do `GameState`? Suba `saveVersion` em `balance.ts` e registre a conversão em
   `MIGRATIONS`, dentro de `saveManager.ts`.
+- O salvamento está na versão 2. Um jogo gravado na versão 1 (antes dos amuletos) abre
+  normalmente: ele ganha mochila vazia e zero Cavacos e passa a ser gravado na versão 2. O
+  mesmo vale para um código exportado na versão 1.
+
+## Amuletos
+
+O primeiro sistema de retenção. Chefes vencidos (60% de chance) e visagens (1,5%) deixam
+amuletos, em quatro raridades. Cada amuleto tem um bônus principal, que vem do tipo, e de zero
+a três bônus secundários, conforme a raridade. Quanto mais alto o estágio, mais forte ele cai.
+
+- Cada encantado veste um amuleto. Só vale o de quem está na comitiva.
+- A mochila guarda 20. Com ela cheia, o que cair vira Cavacos.
+- Desmanchar um amuleto rende Cavacos. Cavacos pagam o entalhe, que fortalece o amuleto.
+- O desmanche automático transforma em Cavacos, na hora, o que cair até a raridade escolhida.
+
+As regras ficam em `src/domain/amulets.ts`, os números em `src/data/amulets.ts` e em
+`src/data/balance.ts`, e a tela em `src/components/progress/AmuletsPanel.tsx`.
 
 ## Árvore de componentes
 
@@ -127,7 +147,7 @@ escondidas. O desenho fica com o React e com CSS.
 App                          liga o laço do jogo e escolhe a tela
 ├─ GameScreen                tela do jogo
 │  ├─ AppHeader
-│  │  ├─ ResourceBar         Patacas, Raízes e Oferendas
+│  │  ├─ ResourceBar         Patacas, Raízes, Cavacos e Oferendas
 │  │  ├─ StageBadge          zona, estágio e relógio do sertão
 │  │  └─ SaveMenu            Exportar, Importar e Apagar tudo
 │  │     └─ ExportModal, ImportModal, ResetModal
@@ -145,7 +165,8 @@ App                          liga o laço do jogo e escolhe a tela
 │  │  └─ AlmanacPanel        pactos
 │  ├─ Tabs "Progresso"       lateral direita
 │  │  ├─ UpgradesPanel       melhorias
-│  │  └─ StagesPanel         estágios e chefe
+│  │  ├─ StagesPanel         estágios e chefe
+│  │  └─ AmuletsPanel        amuletos: quem veste, mochila, entalhe e desmanche
 │  └─ StarterModal, OfflineModal, OtherTabNotice
 └─ DebugView                 painel de debug, em /?debug
 ```
@@ -170,11 +191,12 @@ Para adaptar:
 - nova seção: escreva o componente e acrescente uma linha em `SECTIONS`;
 - mostrar só algumas seções: `<DebugView sectionIds={['loop', 'save']} />`.
 
-Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold` e `debugSkipTime` da store.
+Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSkipTime` e
+`debugGrantAmulet` da store.
 
 ## Próximas etapas
 
-1. Novos biomas, com visagens, chefes e encantados próprios.
-2. Lua nos pactos, laços e bônus do Almanaque.
-3. Equipamentos e Rebrota.
+1. Rebrota (prestígio), com as Raízes.
+2. Novos biomas, com visagens, chefes e encantados próprios.
+3. Lua nos pactos, laços e bônus do Almanaque.
 4. Som, com a Web Audio API.

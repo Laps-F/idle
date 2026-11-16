@@ -11,7 +11,7 @@
  *   4. Store completa
  */
 
-import type { CombatEvent, GameState, OfflineReport } from '../domain/types';
+import type { CombatEvent, GameState, OfflineReport, Rarity } from '../domain/types';
 
 // =============================================================================
 // =============================================================================
@@ -62,6 +62,14 @@ export interface GameActions {
   challengeBoss: () => boolean;
   goToStage: (stage: number) => boolean;
 
+  // Amuletos. Devolvem true quando a ação foi aplicada.
+  equipAmulet: (encantadoId: string, amuletId: string) => boolean;
+  unequipAmulet: (encantadoId: string) => boolean;
+  salvageAmulet: (amuletId: string) => boolean;
+  salvageBagUpTo: (maxRarity: Rarity) => boolean;
+  carveAmulet: (amuletId: string) => boolean;
+  setAutoSalvage: (maxRarity: Rarity | null) => void;
+
   // Salvamento
   saveNow: () => SaveReceipt;
   exportSave: () => string;
@@ -72,6 +80,7 @@ export interface GameActions {
   debugHitEnemy: (hpFraction: number) => void;
   debugGrantGold: (amount: number) => void;
   debugSkipTime: (seconds: number) => void;
+  debugGrantAmulet: () => void;
 }
 
 

@@ -73,7 +73,8 @@ export function applyOfflineProgress(
 
 // Diz se a ausência rendeu alguma coisa. Sem ganho, não há o que mostrar na volta.
 export function hasOfflineGains(report: OfflineReport): boolean {
-  return report.summary.kills > 0 || report.summary.gold > 0;
+  const { kills, gold, amuletsFound } = report.summary;
+  return kills > 0 || gold > 0 || amuletsFound > 0;
 }
 
 // Tempo que rende = menor(tempo ausente, teto) × eficiência
@@ -122,6 +123,9 @@ function mergeSummaries(first: SimulationSummary, second: SimulationSummary): Si
     items: mergeCounters(first.items, second.items),
     trails: mergeCounters(first.trails, second.trails),
     levelUps: mergeCounters(first.levelUps, second.levelUps),
+    amuletsFound: first.amuletsFound + second.amuletsFound,
+    amuletsSalvaged: first.amuletsSalvaged + second.amuletsSalvaged,
+    shavings: first.shavings + second.shavings,
   };
 }
 

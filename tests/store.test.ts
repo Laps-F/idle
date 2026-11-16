@@ -390,3 +390,164 @@ describe('ações de teste e contador de ticks', () => {
     expect(useGameStore.getState().stats.totalGoldEarned).toBe(0);
   });
 });
+
+describe('amuletos e migração do salvamento', () => {
+  // Estado como a versão 1 gravava: sem nenhum campo de amuleto
+  const versionOneState = {
+    version: 1,
+    gold: 777,
+    stage: 4,
+    maxStage: 6,
+    killsInStage: 3,
+    autoProgress: true,
+    party: ['saci'],
+    roster: { saci: { id: 'saci', level: 9, xp: 12, bond: 0 } },
+    trails: { caipora: 2 },
+    inventory: { 'mel-silvestre': 4 },
+    upgrades: { 'reza-forte': 3 },
+    roots: 0,
+    combat: {
+      enemyId: 'visagem-da-neblina',
+      enemyHp: 5,
+      enemyMaxHp: 17,
+      isBoss: false,
+      bossTimeLeft: 0,
+      attackProgress: { saci: 0.5 },
+    },
+    lastSaveTimestamp: START,
+    stats: { totalKills: 120, totalGoldEarned: 900, bossesDefeated: 5, playTimeSeconds: 600 },
+  };
+
+  it('abre um salvamento da versão 1 sem perder nada e já na versão 2', async () => {
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: versionOneState, version: 1 }));
+    const useGameStore = await openGame();
+    const state = useGameStore.getState();
+
+    expect(state.gold).toBe(777);
+    expect(state.stage).toBe(4);
+    expect(state.maxStage).toBe(6);
+    expect(state.roster.saci?.level).toBe(9);
+    expect(state.upgrades).toEqual({ 'reza-forte': 3 });
+    expect(state.stats.totalKills).toBe(120);
+    expect(state.combat.enemyHp).toBe(5);
+
+    expect(state.version).toBe(2);
+    expect(state.amulets).toEqual({});
+    expect(state.equipped).toEqual({});
+    expect(state.shavings).toBe(0);
+    expect(state.autoSalvage).toBeNull();
+    expect(state.nextAmuletNumber).toBe(1);
+    expect(state.stats.amuletsFound).toBe(0);
+
+    // O jogo migrado roda, ganha amuleto e é gravado de volta já no formato novo
+    play(useGameStore, 1);
+    useGameStore.getState().debugGrantAmulet();
+    useGameStore.getState().saveNow();
+    const saved = JSON.parse(localStorage.getItem(SAVE_STORAGE_KEY) ?? '{}');
+    expect(saved.version).toBe(2);
+    expect(Object.keys(saved.state.amulets)).toEqual(['amuleto-1']);
+  });
+
+  it('importa um código exportado na versão 1', async () => {
+    const useGameStore = await openGame();
+    const oldExport = { game: 'encantados', version: 1, exportedAt: START, state: versionOneState };
+
+    expect(useGameStore.getState().importSave(btoa(JSON.stringify(oldExport)))).toEqual({
+      ok: true,
+    });
+    expect(useGameStore.getState().gold).toBe(777);
+    expect(useGameStore.getState().amulets).toEqual({});
+    expect(useGameStore.getState().version).toBe(2);
+  });
+
+  it('guarda os amuletos no salvamento e recupera ao reabrir', async () => {
+    const firstSession = await openGame();
+    firstSession.getState().chooseStarter('saci');
+    firstSession.getState().debugGrantAmulet();
+    firstSession.getState().debugGrantAmulet();
+    firstSession.getState().equipAmulet('saci', 'amuleto-1');
+    firstSession.getState().setAutoSalvage('comum');
+    firstSession.getState().saveNow();
+    const saved = firstSession.getState();
+
+    const secondSession = await openGame();
+    expect(secondSession.getState().amulets).toEqual(saved.amulets);
+    expect(secondSession.getState().equipped).toEqual({ saci: 'amuleto-1' });
+    expect(secondSession.getState().autoSalvage).toBe('comum');
+    expect(secondSession.getState().nextAmuletNumber).toBe(3);
+  });
+
+  it('conserta amuletos adulterados ao importar', async () => {
+    const useGameStore = await openGame();
+    const goodAmulet = {
+      baseId: 'figa',
+      rarity: 'raro',
+      foundAtStage: 3,
+      level: 999,
+      bonuses: [
+        { stat: 'damage', value: 0.2 },
+        { stat: 'inventado', value: 5 },
+        { stat: 'gold', value: -1 },
+      ],
+    };
+    const tampered = {
+      game: 'encantados',
+      version: 2,
+      state: {
+        party: ['saci'],
+        roster: { saci: { level: 1 } },
+        shavings: -40,
+        autoSalvage: 'mitico',
+        nextAmuletNumber: 1,
+        amulets: {
+          'amuleto-7': goodAmulet,
+          'amuleto-8': { ...goodAmulet, baseId: 'tipo-que-nao-existe' },
+          'amuleto-9': { ...goodAmulet, rarity: 'mitico' },
+          'amuleto-10': { ...goodAmulet, bonuses: [] },
+        },
+        equipped: { saci: 'amuleto-7', iara: 'amuleto-7', curupira: 'amuleto-404' },
+      },
+    };
+
+    expect(useGameStore.getState().importSave(btoa(JSON.stringify(tampered)))).toEqual({
+      ok: true,
+    });
+    const state = useGameStore.getState();
+    expect(Object.keys(state.amulets)).toEqual(['amuleto-7']);
+    expect(state.amulets['amuleto-7']?.level).toBe(10);
+    expect(state.amulets['amuleto-7']?.bonuses).toEqual([{ stat: 'damage', value: 0.2 }]);
+    expect(state.equipped).toEqual({ saci: 'amuleto-7' });
+    expect(state.shavings).toBe(0);
+    expect(state.autoSalvage).toBeNull();
+    expect(state.nextAmuletNumber).toBe(8);
+  });
+
+  it('veste, entalha e desmancha pelas ações da store', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    useGameStore.getState().debugGrantAmulet();
+    useGameStore.getState().debugGrantAmulet();
+
+    expect(useGameStore.getState().equipAmulet('saci', 'amuleto-1')).toBe(true);
+    expect(useGameStore.getState().equipAmulet('saci', 'amuleto-1')).toBe(false);
+    expect(useGameStore.getState().salvageAmulet('amuleto-1')).toBe(false);
+    expect(useGameStore.getState().carveAmulet('amuleto-1')).toBe(false);
+
+    expect(useGameStore.getState().salvageAmulet('amuleto-2')).toBe(true);
+    expect(useGameStore.getState().shavings).toBeGreaterThan(0);
+    expect(useGameStore.getState().unequipAmulet('saci')).toBe(true);
+    expect(useGameStore.getState().salvageBagUpTo('lendario')).toBe(true);
+    expect(useGameStore.getState().amulets).toEqual({});
+  });
+
+  it('entrega amuletos pelo tick e conta na volta de uma ausência', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    vi.advanceTimersByTime(8 * ONE_HOUR_MS);
+    useGameStore.getState().tick(Date.now());
+
+    const report = useGameStore.getState().offlineReport;
+    expect(report?.summary.amuletsFound).toBeGreaterThan(0);
+    expect(useGameStore.getState().stats.amuletsFound).toBe(report?.summary.amuletsFound);
+  });
+});

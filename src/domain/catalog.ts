@@ -12,8 +12,25 @@
  *   4. Ferramentas
  */
 
-import { ENCANTADOS, ENEMIES, ITEMS, UPGRADES, ZONES } from '../data';
-import type { EncantadoDef, EnemyDef, ItemDef, UpgradeDef, ZoneDef } from './types';
+import {
+  AMULET_BASES,
+  AMULET_RARITIES,
+  ENCANTADOS,
+  ENEMIES,
+  ITEMS,
+  UPGRADES,
+  ZONES,
+} from '../data';
+import type {
+  AmuletBaseDef,
+  AmuletRarityDef,
+  EncantadoDef,
+  EnemyDef,
+  ItemDef,
+  Rarity,
+  UpgradeDef,
+  ZoneDef,
+} from './types';
 
 // =============================================================================
 // =============================================================================
@@ -23,6 +40,7 @@ const ENCANTADOS_BY_ID = indexById(ENCANTADOS);
 const ENEMIES_BY_ID = indexById(ENEMIES);
 const ITEMS_BY_ID = indexById(ITEMS);
 const UPGRADES_BY_ID = indexById(UPGRADES);
+const AMULET_BASES_BY_ID = indexById(AMULET_BASES);
 
 
 // =============================================================================
@@ -67,6 +85,33 @@ export function getUpgrade(id: string): UpgradeDef {
 // Diz se existe uma melhoria com esse id
 export function hasUpgrade(id: string): boolean {
   return UPGRADES_BY_ID.has(id);
+}
+
+
+// Definição do tipo de amuleto. Lança erro se o id não existir.
+export function getAmuletBase(id: string): AmuletBaseDef {
+  return getOrThrow(AMULET_BASES_BY_ID, id, 'Tipo de amuleto');
+}
+
+// Diz se existe um tipo de amuleto com esse id
+export function hasAmuletBase(id: string): boolean {
+  return AMULET_BASES_BY_ID.has(id);
+}
+
+// Linha da tabela de raridades dos amuletos. Lança erro se a raridade não estiver na tabela.
+export function getAmuletRarity(rarity: Rarity): AmuletRarityDef {
+  const definition = AMULET_RARITIES.find((candidate) => candidate.rarity === rarity);
+
+  if (definition === undefined) {
+    throw new Error(`Raridade "${rarity}" não existe em src/data/amulets.ts.`);
+  }
+
+  return definition;
+}
+
+// Diz se o texto é uma raridade da tabela dos amuletos
+export function isAmuletRarity(value: unknown): value is Rarity {
+  return AMULET_RARITIES.some((candidate) => candidate.rarity === value);
 }
 
 

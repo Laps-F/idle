@@ -8,15 +8,22 @@
  * Mapa:
  *   1. Papel da capa por bioma
  *   2. Textos
+ *   3. Amuletos: carimbo de raridade e textos
  */
 
-import type { ClockView, PartyCardView, StageView } from '../store/selectors';
+import type {
+  AmuletBonusView,
+  ClockView,
+  PartyCardView,
+  StageView,
+} from '../store/selectors';
 
 type Biome = StageView['biome'];
 type Origin = PartyCardView['origin'];
 type Rarity = PartyCardView['rarity'];
 type DayPhase = ClockView['dayPhase'];
 type MoonPhase = ClockView['moonPhase'];
+type BonusStat = AmuletBonusView['stat'];
 
 // =============================================================================
 // =============================================================================
@@ -67,3 +74,36 @@ export const MOON_PHASE_LABELS: Record<MoonPhase, string> = {
   cheia: 'lua cheia',
   minguante: 'lua minguante',
 };
+
+
+// =============================================================================
+// =============================================================================
+// A M U L E T O S
+
+// Carimbo de raridade: do papel mais apagado ao ouro sobre tinta
+export const RARITY_STAMP_CLASSES: Record<Rarity, string> = {
+  comum: 'bg-jornal-escuro text-tinta',
+  raro: 'bg-anil text-jornal',
+  epico: 'bg-urucum text-jornal',
+  lendario: 'bg-tinta text-ouro',
+};
+
+// Como cada bônus é lido depois do número: "+12% de dano"
+export const BONUS_LABELS: Record<BonusStat, string> = {
+  damage: 'de dano',
+  bossDamage: 'de dano em chefes',
+  attackSpeed: 'de velocidade de ataque',
+  gold: 'de Patacas',
+  dropChance: 'de chance de achado',
+  critChance: 'de chance de crítico',
+};
+
+// Opções do desmanche automático: até que raridade ele leva
+export const AUTO_SALVAGE_LABELS: Record<Rarity, string> = {
+  comum: 'Só os comuns',
+  raro: 'Comuns e raros',
+  epico: 'Até os épicos',
+  lendario: 'Todos, até os lendários',
+};
+
+export const AUTO_SALVAGE_OFF_LABEL = 'Nunca';

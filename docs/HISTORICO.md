@@ -2,6 +2,75 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 15/11/2026: amuletos, o primeiro sistema de retenção
+
+Chefes e visagens passam a deixar amuletos, que os encantados vestem. Amuleto que sobra vira
+Cavacos, e Cavacos pagam o entalhe. O salvamento subiu para a versão 2.
+
+Domínio:
+
+- `src/domain/amulets.ts` (novo): sorteio da queda (`rollAmuletDrop`), geração dos atributos
+  (`generateAmulet`), entrada na mochila (`receiveAmulet`), vestir e tirar (`equipAmulet`,
+  `unequipAmulet`), desmanche (`salvageAmulet`, `salvageBagUpTo`, `setAutoSalvage`) e entalhe
+  (`carveAmulet`). Tudo função pura, com o sorteio recebido por parâmetro.
+- `src/domain/types.ts`: `Amulet`, `AmuletBonus`, `AmuletBaseDef`, `AmuletRarityDef`. O
+  `GameState` ganhou `amulets`, `equipped`, `shavings`, `autoSalvage` e `nextAmuletNumber`. O
+  resumo da simulação e os eventos de combate ganharam os campos de amuleto.
+- `src/domain/simulation.ts`: `rollAmulet`, chamado a cada inimigo derrotado. É por aqui que o
+  sistema entra no `tick` e no progresso offline.
+- `src/domain/modifiers.ts`: os amuletos de quem está na comitiva entram como um terceiro
+  multiplicador, ao lado de melhorias e sinergias.
+- `src/domain/catalog.ts`, `state.ts`, `offline.ts`: consultas, estado inicial e soma dos
+  relatórios.
+
+Dados:
+
+- `src/data/amulets.ts` (novo): seis tipos (`AMULET_BASES`) e quatro raridades com peso de
+  sorteio (`AMULET_RARITIES`).
+- `src/data/balance.ts`: chances de queda, tamanho da mochila, entalhe, desmanche e
+  `saveVersion: 2`.
+
+Store:
+
+- `src/store/useGameStore.ts`: bloco "Ações de amuletos" e a ação de teste `debugGrantAmulet`.
+- `src/store/saveManager.ts`: `MIGRATIONS[1]` leva um salvamento da versão 1 para a 2, e a
+  conferência passou a tratar amuletos (tipo ou raridade desconhecidos, bônus inválidos,
+  entalhe acima do máximo, amuleto vestido por duas pessoas).
+- `src/store/selectors.ts`: `selectAmuletPanel`, Cavacos no cabeçalho, aviso na aba e amuletos
+  no relatório de volta.
+- `src/store/eventViews.ts`: linhas "amuleto encontrado" e "amuleto desmanchado".
+
+Tela:
+
+- `src/components/progress/AmuletsPanel.tsx` (novo): a aba "Amuletos".
+- `src/components/GameScreen.tsx`: a aba nova, com aviso quando há amuleto para vestir.
+- `src/components/art/figures.tsx`: xilogravuras dos seis amuletos.
+- `src/components/theme.ts`: carimbos de raridade e textos dos bônus.
+- `src/components/ui/Button.tsx`: tamanho `small`.
+- `ResourceBar.tsx`, `EventLog.tsx`, `OfflineModal.tsx`, `DebugView.tsx`: Cavacos, linhas de
+  registro, ganhos da ausência e o botão "Ganhar um amuleto".
+- `src/index.css`: a cor `ouro`, só para o carimbo de lendário.
+
+Ferramentas:
+
+- `src/utils/random.ts`: `pickWeighted`, o sorteio por peso.
+- `src/utils/format.ts`: `formatSignedPercent` e `formatCount`.
+
+Testes:
+
+- `tests/amulets.test.ts` (novo): 26 testes das regras, com sorteio de semente fixa e estado
+  congelado.
+- `tests/store.test.ts`: abertura e importação de salvamento da versão 1, amuletos
+  adulterados, ações e queda pelo `tick`.
+- `tests/GameScreen.test.tsx`: a aba, vestir, guardar, desmanchar, entalhar e desmanche
+  automático.
+
+Medições (um Saci sozinho, comprando melhorias sem parar, três sementes):
+
+- Sem usar amuletos: estágio 19 ou 20 em 1 hora e 28 em 5 horas.
+- Vestindo o melhor amuleto e entalhando: estágio 25 a 27 em 1 hora e 35 a 41 em 5 horas.
+- Caem de 20 a 27 amuletos na primeira hora.
+
 ## 15/11/2026: interface de produção do MVP
 
 A tela do jogo, no visual de folheto de cordel. O painel de debug continua em `/?debug`.

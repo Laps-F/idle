@@ -29,9 +29,10 @@
  *   2. Store
  *   3. Ações de simulação (tick, progresso offline e troca de aba)
  *   4. Ações de jogo (comitiva, melhorias, pactos, estágios)
- *   5. Ações de salvamento (gravar, exportar, importar, apagar tudo)
- *   6. Ações de teste (usadas pelo painel de debug)
- *   7. Ferramentas
+ *   5. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
+ *   6. Ações de salvamento (gravar, exportar, importar, apagar tudo)
+ *   7. Ações de teste (usadas pelo painel de debug)
+ *   8. Ferramentas
  */
 
 import { create } from 'zustand';
@@ -47,6 +48,16 @@ import {
   setAutoProgress,
   togglePartyMember,
 } from '../domain/actions';
+import {
+  carveAmulet,
+  equipAmulet,
+  generateAmulet,
+  receiveAmulet,
+  salvageAmulet,
+  salvageBagUpTo,
+  setAutoSalvage as setAmuletAutoSalvage,
+  unequipAmulet,
+} from '../domain/amulets';
 import { applyOfflineProgress, hasOfflineGains, mergeOfflineReports } from '../domain/offline';
 import { sealPact } from '../domain/pact';
 import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
@@ -98,6 +109,7 @@ export const useGameStore = create<GameStore>()(
       ...SESSION_DEFAULTS,
       ...createSimulationActions(set, get),
       ...createGameplayActions(set, get),
+      ...createAmuletActions(set, get),
       ...createSaveActions(set, get),
       ...createDebugActions(set, get),
     }),
@@ -280,6 +292,40 @@ function applyInput(set: SetStore, get: GetStore, rule: Rule): boolean {
 
 // =============================================================================
 // =============================================================================
+// A Ç Õ E S   D E   A M U L E T O S
+
+type AmuletActions = Pick<
+  GameActions,
+  | 'equipAmulet'
+  | 'unequipAmulet'
+  | 'salvageAmulet'
+  | 'salvageBagUpTo'
+  | 'carveAmulet'
+  | 'setAutoSalvage'
+>;
+
+// O que a pessoa faz com os amuletos. As regras estão em src/domain/amulets.ts.
+// A queda de amuletos não passa por aqui: ela acontece dentro da simulação, a cada
+// inimigo derrotado, e chega pelo tick como qualquer outra recompensa.
+function createAmuletActions(set: SetStore, get: GetStore): AmuletActions {
+  return {
+    equipAmulet: (encantadoId, amuletId) =>
+      applyInput(set, get, (state) => equipAmulet(state, encantadoId, amuletId)),
+    unequipAmulet: (encantadoId) =>
+      applyInput(set, get, (state) => unequipAmulet(state, encantadoId)),
+    salvageAmulet: (amuletId) => applyInput(set, get, (state) => salvageAmulet(state, amuletId)),
+    salvageBagUpTo: (maxRarity) =>
+      applyInput(set, get, (state) => salvageBagUpTo(state, maxRarity)),
+    carveAmulet: (amuletId) => applyInput(set, get, (state) => carveAmulet(state, amuletId)),
+    setAutoSalvage: (maxRarity) => {
+      applyInput(set, get, (state) => setAmuletAutoSalvage(state, maxRarity));
+    },
+  };
+}
+
+
+// =============================================================================
+// =============================================================================
 // A Ç Õ E S   D E   S A L V A M E N T O
 
 type SaveActions = Pick<GameActions, 'saveNow' | 'exportSave' | 'importSave' | 'hardReset'>;
@@ -350,7 +396,10 @@ function replaceGame(set: SetStore, state: GameState): void {
 // =============================================================================
 // A Ç Õ E S   D E   T E S T E
 
-type DebugActions = Pick<GameActions, 'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime'>;
+type DebugActions = Pick<
+  GameActions,
+  'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime' | 'debugGrantAmulet'
+>;
 
 // Atalhos para o painel de debug mexer no jogo sem esperar o ritmo normal.
 // Passam pelo mesmo caminho das ações de jogo: simulam até agora e só então aplicam.
@@ -377,7 +426,18 @@ function createDebugActions(set: SetStore, get: GetStore): DebugActions {
         get().tick(Date.now());
       }
     },
+
+    // Faz cair um amuleto do estágio atual, com raridade e bônus sorteados como em uma queda
+    debugGrantAmulet: () => {
+      applyInput(set, get, (state) => grantAmulet(state));
+    },
   };
+}
+
+// Gera um amuleto e entrega pelo mesmo caminho de uma queda (mochila ou desmanche)
+function grantAmulet(state: GameState): GameState {
+  const amulet = generateAmulet(state.nextAmuletNumber, state.stage, Math.random);
+  return receiveAmulet(state, amulet).state;
 }
 
 // Golpe direto de uma fração da vida máxima. Null quando o golpe não tira nada.

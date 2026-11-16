@@ -2,7 +2,7 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/arena/EventLog.tsx
  * O que faz: o registro compacto do que acabou de acontecer na arena:
- * derrotas, chefes, Oferendas, Rastros e níveis. Golpes ficam de fora, porque
+ * derrotas, chefes, Oferendas, Rastros, níveis e amuletos. Golpes ficam de fora, porque
  * já aparecem como números na capa.
  *
  * Mapa:
@@ -10,14 +10,25 @@
  *   2. Texto e ícone de cada linha
  */
 
-import { Crown, Footprints, Hourglass, Skull, Sparkles, Swords, TrendingUp } from 'lucide-react';
+import {
+  Crown,
+  Footprints,
+  Gem,
+  Hammer,
+  Hourglass,
+  Skull,
+  Sparkles,
+  Swords,
+  TrendingUp,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { appendToLog } from '../../store/eventViews';
 import type { LogEntry, LogEntryKind } from '../../store/eventViews';
-import { formatNumber } from '../../utils/format';
+import { formatCount, formatNumber } from '../../utils/format';
 import { useCombatFeed } from '../hooks/useCombatFeed';
+import { RARITY_LABELS } from '../theme';
 
 // =============================================================================
 // =============================================================================
@@ -83,11 +94,14 @@ const LOG_ICONS: Record<LogEntryKind, LucideIcon> = {
   drop: Sparkles,
   trail: Footprints,
   levelUp: TrendingUp,
+  amuletFound: Gem,
+  amuletSalvaged: Hammer,
 };
 
 // Frase de uma linha do registro
 function describeEntry(entry: LogEntry): string {
   const amount = formatNumber(entry.amount);
+  const shavings = formatCount(entry.amount, 'Cavaco', 'Cavacos');
 
   switch (entry.kind) {
     case 'kills':
@@ -108,5 +122,14 @@ function describeEntry(entry: LogEntry): string {
       return `Rastro encontrado: ${entry.name} +${amount}`;
     case 'levelUp':
       return `${entry.name} subiu para o nível ${amount}`;
+    case 'amuletFound':
+      return `Amuleto encontrado: ${entry.name}${describeRarity(entry)}`;
+    case 'amuletSalvaged':
+      return `${entry.name}${describeRarity(entry)} virou ${shavings}`;
   }
+}
+
+// Raridade entre parênteses, para as linhas de amuleto: " (raro)"
+function describeRarity(entry: LogEntry): string {
+  return entry.rarity === undefined ? '' : ` (${RARITY_LABELS[entry.rarity].toLowerCase()})`;
 }

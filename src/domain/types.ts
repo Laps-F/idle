@@ -6,7 +6,7 @@
  *
  * Mapa:
  *   1. Tipos básicos
- *   2. Definições (o formato dos arquivos de src/data)
+ *   2. Definições (o formato dos arquivos de src/data), incluindo os amuletos
  *   3. Estado salvo (o que vai para o localStorage)
  *   4. Resultados da simulação (resumos, relatório offline e eventos)
  */
@@ -135,6 +135,45 @@ export interface SynergyDef {
 }
 
 
+// ---------- Amuletos ----------
+
+// Tipo de amuleto: o que ele é e qual atributo fortalece
+export interface AmuletBaseDef {
+  id: string;
+  name: string;
+  description: string;
+  stat: ModifierStat;
+  baseBonus: number; // bônus de um amuleto comum, no estágio 1, sem entalhe (0.12 = +12%)
+}
+
+// Linha da tabela de raridades dos amuletos
+export interface AmuletRarityDef {
+  rarity: Rarity;
+  weight: number; // peso no sorteio da raridade. Quanto maior, mais comum.
+  bonusMultiplier: number; // multiplica todos os bônus do amuleto
+  extraBonuses: number; // quantos bônus secundários o amuleto ganha ao ser gerado
+  maxLevel: number; // até que nível o entalhe vai
+  salvageValue: number; // Cavacos que o desmanche rende no estágio 1
+  carveCostMultiplier: number; // multiplica o custo de cada entalhe
+}
+
+// Um bônus de um amuleto, já sorteado
+export interface AmuletBonus {
+  stat: ModifierStat;
+  value: number; // valor sem entalhe (0.12 = +12%)
+}
+
+// Um amuleto que a pessoa encontrou. Os bônus são sorteados na hora da queda e não mudam mais.
+export interface Amulet {
+  id: string;
+  baseId: string;
+  rarity: Rarity;
+  foundAtStage: number; // estágio em que caiu. Entra no valor do desmanche.
+  level: number; // nível de entalhe, a partir de 0
+  bonuses: AmuletBonus[]; // o primeiro é o bônus principal, os outros são secundários
+}
+
+
 // =============================================================================
 // =============================================================================
 // E S T A D O   S A L V O
@@ -160,6 +199,7 @@ export interface GameStats {
   totalGoldEarned: number;
   bossesDefeated: number;
   playTimeSeconds: number;
+  amuletsFound: number;
 }
 
 export interface GameState {
@@ -175,6 +215,11 @@ export interface GameState {
   inventory: Record<string, number>; // Oferendas por item
   upgrades: Record<string, number>; // nível de cada melhoria
   roots: number; // Raízes, a moeda da Rebrota
+  amulets: Record<string, Amulet>; // todos os amuletos da pessoa, vestidos ou na mochila
+  equipped: Record<string, string>; // quem veste o quê: id do encantado -> id do amuleto
+  shavings: number; // Cavacos, que o desmanche rende e o entalhe gasta
+  autoSalvage: Rarity | null; // desmancha sozinho os amuletos até esta raridade. Null desliga.
+  nextAmuletNumber: number; // contador que dá um id único a cada amuleto encontrado
   combat: CombatState;
   lastSaveTimestamp: number; // instante (ms) até onde o estado já foi simulado
   stats: GameStats;
@@ -197,6 +242,9 @@ export interface SimulationSummary {
   items: Record<string, number>;
   trails: Record<string, number>;
   levelUps: Record<string, number>;
+  amuletsFound: number; // amuletos que caíram, guardados ou desmanchados
+  amuletsSalvaged: number; // quantos deles foram desmanchados na hora
+  shavings: number; // Cavacos rendidos por esses desmanches
 }
 
 export interface OfflineReport {
@@ -224,6 +272,7 @@ export type CombatEvent =
   | { type: 'kill'; enemyId: string; isBoss: boolean; gold: number; xp: number }
   | { type: 'drop'; itemId: string; amount: number }
   | { type: 'trail'; encantadoId: string }
+  | { type: 'amulet'; baseId: string; rarity: Rarity; wasSalvaged: boolean; shavings: number }
   | { type: 'levelUp'; encantadoId: string; level: number }
   | { type: 'bossAppeared'; enemyId: string }
   | { type: 'bossFailed'; enemyId: string }

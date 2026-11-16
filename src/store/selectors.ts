@@ -28,14 +28,30 @@
  *   5. Construção: arena
  *   6. Construção: comitiva e pactos
  *   7. Construção: melhorias e avisos
- *   8. Construção: ausência e escolha inicial
- *   9. Construção: visões do painel de debug
- *  10. Ferramentas
+ *   8. Construção: amuletos
+ *   9. Construção: ausência e escolha inicial
+ *  10. Construção: visões do painel de debug
+ *  11. Ferramentas
  */
 
-import { BALANCE, ENCANTADOS, ITEMS, SYNERGIES, UPGRADES } from '../data';
+import { AMULET_RARITIES, BALANCE, ENCANTADOS, ITEMS, SYNERGIES, UPGRADES } from '../data';
 import { canChallengeBoss } from '../domain/actions';
-import { getEncantado, getEnemy, getItem, getZoneForStage } from '../domain/catalog';
+import {
+  canCarve,
+  getBagAmulets,
+  getCarveCost,
+  getEffectiveBonuses,
+  getSalvageValue,
+  isAmuletMaxed,
+} from '../domain/amulets';
+import {
+  getAmuletBase,
+  getAmuletRarity,
+  getEncantado,
+  getEnemy,
+  getItem,
+  getZoneForStage,
+} from '../domain/catalog';
 import { getClockInfo, getDayPhase } from '../domain/clock';
 import {
   getAttackDamage,
@@ -46,7 +62,15 @@ import {
 } from '../domain/formulas';
 import { getModifiers } from '../domain/modifiers';
 import { getPactStatus } from '../domain/pact';
-import type { BiomeId, DayPhase, MoonPhase, Origin, Rarity } from '../domain/types';
+import type {
+  Amulet,
+  BiomeId,
+  DayPhase,
+  ModifierStat,
+  MoonPhase,
+  Origin,
+  Rarity,
+} from '../domain/types';
 import { isDeepEqual } from '../utils/object';
 import type { GameSnapshot } from './types';
 
@@ -65,6 +89,8 @@ export interface NamedAmount {
 export interface HeaderView {
   gold: number;
   roots: number;
+  shavings: number;
+  hasFoundAmulets: boolean; // os Cavacos só aparecem depois do primeiro amuleto
   items: NamedAmount[];
 }
 
@@ -173,6 +199,47 @@ export interface UpgradeView {
 export interface BadgeView {
   buyableUpgrades: number;
   sealablePacts: number;
+  wearableAmulets: number; // amuletos da mochila que cabem em alguém da comitiva sem amuleto
+}
+
+// Um bônus de amuleto, já com o entalhe aplicado
+export interface AmuletBonusView {
+  stat: ModifierStat;
+  value: number; // 0.12 = +12%
+}
+
+export interface AmuletView {
+  id: string;
+  baseId: string; // id do tipo, que também é o id da figura
+  name: string;
+  description: string;
+  rarity: Rarity;
+  level: number;
+  maxLevel: number;
+  isMaxed: boolean;
+  bonuses: AmuletBonusView[]; // o primeiro é o principal
+  carveCost: number; // Cavacos do próximo entalhe
+  canCarve: boolean;
+  salvageValue: number; // Cavacos que o desmanche rende
+}
+
+// Um encantado do elenco e o amuleto que ele veste
+export interface AmuletSlotView {
+  encantadoId: string;
+  encantadoName: string;
+  isInParty: boolean; // amuleto de quem está fora da comitiva não vale
+  amulet: AmuletView | null;
+}
+
+export interface AmuletPanelView {
+  shavings: number;
+  bagCount: number;
+  bagSize: number;
+  autoSalvage: Rarity | null;
+  rarities: Rarity[]; // da mais comum para a mais rara, para o seletor de desmanche automático
+  slots: AmuletSlotView[];
+  bag: AmuletView[];
+  commonsInBag: number; // quantos comuns o desmanche em lote levaria
 }
 
 export interface StarterOptionView {
@@ -199,6 +266,9 @@ export interface OfflineView {
   items: NamedAmount[];
   trails: NamedAmount[];
   levelUps: NamedAmount[];
+  amuletsFound: number;
+  amuletsSalvaged: number;
+  shavings: number;
 }
 
 // ---------- Visões do painel de debug ----------
@@ -238,8 +308,12 @@ export interface TrailView {
 export interface ResourcesView {
   gold: number;
   roots: number;
+  shavings: number;
   items: NamedAmount[];
   trails: TrailView[];
+  amuletsInBag: number;
+  amuletsWorn: number;
+  amuletsFound: number;
   totalKills: number;
   bossesDefeated: number;
   totalGoldEarned: number;
@@ -262,6 +336,10 @@ export interface PartyView {
 }
 
 
+// Raridade que o botão de desmanche em lote da mochila leva embora
+const BULK_SALVAGE_RARITY: Rarity = 'comum';
+
+
 // =============================================================================
 // =============================================================================
 // S E L E T O R E S
@@ -278,6 +356,7 @@ export const selectSynergies = createStableSelector(buildSynergies);
 export const selectPacts = createStableSelector(buildPacts);
 export const selectUpgradeViews = createStableSelector(buildUpgradeViews);
 export const selectBadges = createStableSelector(buildBadges);
+export const selectAmuletPanel = createStableSelector(buildAmuletPanel);
 export const selectStarterOptions = createStableSelector(buildStarterOptions);
 export const selectOfflineView = createStableSelector(buildOfflineView);
 
@@ -341,6 +420,8 @@ function buildHeaderView(snapshot: GameSnapshot): HeaderView {
   return {
     gold: snapshot.gold,
     roots: snapshot.roots,
+    shavings: snapshot.shavings,
+    hasFoundAmulets: snapshot.stats.amuletsFound > 0,
     items: ITEMS.map((item) => ({
       id: item.id,
       name: item.name,
@@ -510,6 +591,65 @@ function buildBadges(snapshot: GameSnapshot): BadgeView {
   return {
     buyableUpgrades: buildUpgradeViews(snapshot).filter((upgrade) => upgrade.canBuy).length,
     sealablePacts: buildPacts(snapshot).filter((pact) => pact.canSeal).length,
+    wearableAmulets: countWearableAmulets(snapshot),
+  };
+}
+
+// Quantos amuletos da mochila já poderiam estar vestidos: um por encantado da comitiva sem amuleto
+function countWearableAmulets(snapshot: GameSnapshot): number {
+  const emptySlots = snapshot.party.filter((encantadoId) => !(encantadoId in snapshot.equipped));
+  return Math.min(emptySlots.length, getBagAmulets(snapshot).length);
+}
+
+
+// =============================================================================
+// =============================================================================
+// A M U L E T O S
+
+// Tudo que a aba de amuletos mostra: Cavacos, quem veste o quê e a mochila
+function buildAmuletPanel(snapshot: GameSnapshot): AmuletPanelView {
+  const bag = getBagAmulets(snapshot);
+  const toView = (amulet: Amulet): AmuletView => buildAmuletView(snapshot, amulet);
+
+  return {
+    shavings: snapshot.shavings,
+    bagCount: bag.length,
+    bagSize: BALANCE.amuletBagSize,
+    autoSalvage: snapshot.autoSalvage,
+    rarities: AMULET_RARITIES.map((definition) => definition.rarity),
+    slots: Object.keys(snapshot.roster).map((encantadoId) => {
+      const amuletId = snapshot.equipped[encantadoId];
+      const amulet = amuletId === undefined ? undefined : snapshot.amulets[amuletId];
+
+      return {
+        encantadoId,
+        encantadoName: getEncantado(encantadoId).name,
+        isInParty: snapshot.party.includes(encantadoId),
+        amulet: amulet === undefined ? null : toView(amulet),
+      };
+    }),
+    bag: bag.map(toView),
+    commonsInBag: bag.filter((amulet) => amulet.rarity === BULK_SALVAGE_RARITY).length,
+  };
+}
+
+// Um amuleto pronto para mostrar: nome, bônus com entalhe, custo e valor de desmanche
+function buildAmuletView(snapshot: GameSnapshot, amulet: Amulet): AmuletView {
+  const base = getAmuletBase(amulet.baseId);
+
+  return {
+    id: amulet.id,
+    baseId: amulet.baseId,
+    name: base.name,
+    description: base.description,
+    rarity: amulet.rarity,
+    level: amulet.level,
+    maxLevel: getAmuletRarity(amulet.rarity).maxLevel,
+    isMaxed: isAmuletMaxed(amulet),
+    bonuses: getEffectiveBonuses(amulet),
+    carveCost: getCarveCost(amulet),
+    canCarve: canCarve(snapshot, amulet.id),
+    salvageValue: getSalvageValue(amulet),
   };
 }
 
@@ -544,6 +684,9 @@ function buildOfflineView(snapshot: GameSnapshot): OfflineView | null {
     items: toNamedAmounts(summary.items, (id) => getItem(id).name),
     trails: toNamedAmounts(summary.trails, encantadoName),
     levelUps: toNamedAmounts(summary.levelUps, encantadoName),
+    amuletsFound: summary.amuletsFound,
+    amuletsSalvaged: summary.amuletsSalvaged,
+    shavings: summary.shavings,
   };
 }
 
@@ -605,13 +748,19 @@ function buildResourcesView(snapshot: GameSnapshot): ResourcesView {
   const header = buildHeaderView(snapshot);
 
   return {
-    ...header,
+    gold: header.gold,
+    roots: header.roots,
+    shavings: header.shavings,
+    items: header.items,
     trails: buildPacts(snapshot).map((pact) => ({
       id: pact.id,
       name: pact.name,
       owned: snapshot.trails[pact.id] ?? 0,
       needed: pact.trailsNeeded,
     })),
+    amuletsInBag: getBagAmulets(snapshot).length,
+    amuletsWorn: Object.keys(snapshot.equipped).length,
+    amuletsFound: snapshot.stats.amuletsFound,
     totalKills: snapshot.stats.totalKills,
     bossesDefeated: snapshot.stats.bossesDefeated,
     totalGoldEarned: snapshot.stats.totalGoldEarned,

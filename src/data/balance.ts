@@ -24,7 +24,7 @@ const SECONDS_PER_HOUR = 3600;
 
 export const BALANCE = {
   // Salvamento
-  saveVersion: 1,
+  saveVersion: 2, // 2: entraram os amuletos (ver MIGRATIONS em src/store/saveManager.ts)
   saveIntervalMs: 5 * MS_PER_SECOND, // intervalo mínimo entre gravações no localStorage
 
   // Laço do jogo
@@ -67,6 +67,24 @@ export const BALANCE = {
   rootsBonusPerRoot: 0.05, // bônus de dano e de Patacas por Raiz
   rootsStageDivisor: 10,
   rootsExponent: 1.5,
+
+  // Amuletos: queda
+  amuletBossDropChance: 0.6, // chance de um chefe derrotado deixar um amuleto
+  amuletCommonDropChance: 0.015, // chance de uma visagem comum deixar um amuleto
+  amuletBagSize: 20, // quantos amuletos cabem na mochila. Os vestidos não contam.
+
+  // Amuletos: valor de um bônus = base × raridade × escala do estágio × variação
+  amuletStageScaling: 0.03, // cada estágio acima do primeiro soma 3% à força do amuleto
+  amuletVarianceMin: 0.85, // variação sorteada: de 85%...
+  amuletVarianceMax: 1.15, // ...a 115% do valor
+  amuletExtraBonusFactor: 0.4, // um bônus secundário vale 40% do bônus base do atributo dele
+
+  // Amuletos: entalhe e desmanche
+  amuletLevelBonus: 0.1, // cada nível de entalhe soma 10% aos bônus do amuleto
+  carveCostBase: 4, // Cavacos do primeiro entalhe de um amuleto comum
+  carveCostGrowth: 1.35, // o custo do entalhe cresce 35% por nível
+  carveRefundRate: 0.5, // parte dos Cavacos de entalhe que o desmanche devolve
+  salvageStageBonus: 0.04, // cada estágio acima do primeiro soma 4% ao valor do desmanche
 
   // Relógio do sertão
   dayLengthMs: 24 * SECONDS_PER_MINUTE * MS_PER_SECOND, // 1 dia do jogo = 24 minutos reais

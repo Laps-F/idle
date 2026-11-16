@@ -13,7 +13,8 @@
  *   1. Estilos de traço
  *   2. Encantados
  *   3. Visagens e chefes
- *   4. Registro das figuras
+ *   4. Amuletos
+ *   5. Registro das figuras
  */
 
 import type { ReactNode } from 'react';
@@ -238,6 +239,90 @@ const UNKNOWN = (
 
 // =============================================================================
 // =============================================================================
+// A M U L E T O S
+
+// Figa de guiné: o punho fechado, com o polegar entre os dedos
+const FIGA = (
+  <>
+    <path d="M32 34 Q32 22 44 22 L78 22 Q90 22 90 34 L90 70 Q90 82 78 82 L44 82 Q32 82 32 70 Z" />
+    <ellipse cx="56" cy="24" rx="9" ry="13" />
+    <path d="M46 80 L76 80 L78 114 L44 114 Z" />
+    <path d="M48 28 L48 56 M62 36 L62 56 M76 28 L76 56" {...CUT} />
+    <path d="M36 62 L86 62" {...CUT} />
+    <path d="M46 96 L76 96" {...CUT} />
+  </>
+);
+
+// Guizo de cascavel: os gomos do chocalho, do mais largo ao mais fino
+const GUIZO = (
+  <>
+    <ellipse cx="60" cy="22" rx="15" ry="12" />
+    <ellipse cx="60" cy="42" rx="22" ry="13" />
+    <ellipse cx="60" cy="64" rx="27" ry="14" />
+    <ellipse cx="60" cy="86" rx="21" ry="13" />
+    <ellipse cx="60" cy="105" rx="12" ry="10" />
+    <path d="M42 32 Q60 38 78 32 M36 53 Q60 60 84 53 M38 76 Q60 82 82 76 M48 97 Q60 101 72 97" {...CUT} />
+  </>
+);
+
+// Moeda furada: a pataca velha com um furo no meio
+const MOEDA_FURADA = (
+  <>
+    <circle cx="60" cy="60" r="46" />
+    <circle cx="60" cy="60" r="34" {...CUT} />
+    <circle cx="60" cy="60" r="10" {...CUT_FILL} />
+    <path d="M60 18 L60 26 M60 94 L60 102 M18 60 L26 60 M94 60 L102 60" {...CUT} />
+  </>
+);
+
+// Olho-de-boi: a semente lustrosa, com a faixa que parece uma pálpebra
+const OLHO_DE_BOI = (
+  <>
+    <ellipse cx="60" cy="62" rx="46" ry="38" />
+    <path d="M18 54 Q60 22 102 54" {...CUT} strokeWidth={7} />
+    <circle cx="60" cy="70" r="12" {...CUT_FILL} />
+    <circle cx="60" cy="70" r="5" />
+  </>
+);
+
+// Ferradura: de pontas para cima, com os furos dos cravos
+const FERRADURA = (
+  <>
+    <path
+      d="M30 22 L30 62 A30 30 0 0 0 90 62 L90 22"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="22"
+      strokeLinejoin="round"
+    />
+    <circle cx="30" cy="34" r="3" {...CUT_FILL} />
+    <circle cx="30" cy="54" r="3" {...CUT_FILL} />
+    <circle cx="90" cy="34" r="3" {...CUT_FILL} />
+    <circle cx="90" cy="54" r="3" {...CUT_FILL} />
+    <circle cx="42" cy="82" r="3" {...CUT_FILL} />
+    <circle cx="78" cy="82" r="3" {...CUT_FILL} />
+    <circle cx="60" cy="92" r="3" {...CUT_FILL} />
+  </>
+);
+
+// Espinho de mandacaru: o cacto de braços erguidos, coberto de espinhos
+const ESPINHO_DE_MANDACARU = (
+  <>
+    <path d="M50 20 Q50 8 60 8 Q70 8 70 20 L70 114 L50 114 Z" />
+    <path d="M50 84 L30 84 Q22 84 22 76 L22 46 Q22 38 29 38 Q36 38 36 46 L36 70 L50 70 Z" />
+    <path d="M70 70 L84 70 L84 36 Q84 28 91 28 Q98 28 98 36 L98 76 Q98 84 90 84 L70 84 Z" />
+    <path d="M60 16 L60 108 M29 46 L29 76 M91 36 L91 76" {...CUT} />
+    <path
+      d="M44 30 L50 34 M76 30 L70 34 M44 54 L50 56 M76 100 L70 98 M16 52 L22 54 M104 44 L98 46 M44 104 L50 102"
+      {...INK_LINE}
+      strokeWidth={2.4}
+    />
+  </>
+);
+
+
+// =============================================================================
+// =============================================================================
 // R E G I S T R O   D A S   F I G U R A S
 
 const FIGURES: Record<string, ReactNode> = {
@@ -250,9 +335,15 @@ const FIGURES: Record<string, ReactNode> = {
   'vulto-da-capoeira': VULTO_DA_CAPOEIRA,
   'assombro-do-brejo': ASSOMBRO_DO_BREJO,
   'corpo-seco': CORPO_SECO,
+  figa: FIGA,
+  guizo: GUIZO,
+  'moeda-furada': MOEDA_FURADA,
+  'olho-de-boi': OLHO_DE_BOI,
+  ferradura: FERRADURA,
+  'espinho-de-mandacaru': ESPINHO_DE_MANDACARU,
 };
 
-// Desenho de um encantado ou inimigo. Id sem desenho recebe a figura genérica.
+// Desenho de um encantado, inimigo ou amuleto. Id sem desenho recebe a figura genérica.
 export function getFigureArt(figureId: string): ReactNode {
   return FIGURES[figureId] ?? UNKNOWN;
 }

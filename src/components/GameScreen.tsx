@@ -30,7 +30,8 @@
  *   │  └─ AlmanacPanel           pactos
  *   ├─ Tabs "Progresso"          lateral direita
  *   │  ├─ UpgradesPanel          melhorias
- *   │  └─ StagesPanel            estágios e chefe
+ *   │  ├─ StagesPanel            estágios e chefe
+ *   │  └─ AmuletsPanel           quem veste, mochila, entalhe e desmanche
  *   └─ janelas: StarterModal, OfflineModal, OtherTabNotice
  *
  * Mapa:
@@ -56,6 +57,7 @@ import { OtherTabNotice } from './modals/OtherTabNotice';
 import { StarterModal } from './modals/StarterModal';
 import { AlmanacPanel } from './party/AlmanacPanel';
 import { PartyPanel } from './party/PartyPanel';
+import { AmuletsPanel } from './progress/AmuletsPanel';
 import { StagesPanel } from './progress/StagesPanel';
 import { UpgradesPanel } from './progress/UpgradesPanel';
 import { COVER_PAPER, NIGHT_COVER_MIX } from './theme';
@@ -142,6 +144,13 @@ function ProgressTabs() {
           content: <UpgradesPanel />,
         },
         { id: 'estagios', title: 'Estágios', content: <StagesPanel /> },
+        {
+          id: 'amuletos',
+          title: 'Amuletos',
+          badge: badges.wearableAmulets,
+          badgeLabel: 'amuletos que dá para vestir',
+          content: <AmuletsPanel />,
+        },
       ]}
     />
   );

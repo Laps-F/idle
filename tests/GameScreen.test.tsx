@@ -330,3 +330,109 @@ describe('janelas automáticas', () => {
     expect(useGameStore.getState().offlineReport).toBeNull();
   });
 });
+
+describe('amuletos', () => {
+  // Coloca na mochila um amuleto comum de dano, com valores conhecidos
+  async function giveKnownAmulet(): Promise<void> {
+    await act(async () =>
+      useGameStore.setState({
+        amulets: {
+          'amuleto-1': {
+            id: 'amuleto-1',
+            baseId: 'ferradura',
+            rarity: 'raro',
+            foundAtStage: 1,
+            level: 0,
+            bonuses: [
+              { stat: 'critChance', value: 0.052 },
+              { stat: 'gold', value: 0.12 },
+            ],
+          },
+        },
+        nextAmuletNumber: 2,
+        stats: { ...useGameStore.getState().stats, amuletsFound: 1 },
+      }),
+    );
+  }
+
+  it('mostra a mochila vazia e avisa na aba quando há amuleto para vestir', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await mount();
+    await click('Amuletos');
+    expect(host.textContent).toContain('A mochila está vazia.');
+    expect(host.querySelector('#tab-amuletos span')).toBeNull();
+
+    await giveKnownAmulet();
+    expect(host.querySelector('#tab-amuletos span')?.textContent).toBe('1');
+    expect(host.textContent).toContain('Ferradura');
+    expect(host.textContent).toContain('Raro');
+    expect(host.textContent).toContain('+5,2% de chance de crítico');
+    expect(host.textContent).toContain('+12% de Patacas');
+    expect(host.textContent).toContain('Mochila com 1 de 20 amuletos');
+  });
+
+  it('veste, tira e desmancha um amuleto', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await mount();
+    await click('Amuletos');
+    await giveKnownAmulet();
+
+    await click('Vestir em Saci');
+    expect(useGameStore.getState().equipped).toEqual({ saci: 'amuleto-1' });
+    expect(host.textContent).toContain('A mochila está vazia.');
+    expect(host.querySelector('#tab-amuletos span')).toBeNull();
+
+    await click('Guardar na mochila');
+    expect(useGameStore.getState().equipped).toEqual({});
+
+    await click('Desmanchar: +3 Cavacos');
+    expect(useGameStore.getState().amulets).toEqual({});
+    expect(useGameStore.getState().shavings).toBe(3);
+    expect(host.textContent).toContain('3 Cavacos');
+  });
+
+  it('só deixa entalhar com Cavacos suficientes', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await mount();
+    await click('Amuletos');
+    await giveKnownAmulet();
+    expect(findButton('Entalhar por 8 Cavacos').disabled).toBe(true);
+
+    await act(async () => useGameStore.setState({ shavings: 10 }));
+    await click('Entalhar por 8 Cavacos');
+    expect(useGameStore.getState().amulets['amuleto-1']?.level).toBe(1);
+    expect(useGameStore.getState().shavings).toBe(2);
+    expect(host.textContent).toContain('Entalhe 1 de 10');
+    expect(host.textContent).toContain('+5,7% de chance de crítico');
+  });
+
+  it('liga o desmanche automático pelo seletor', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await mount();
+    await click('Amuletos');
+    const select = host.querySelector<HTMLSelectElement>('select');
+
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      setValue?.call(select, 'raro');
+      select?.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(useGameStore.getState().autoSalvage).toBe('raro');
+
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      setValue?.call(select, '');
+      select?.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(useGameStore.getState().autoSalvage).toBeNull();
+  });
+
+  it('mostra os Cavacos no cabeçalho depois do primeiro amuleto', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await mount();
+    expect(host.querySelector('header [title="Cavacos"]')).toBeNull();
+
+    await act(async () => useGameStore.getState().debugGrantAmulet());
+    expect(host.querySelector('header [title="Cavacos"]')).not.toBeNull();
+  });
+});

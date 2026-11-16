@@ -34,6 +34,9 @@
   --color-urucum: #b3301a;
   --color-anil: #2c3e6b;
 
+  /* Ouro velho, só para marcar o que é lendário */
+  --color-ouro: #e8b93a;
+
   --font-display: 'Bowlby One', 'Arial Black', sans-serif;
   --font-body: 'Bitter Variable', 'Bitter', Georgia, serif;
 }

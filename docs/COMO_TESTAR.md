@@ -36,8 +36,9 @@ npm test
 ```
 
 O esperado é terminar com todos os arquivos e testes como `passed`. Esses testes conferem os
-dados, as fórmulas, o combate, as ações, os pactos, o progresso offline, o salvamento, a tela
-do jogo, o painel de debug e as regras de arquitetura (pastas, importações, pureza do domínio e proibição de
+dados, as fórmulas, o combate, as ações, os pactos, os amuletos, o progresso offline, o
+salvamento (incluindo a abertura de salvamentos da versão anterior), a tela do jogo, o painel
+de debug e as regras de arquitetura (pastas, importações, pureza do domínio e proibição de
 `any`).
 
 Dois comandos extras, que também devem terminar sem erro:
@@ -120,6 +121,30 @@ Para começar do zero, use "Apagar tudo" no cabeçalho.
 Para testar a ausência sem esperar, use o painel de debug: o botão "Simular 1 hora fora" faz o
 mesmo cálculo e mostra o relatório lá.
 
+### Amuletos
+
+Amuleto cai de chefe em 6 de cada 10 vitórias, e de visagem comum bem de vez em quando. Para
+não depender da sorte, os passos 28 a 34 usam o botão "Ganhar um amuleto" do painel de debug
+(`/?debug`), que entrega um amuleto sorteado do mesmo jeito que o combate.
+
+| # | O que fazer | O que deve acontecer |
+|---|---|---|
+| 27 | Abrir a aba "Amuletos", na lateral direita, antes de achar qualquer amuleto | Aparece "0 Cavacos. Mochila com 0 de 20 amuletos." e o aviso de mochila vazia. |
+| 28 | No painel de debug, clicar 6 vezes em "Ganhar um amuleto" e voltar para o jogo | A aba "Amuletos" mostra um número vermelho. A mochila lista 6 amuletos, do mais raro para o mais comum, cada um com figura, carimbo de raridade e bônus. O cabeçalho passa a mostrar os Cavacos, com o ícone de martelo. |
+| 29 | Clicar em "Vestir em Saci" em um amuleto de dano (Figa de guiné) | O amuleto sobe para "Quem veste", o número da aba some e o "dano a cada" do cartão do Saci, na aba "Comitiva", aumenta. |
+| 30 | Clicar em "Vestir em Saci" em outro amuleto | O novo entra no lugar e o antigo volta para a mochila. |
+| 31 | Clicar em "Desmanchar: +N Cavacos" em um amuleto da mochila | Ele some e os Cavacos sobem N, na aba e no cabeçalho. |
+| 32 | Com Cavacos suficientes, clicar em "Entalhar por N Cavacos" | Os Cavacos caem N, o entalhe sobe 1, os bônus aumentam 10% do valor original e o próximo entalhe fica mais caro. Sem Cavacos, o botão fica apagado. |
+| 33 | Clicar em "Guardar na mochila" no amuleto vestido | Ele volta para a mochila e o dano do Saci cai para o que era. |
+| 34 | Escolher "Só os comuns" em "Desmanchar sozinho o que cair" e ganhar mais amuletos pelo painel de debug | Os comuns não entram na mochila: viram Cavacos na hora. Os outros entram. Depois, volte para "Nunca". |
+| 35 | Jogar até vencer alguns chefes | De vez em quando o registro mostra "Amuleto encontrado: (nome) (raridade)" e a mochila ganha o amuleto. |
+| 36 | Recarregar a página (F5) | Amuletos, quem veste, Cavacos e a escolha do desmanche automático continuam iguais. |
+| 37 | Fechar a aba por alguns minutos (ou usar "Simular 1 hora fora" no painel de debug) | O relatório de volta mostra "Amuletos encontrados" e, se a mochila encheu, "Cavacos de N amuletos desmanchados". |
+
+Para conferir que um jogo salvo antes dos amuletos continua abrindo, não é preciso fazer nada
+à mão: o teste "abre um salvamento da versão 1 sem perder nada e já na versão 2", de
+`tests/store.test.ts`, faz isso a cada `npm test`.
+
 ## 6. Roteiro do painel de debug
 
 Abra `http://localhost:5173/?debug`. O painel usa o mesmo jogo salvo da tela principal. Faça na
@@ -143,6 +168,12 @@ ordem. Cada linha diz o que fazer e o que deve acontecer.
 | 7 | Clicar em "+100 Patacas" | "Patacas" sobe 100. "Patacas ganhas no total" não muda. |
 | 8 | Clicar em "Reza forte, nível 0: 10 Patacas" | O botão passa a mostrar "nível 1: 12 Patacas" e as Patacas caem 10. |
 | 9 | Ficar sem Patacas para uma melhoria | O botão dela fica apagado e não aceita clique. |
+
+Na seção "Recursos" também aparecem "Cavacos", "Amuletos na mochila", "Amuletos vestidos" e
+"Amuletos encontrados no total". O botão "Ganhar um amuleto", em "Controles de teste", entrega
+um amuleto sorteado para o estágio atual: "Amuletos encontrados no total" sobe 1 e o amuleto
+vai para a mochila (ou vira Cavacos, se a mochila estiver cheia ou o desmanche automático
+pegar a raridade dele).
 
 ### Chefe e estágios
 

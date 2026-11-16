@@ -22,9 +22,26 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 
 import { BALANCE } from '../data/balance';
-import { getUpgrade, getZoneForStage, hasEncantado, hasItem, hasUpgrade } from '../domain/catalog';
+import {
+  getAmuletRarity,
+  getUpgrade,
+  getZoneForStage,
+  hasAmuletBase,
+  hasEncantado,
+  hasItem,
+  hasUpgrade,
+  isAmuletRarity,
+} from '../domain/catalog';
+import { isModifierStat } from '../domain/modifiers';
 import { createCommonEnemyCombat, createInitialState } from '../domain/state';
-import type { CombatState, GameState, GameStats, OwnedEncantado } from '../domain/types';
+import type {
+  Amulet,
+  AmuletBonus,
+  CombatState,
+  GameState,
+  GameStats,
+  OwnedEncantado,
+} from '../domain/types';
 import { decodeBase64, encodeBase64 } from '../utils/base64';
 import { isRecord } from '../utils/object';
 import type { RandomSource } from '../utils/random';
@@ -37,6 +54,9 @@ export const SAVE_STORAGE_KEY = 'encantados-save';
 
 // Um salvamento ilegível é guardado nesta chave em vez de ser apagado
 const CORRUPTED_BACKUP_SUFFIX = '-corrompido';
+
+// Número no fim do id de um amuleto, como o 12 de "amuleto-12"
+const AMULET_ID_NUMBER = /-(\d+)$/;
 
 // Marca que identifica um código de exportação deste jogo
 const SAVE_SIGNATURE = 'encantados';
@@ -280,9 +300,21 @@ function parseUnverifiedExport(code: string): UnverifiedExport | null {
 // M I G R A Ç Ã O   E N T R E   V E R S Õ E S
 
 // Uma função por versão de origem: MIGRATIONS[1] leva um salvamento da versão 1 para a 2.
-// Está vazio porque a versão 1 é a primeira. Mudou o formato do GameState? Suba
-// BALANCE.saveVersion e registre aqui como converter o formato antigo.
-const MIGRATIONS: Record<number, Migration> = {};
+// Mudou o formato do GameState? Suba BALANCE.saveVersion e registre aqui como converter
+// o formato antigo. Nunca apague uma migração: quem ficou meses sem abrir o jogo passa por todas.
+const MIGRATIONS: Record<number, Migration> = {
+  // Versão 1 -> 2: entraram os amuletos. Quem jogava antes começa sem nenhum, com a
+  // mochila vazia, sem Cavacos e com o desmanche automático desligado.
+  1: (save) => ({
+    ...save,
+    amulets: {},
+    equipped: {},
+    shavings: 0,
+    autoSalvage: null,
+    nextAmuletNumber: 1,
+    stats: { ...(isRecord(save.stats) ? save.stats : {}), amuletsFound: 0 },
+  }),
+};
 
 /**
  * Aplica, em ordem, as migrações que faltam para o salvamento chegar à versão atual.
@@ -334,6 +366,12 @@ export function migrateSave(save: unknown, fromVersion: number): unknown {
  *   Elenco sem comitiva recebe o primeiro do elenco, para o jogo não ficar parado.
  * - Marca de tempo no futuro: é trazida para "now", para não render tempo que não passou.
  * - Combate com inimigo que não é da zona, sem vida ou com chefe sem tempo: é refeito.
+ * - Amuleto de tipo ou raridade que não existe, ou sem nenhum bônus válido: é descartado.
+ *   Nível de entalhe acima do máximo da raridade: é limitado ao máximo.
+ * - Amuleto vestido por quem não está no elenco, ou o mesmo amuleto em dois
+ *   encantados: o vínculo inválido é desfeito e o amuleto volta para a mochila.
+ * - O contador de ids de amuleto nunca fica abaixo do maior id já usado, para dois
+ *   amuletos nunca terem o mesmo id.
  */
 export function sanitizeGameState(raw: unknown, now: number, random: RandomSource): GameState {
   if (!isRecord(raw)) {
@@ -343,6 +381,7 @@ export function sanitizeGameState(raw: unknown, now: number, random: RandomSourc
   const roster = sanitizeRoster(raw.roster);
   const party = sanitizeParty(raw.party, roster);
   const stage = toInteger(raw.stage, 1, 1);
+  const amulets = sanitizeAmulets(raw.amulets);
 
   return {
     version: BALANCE.saveVersion,
@@ -357,6 +396,11 @@ export function sanitizeGameState(raw: unknown, now: number, random: RandomSourc
     inventory: sanitizeCounters(raw.inventory, hasItem),
     upgrades: sanitizeUpgrades(raw.upgrades),
     roots: toInteger(raw.roots, 0, 0),
+    amulets,
+    equipped: sanitizeEquipped(raw.equipped, roster, amulets),
+    shavings: toInteger(raw.shavings, 0, 0),
+    autoSalvage: isAmuletRarity(raw.autoSalvage) ? raw.autoSalvage : null,
+    nextAmuletNumber: sanitizeNextAmuletNumber(raw.nextAmuletNumber, amulets),
     combat: sanitizeCombat(raw.combat, stage, party, random),
     lastSaveTimestamp: Math.min(toNumber(raw.lastSaveTimestamp, now, 0), now),
     stats: sanitizeStats(raw.stats),
@@ -440,7 +484,111 @@ function sanitizeStats(raw: unknown): GameStats {
     totalGoldEarned: toNumber(stats.totalGoldEarned, 0, 0),
     bossesDefeated: toInteger(stats.bossesDefeated, 0, 0),
     playTimeSeconds: toNumber(stats.playTimeSeconds, 0, 0),
+    amuletsFound: toInteger(stats.amuletsFound, 0, 0),
   };
+}
+
+// Amuletos: só os de tipo e raridade que existem, com pelo menos um bônus válido
+function sanitizeAmulets(raw: unknown): Record<string, Amulet> {
+  const amulets: Record<string, Amulet> = {};
+
+  if (!isRecord(raw)) {
+    return amulets;
+  }
+
+  for (const [amuletId, saved] of Object.entries(raw)) {
+    const amulet = sanitizeAmulet(amuletId, saved);
+
+    if (amulet !== null) {
+      amulets[amuletId] = amulet;
+    }
+  }
+
+  return amulets;
+}
+
+// Um amuleto conferido, ou null se ele não pode ser aproveitado
+function sanitizeAmulet(amuletId: string, raw: unknown): Amulet | null {
+  if (!isRecord(raw) || typeof raw.baseId !== 'string' || !hasAmuletBase(raw.baseId)) {
+    return null;
+  }
+  if (!isAmuletRarity(raw.rarity)) {
+    return null;
+  }
+
+  const bonuses = sanitizeAmuletBonuses(raw.bonuses);
+  const maxLevel = getAmuletRarity(raw.rarity).maxLevel;
+
+  if (bonuses.length === 0) {
+    return null;
+  }
+
+  return {
+    id: amuletId,
+    baseId: raw.baseId,
+    rarity: raw.rarity,
+    foundAtStage: toInteger(raw.foundAtStage, 1, 1),
+    level: Math.min(toInteger(raw.level, 0, 0), maxLevel),
+    bonuses,
+  };
+}
+
+// Bônus de um amuleto: só atributos que existem, com valor positivo
+function sanitizeAmuletBonuses(raw: unknown): AmuletBonus[] {
+  const candidates: unknown[] = Array.isArray(raw) ? raw : [];
+  const bonuses: AmuletBonus[] = [];
+
+  for (const candidate of candidates) {
+    if (isRecord(candidate) && isModifierStat(candidate.stat)) {
+      const value = toNumber(candidate.value, 0, 0);
+
+      if (value > 0) {
+        bonuses.push({ stat: candidate.stat, value });
+      }
+    }
+  }
+
+  return bonuses;
+}
+
+// Quem veste o quê: só encantados do elenco, amuletos que existem e um dono por amuleto
+function sanitizeEquipped(
+  raw: unknown,
+  roster: Record<string, OwnedEncantado>,
+  amulets: Record<string, Amulet>,
+): Record<string, string> {
+  const equipped: Record<string, string> = {};
+  const wornIds = new Set<string>();
+
+  if (!isRecord(raw)) {
+    return equipped;
+  }
+
+  for (const [encantadoId, amuletId] of Object.entries(raw)) {
+    const isValid =
+      typeof amuletId === 'string' &&
+      encantadoId in roster &&
+      amuletId in amulets &&
+      !wornIds.has(amuletId);
+
+    if (isValid) {
+      equipped[encantadoId] = amuletId;
+      wornIds.add(amuletId);
+    }
+  }
+
+  return equipped;
+}
+
+// Próximo número de amuleto: nunca menor que o maior número já usado em um id, mais um
+function sanitizeNextAmuletNumber(raw: unknown, amulets: Record<string, Amulet>): number {
+  const usedNumbers = Object.keys(amulets).map((amuletId) => {
+    const digits = AMULET_ID_NUMBER.exec(amuletId)?.[1];
+    return digits === undefined ? 0 : Number(digits);
+  });
+  const lowestFreeNumber = Math.max(0, ...usedNumbers) + 1;
+
+  return Math.max(toInteger(raw, 1, 1), lowestFreeNumber);
 }
 
 // Combate: mantém o inimigo salvo se ele fizer sentido no estágio. Senão, entra uma visagem nova.

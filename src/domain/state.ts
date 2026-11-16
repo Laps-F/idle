@@ -16,7 +16,13 @@ import { pickRandom } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { getEnemy, getZoneForStage } from './catalog';
 import { getEnemyMaxHp } from './formulas';
-import type { CombatState, GameState, OwnedEncantado, SimulationSummary } from './types';
+import type {
+  CombatState,
+  GameState,
+  GameStats,
+  OwnedEncantado,
+  SimulationSummary,
+} from './types';
 
 // =============================================================================
 // =============================================================================
@@ -46,9 +52,25 @@ export function createInitialState(now: number, random: RandomSource): GameState
     inventory: {},
     upgrades: {},
     roots: 0,
+    amulets: {},
+    equipped: {},
+    shavings: 0,
+    autoSalvage: null,
+    nextAmuletNumber: 1,
     combat: createCommonEnemyCombat(FIRST_STAGE, {}, random),
     lastSaveTimestamp: now,
-    stats: { totalKills: 0, totalGoldEarned: 0, bossesDefeated: 0, playTimeSeconds: 0 },
+    stats: createEmptyStats(),
+  };
+}
+
+// Estatísticas zeradas de uma partida nova
+export function createEmptyStats(): GameStats {
+  return {
+    totalKills: 0,
+    totalGoldEarned: 0,
+    bossesDefeated: 0,
+    playTimeSeconds: 0,
+    amuletsFound: 0,
   };
 }
 
@@ -70,6 +92,9 @@ export function createEmptySummary(): SimulationSummary {
     items: {},
     trails: {},
     levelUps: {},
+    amuletsFound: 0,
+    amuletsSalvaged: 0,
+    shavings: 0,
   };
 }
 
@@ -149,6 +174,11 @@ export function pickGameState(source: GameState): GameState {
     inventory: source.inventory,
     upgrades: source.upgrades,
     roots: source.roots,
+    amulets: source.amulets,
+    equipped: source.equipped,
+    shavings: source.shavings,
+    autoSalvage: source.autoSalvage,
+    nextAmuletNumber: source.nextAmuletNumber,
     combat: source.combat,
     lastSaveTimestamp: source.lastSaveTimestamp,
     stats: source.stats,

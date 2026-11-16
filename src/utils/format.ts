@@ -16,6 +16,7 @@
 // Sufixos de mil em mil: K = mil, M = milhão, B = bilhão, T = trilhão, Qa, Qi
 const NUMBER_SUFFIXES = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi'];
 const THOUSAND = 1000;
+const DECIMAL_PERCENT_LIMIT = 10; // abaixo de 10%, a porcentagem ganha uma casa decimal
 const SMALL_NUMBER_LIMIT = 100; // abaixo disso, uma casa decimal ainda ajuda a ler
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
@@ -59,6 +60,22 @@ export function formatNumber(value: number): string {
 export function formatDecimal(value: number): string {
   const isSmall = Number.isFinite(value) && Math.abs(value) < SMALL_NUMBER_LIMIT;
   return isSmall ? value.toFixed(1).replace('.', ',') : formatNumber(value);
+}
+
+// Quantidade com a palavra no singular ou no plural: "1 Cavaco", "1,50K Cavacos"
+export function formatCount(amount: number, singular: string, plural: string): string {
+  return `${formatNumber(amount)} ${amount === 1 ? singular : plural}`;
+}
+
+// Bônus em porcentagem, com sinal: 0.052 -> "+5,2%", 0.12 -> "+12%".
+// Abaixo de 10% mostra uma casa decimal, porque ali ela faz diferença.
+export function formatSignedPercent(fraction: number): string {
+  const percent = fraction * 100;
+  const oneDecimal = percent.toFixed(1);
+  const isSmall = Math.abs(Number(oneDecimal)) < DECIMAL_PERCENT_LIMIT;
+  const text = isSmall ? oneDecimal : percent.toFixed(0);
+  const sign = percent >= 0 ? '+' : '';
+  return `${sign}${text.replace('.', ',')}%`;
 }
 
 // 0.256 -> "26%"
