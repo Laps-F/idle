@@ -17,7 +17,7 @@ Outros documentos:
 |---|---|---|
 | `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, amuletos, progresso offline | `data`, `utils` |
 | `src/store` | Estado global (Zustand): o `tick`, o controle do tempo, o salvamento no `localStorage` e os seletores | `domain`, `data`, `utils`, Zustand |
-| `src/data` | Datasets estáticos e tipados: inimigos, itens, zonas, tabelas de itens, constantes | só os tipos de `domain` |
+| `src/data` | Datasets estáticos e tipados: inimigos, itens, zonas, amuletos, tabelas de itens, constantes | só os tipos de `domain` |
 | `src/components` | Componentes visuais "burros": mostram o que recebem e chamam ações | `store`, `utils`, React, Lucide (ícones) |
 | `src/utils` | Funções utilitárias puras: formatadores, sorteio, ids, comparação | nada |
 
@@ -135,7 +135,7 @@ e grava o estado que ela devolveu.
 | Dano direto fora do ritmo dos ataques (clique, teste) | `src/domain/simulation.ts`, `dealDirectDamage` |
 | Regras das ações da pessoa: comitiva, compra de melhoria, chefe, troca de estágio | `src/domain/actions.ts` |
 | Como melhorias, sinergias, amuletos e Raízes se combinam | `src/domain/modifiers.ts` |
-| Sorteio da queda e geração dos atributos de um amuleto | `src/domain/amulets.ts`, bloco "Queda e geração" |
+| Sorteio da queda e geração dos atributos de um amuleto | `src/domain/amulets.ts`, bloco "Queda" |
 | O que acontece com o amuleto que cai (mochila cheia, desmanche automático) | `src/domain/amulets.ts`, `receiveAmulet` |
 | Regras de vestir, tirar, desmanchar e entalhar | `src/domain/amulets.ts` |
 | Em que momento do combate o amuleto cai | `src/domain/simulation.ts`, `rollAmulet` |
