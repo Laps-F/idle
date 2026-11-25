@@ -162,6 +162,13 @@ e grava o estado que ela devolveu.
 | Quando o laço roda, quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
 
+### Publicação
+
+| Quero mudar | Arquivo |
+|---|---|
+| Pasta do site no GitHub Pages (base dos endereços do build) | `vite.config.ts`, `PAGES_BASE` |
+| O que roda antes de publicar, versão do Node, quando publica | `.github/workflows/pages.yml` |
+
 ### Tela (`src/components`)
 
 | Quero mudar | Arquivo |

@@ -59,6 +59,13 @@ O terminal mostra um endereço, normalmente `http://localhost:5173`. São duas t
 - `http://localhost:5173/` abre o jogo.
 - `http://localhost:5173/?debug` abre o painel de debug, com os números crus e os botões de teste.
 
+Para jogar sem instalar nada, use o site: https://laps-f.github.io/idle/ (e
+https://laps-f.github.io/idle/?debug). Ele é atualizado sozinho alguns minutos depois de cada
+envio para o `main`. O salvamento do site é separado do salvamento do `localhost`.
+
+Para ver a versão final, igual à do site, rode `npm run build` e depois `npm run preview` e
+abra `http://localhost:4173/idle/`.
+
 Para parar, volte ao terminal e aperte `Ctrl + C`.
 
 ## 5. Roteiro do jogo
@@ -229,6 +236,8 @@ não tem botão para fechar pacto.
 | O jogo abriu com números estranhos de um teste antigo | Use "Apagar tudo" (três cliques). |
 | Aviso de jogo aberto em outra aba | Feche as outras abas do jogo e recarregue esta. O jogo e o painel de debug abertos ao mesmo tempo também contam como duas abas. |
 | A porta 5173 está ocupada | O Vite escolhe outra porta e mostra o endereço novo no terminal. |
+| O site do Pages abre em branco | Confira se `PAGES_BASE`, em `vite.config.ts`, tem o nome do repositório entre barras. |
+| O site não mudou depois de um envio | Na aba Actions do GitHub, veja se "Publicar no GitHub Pages" terminou sem erro. Teste que falha impede a publicação. Depois, recarregue a página. |
 
 Para ver o salvamento cru: F12, aba Application (ou Armazenamento), Local Storage, chave
 `encantados-save`.

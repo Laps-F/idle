@@ -2,6 +2,17 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 25/11/2026: publicação no GitHub Pages
+
+O jogo passa a abrir em https://laps-f.github.io/idle/.
+
+- `.github/workflows/pages.yml` (novo): a cada envio para o `main`, roda lint, testes e build e
+  publica a pasta `dist` no Pages.
+- `vite.config.ts`: base `/idle/` no build e no `npm run preview`. O `npm run dev` continua em `/`.
+- `index.html`: o ícone usa `%BASE_URL%`, para funcionar dentro da pasta `/idle/`.
+- `README.md`, `docs/COMO_TESTAR.md`, `docs/GUIA_DE_MANUTENCAO.md`: endereço do site, como a
+  publicação funciona e o que fazer se ela falhar.
+
 ## 15/11/2026: amuletos, o primeiro sistema de retenção
 
 Chefes e visagens passam a deixar amuletos, que os encantados vestem. Amuleto que sobra vira

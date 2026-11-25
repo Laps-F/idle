@@ -1,6 +1,9 @@
 # Encantados
 
-Idle de coleção com folclore brasileiro, para navegador. Você percorre os biomas com uma
+Idle de coleção com folclore brasileiro, para navegador.
+
+**Jogar:** https://laps-f.github.io/idle/ (painel de debug em
+https://laps-f.github.io/idle/?debug) Você percorre os biomas com uma
 comitiva de encantados (Saci, Curupira, Iara, Caipora, Boitatá) e enfrenta as visagens do
 Estio. Roda inteiro no navegador e salva no `localStorage`.
 
@@ -28,7 +31,21 @@ npm run dev        # abre o jogo em http://localhost:5173 (painel de debug em /?
 npm test           # roda os testes dos dados, do domínio, da store, do painel e da arquitetura
 npm run typecheck  # confere as tipagens
 npm run build      # gera a versão final em dist/
+npm run preview    # abre a versão final em http://localhost:4173/idle/, igual ao site
 ```
+
+## Publicação no GitHub Pages
+
+O site https://laps-f.github.io/idle/ é atualizado sozinho a cada envio para o ramo `main`. Quem
+faz isso é `.github/workflows/pages.yml`: roda o lint, os testes e o build e publica a pasta
+`dist`. Se um teste falhar, nada é publicado e o site fica na versão anterior. O andamento
+aparece na aba Actions do repositório.
+
+- O site mora na pasta `/idle/`, por isso o build usa essa base (`PAGES_BASE`, em
+  `vite.config.ts`). Se o repositório mudar de nome, troque ali.
+- Configuração feita uma vez no GitHub: Settings, Pages, Source "GitHub Actions".
+- O salvamento fica no `localStorage` do endereço. Jogo salvo no `localhost` não aparece no site
+  e vice-versa. Para levar de um para o outro, use Exportar e Importar.
 
 ## Como o código está dividido
 
@@ -85,6 +102,8 @@ src/
   App.tsx              liga o laço do jogo e mostra a tela
 tests/                 testes automáticos, incluindo o que vigia a arquitetura
 docs/                  guia de manutenção, roteiro de teste e histórico
+.github/workflows/     publicação automática no GitHub Pages
+vite.config.ts         configuração do Vite, incluindo a base /idle/ do site
 ```
 
 As regras de cada pasta estão na seção 1 do guia de manutenção. Em resumo: número mora em
