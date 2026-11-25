@@ -30,9 +30,10 @@
  *   3. Ações de simulação (tick, progresso offline e troca de aba)
  *   4. Ações de jogo (comitiva, melhorias, pactos, estágios)
  *   5. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
- *   6. Ações de salvamento (gravar, exportar, importar, apagar tudo)
- *   7. Ações de teste (usadas pelo painel de debug)
- *   8. Ferramentas
+ *   6. Ações da Rebrota (rebrotar, juazeiro, compra automática)
+ *   7. Ações de salvamento (gravar, exportar, importar, apagar tudo)
+ *   8. Ações de teste (usadas pelo painel de debug)
+ *   9. Ferramentas
  */
 
 import { create } from 'zustand';
@@ -58,8 +59,10 @@ import {
   setAutoSalvage as setAmuletAutoSalvage,
   unequipAmulet,
 } from '../domain/amulets';
+import { buyJuazeiroNode } from '../domain/juazeiro';
 import { applyOfflineProgress, hasOfflineGains, mergeOfflineReports } from '../domain/offline';
 import { sealPact } from '../domain/pact';
+import { performRebrota, setAutoBuy } from '../domain/rebrota';
 import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
 import { createInitialState, pickGameState } from '../domain/state';
 import type { CombatEvent, GameState } from '../domain/types';
@@ -85,6 +88,7 @@ const SESSION_DEFAULTS: SessionState = {
   combatEvents: NO_EVENTS,
   isOpenInAnotherTab: false,
   tickCount: 0,
+  rebrotaCeremony: null,
 };
 
 const OPEN_IN_ANOTHER_TAB_ERROR = 'O jogo está aberto em outra aba. Recarregue esta página.';
@@ -96,6 +100,9 @@ type GetStore = () => GameStore;
 
 // Regra do domínio: recebe o estado e devolve o estado novo, ou null se a ação não vale
 type Rule = (state: GameState) => GameState | null;
+
+// Campos de sessão que uma entrada grava junto com o estado novo
+type SessionUpdate = (previous: GameState, next: GameState) => Partial<SessionState>;
 
 
 // =============================================================================
@@ -110,6 +117,7 @@ export const useGameStore = create<GameStore>()(
       ...createSimulationActions(set, get),
       ...createGameplayActions(set, get),
       ...createAmuletActions(set, get),
+      ...createRebrotaActions(set, get),
       ...createSaveActions(set, get),
       ...createDebugActions(set, get),
     }),
@@ -267,12 +275,19 @@ function createGameplayActions(set: SetStore, get: GetStore): GameplayActions {
  * @param set Função de gravação da store.
  * @param get Função de leitura da store.
  * @param rule Regra do domínio. Recebe o estado atual e devolve o estado novo, ou null.
+ * @param sessionUpdate Opcional. Campos de sessão gravados junto com o estado novo
+ *                      (por exemplo, a cerimônia da Rebrota).
  * @returns true se a regra devolveu um estado novo e ele foi gravado.
  *
  * Casos de borda: com o jogo aberto em outra aba, nada é aplicado e o retorno é
  * false. Quando a regra devolve null (ação não permitida), o estado não muda.
  */
-function applyInput(set: SetStore, get: GetStore, rule: Rule): boolean {
+function applyInput(
+  set: SetStore,
+  get: GetStore,
+  rule: Rule,
+  sessionUpdate?: SessionUpdate,
+): boolean {
   if (get().isOpenInAnotherTab) {
     return false;
   }
@@ -285,7 +300,7 @@ function applyInput(set: SetStore, get: GetStore, rule: Rule): boolean {
     return false;
   }
 
-  commitState(set, current, next);
+  commitState(set, current, next, sessionUpdate?.(current, next));
   return true;
 }
 
@@ -321,6 +336,49 @@ function createAmuletActions(set: SetStore, get: GetStore): AmuletActions {
       applyInput(set, get, (state) => setAmuletAutoSalvage(state, maxRarity));
     },
   };
+}
+
+
+// =============================================================================
+// =============================================================================
+// A Ç Õ E S   D A   R E B R O T A
+
+type RebrotaActions = Pick<
+  GameActions,
+  'rebrota' | 'buyJuazeiroNode' | 'setAutoBuy' | 'dismissRebrotaCeremony'
+>;
+
+// Rebrota e juazeiro. As regras estão em src/domain/rebrota.ts e src/domain/juazeiro.ts.
+function createRebrotaActions(set: SetStore, get: GetStore): RebrotaActions {
+  return {
+    /**
+     * Começa uma nova edição do folheto (src/domain/rebrota.ts, performRebrota).
+     *
+     * Além do estado novo, grava a cerimônia (para a janela da edição nova) e um
+     * evento "rebrota" (para a linha do registro).
+     *
+     * @returns true se a Rebrota aconteceu. False se ainda não estava liberada.
+     */
+    rebrota: () =>
+      applyInput(
+        set,
+        get,
+        (state) => performRebrota(state, Math.random),
+        (previous, next) => describeRebrota(previous, next),
+      ),
+    buyJuazeiroNode: (nodeId) => applyInput(set, get, (state) => buyJuazeiroNode(state, nodeId)),
+    setAutoBuy: (enabled) => {
+      applyInput(set, get, (state) => setAutoBuy(state, enabled));
+    },
+    dismissRebrotaCeremony: () => set({ rebrotaCeremony: null }),
+  };
+}
+
+// Cerimônia e evento de registro de uma Rebrota que acabou de acontecer
+function describeRebrota(previous: GameState, next: GameState): Partial<SessionState> {
+  const ceremony = { edition: next.edition, roots: next.roots - previous.roots };
+  const event: CombatEvent = { type: 'rebrota', ...ceremony };
+  return { rebrotaCeremony: ceremony, combatEvents: [event] };
 }
 
 
@@ -387,7 +445,7 @@ function createSaveActions(set: SetStore, get: GetStore): SaveActions {
 
 // Substitui o jogo inteiro e grava na hora, para o salvamento antigo não voltar
 function replaceGame(set: SetStore, state: GameState): void {
-  set({ ...state, offlineReport: null, combatEvents: NO_EVENTS });
+  set({ ...state, offlineReport: null, combatEvents: NO_EVENTS, rebrotaCeremony: null });
   saveStorage.flush();
 }
 
@@ -398,7 +456,7 @@ function replaceGame(set: SetStore, state: GameState): void {
 
 type DebugActions = Pick<
   GameActions,
-  'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime' | 'debugGrantAmulet'
+  'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime' | 'debugGrantAmulet' | 'debugGrantRoots'
 >;
 
 // Atalhos para o painel de debug mexer no jogo sem esperar o ritmo normal.
@@ -431,6 +489,11 @@ function createDebugActions(set: SetStore, get: GetStore): DebugActions {
     debugGrantAmulet: () => {
       applyInput(set, get, (state) => grantAmulet(state));
     },
+
+    // Finca Raízes direto, sem rebrotar, para testar o juazeiro
+    debugGrantRoots: (amount) => {
+      applyInput(set, get, (state) => grantRoots(state, amount));
+    },
   };
 }
 
@@ -438,6 +501,11 @@ function createDebugActions(set: SetStore, get: GetStore): DebugActions {
 function grantAmulet(state: GameState): GameState {
   const amulet = generateAmulet(state.nextAmuletNumber, state.stage, Math.random);
   return receiveAmulet(state, amulet).state;
+}
+
+// Soma Raízes fincadas. Null para quantidade zero ou negativa.
+function grantRoots(state: GameState, amount: number): GameState | null {
+  return amount > 0 ? { ...state, roots: state.roots + amount } : null;
 }
 
 // Golpe direto de uma fração da vida máxima. Null quando o golpe não tira nada.

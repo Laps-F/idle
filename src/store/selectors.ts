@@ -29,12 +29,22 @@
  *   6. Construção: comitiva e pactos
  *   7. Construção: melhorias e avisos
  *   8. Construção: amuletos
- *   9. Construção: ausência e escolha inicial
- *  10. Construção: visões do painel de debug
- *  11. Ferramentas
+ *   9. Construção: juazeiro e Rebrota
+ *  10. Construção: ausência e escolha inicial
+ *  11. Construção: visões do painel de debug
+ *  12. Ferramentas
  */
 
-import { AMULET_RARITIES, BALANCE, ENCANTADOS, ITEMS, SYNERGIES, UPGRADES } from '../data';
+import {
+  AMULET_RARITIES,
+  BALANCE,
+  ENCANTADOS,
+  ITEMS,
+  JUAZEIRO_BRANCHES,
+  JUAZEIRO_NODES,
+  SYNERGIES,
+  UPGRADES,
+} from '../data';
 import { canChallengeBoss } from '../domain/actions';
 import {
   canCarve,
@@ -60,19 +70,39 @@ import {
   getXpToNextLevel,
   isUpgradeMaxed,
 } from '../domain/formulas';
+import {
+  canBuyNode,
+  getBagSize,
+  getBossTimeLimit,
+  getFreeRoots,
+  getNodeCost,
+  getNodeLevel,
+  hasAutoBuyNode,
+  isNodeMaxed,
+} from '../domain/juazeiro';
 import { getModifiers } from '../domain/modifiers';
 import { getPactStatus } from '../domain/pact';
+import {
+  canRebrota,
+  getNextRootStage,
+  getRebrotaGain,
+  getRebrotaStageNeeded,
+  getRootsPerHour,
+  isJuazeiroRevealed,
+} from '../domain/rebrota';
 import type {
   Amulet,
   BiomeId,
   DayPhase,
+  JuazeiroBranch,
+  JuazeiroNodeDef,
   ModifierStat,
   MoonPhase,
   Origin,
   Rarity,
 } from '../domain/types';
 import { isDeepEqual } from '../utils/object';
-import type { GameSnapshot } from './types';
+import type { GameSnapshot, RebrotaCeremony } from './types';
 
 // =============================================================================
 // =============================================================================
@@ -91,6 +121,7 @@ export interface HeaderView {
   roots: number;
   shavings: number;
   hasFoundAmulets: boolean; // os Cavacos só aparecem depois do primeiro amuleto
+  edition: number; // edição do folheto. O cabeçalho só mostra a partir da 2.
   items: NamedAmount[];
 }
 
@@ -200,6 +231,47 @@ export interface BadgeView {
   buyableUpgrades: number;
   sealablePacts: number;
   wearableAmulets: number; // amuletos da mochila que cabem em alguém da comitiva sem amuleto
+  juazeiro: number; // 1 se dá para comprar algum nó, mais 1 se a Rebrota já vale a pena
+}
+
+// Um nó do juazeiro pronto para mostrar
+export interface JuazeiroNodeView {
+  id: string;
+  name: string;
+  description: string;
+  level: number;
+  maxLevel: number;
+  cost: number; // Raízes do próximo nível
+  canBuy: boolean;
+  isMaxed: boolean;
+}
+
+// Um galho do juazeiro, com os nós e quanto dele já cresceu
+export interface JuazeiroBranchView {
+  id: JuazeiroBranch;
+  name: string;
+  description: string;
+  nodes: JuazeiroNodeView[];
+  growth: number; // de 0 a 1: níveis comprados ÷ níveis possíveis do galho
+}
+
+// Tudo que a aba do juazeiro mostra
+export interface JuazeiroPanelView {
+  edition: number;
+  roots: number; // fincadas
+  freeRoots: number;
+  rootsBonus: number; // bônus passivo de dano e Patacas: 0.25 = +25%
+  gain: number; // Raízes que rebrotar agora renderia
+  canRebrota: boolean;
+  stageNeeded: number; // estágio que libera a Rebrota
+  minRoots: number; // mínimo de Raízes para a Rebrota liberar
+  nextRootStage: number; // estágio que rende uma Raiz a mais
+  rootsPerHour: number;
+  maxStage: number;
+  recordStage: number;
+  hasAutoBuy: boolean;
+  autoBuy: boolean;
+  branches: JuazeiroBranchView[];
 }
 
 // Um bônus de amuleto, já com o entalhe aplicado
@@ -269,6 +341,7 @@ export interface OfflineView {
   amuletsFound: number;
   amuletsSalvaged: number;
   shavings: number;
+  rebrotaGain: number; // Raízes que rebrotar agora renderia. Zero se ainda não libera.
 }
 
 // ---------- Visões do painel de debug ----------
@@ -314,6 +387,11 @@ export interface ResourcesView {
   amuletsInBag: number;
   amuletsWorn: number;
   amuletsFound: number;
+  edition: number;
+  freeRoots: number;
+  recordStage: number;
+  rebrotaGain: number;
+  canRebrota: boolean;
   totalKills: number;
   bossesDefeated: number;
   totalGoldEarned: number;
@@ -357,6 +435,7 @@ export const selectPacts = createStableSelector(buildPacts);
 export const selectUpgradeViews = createStableSelector(buildUpgradeViews);
 export const selectBadges = createStableSelector(buildBadges);
 export const selectAmuletPanel = createStableSelector(buildAmuletPanel);
+export const selectJuazeiroPanel = createStableSelector(buildJuazeiroPanel);
 export const selectStarterOptions = createStableSelector(buildStarterOptions);
 export const selectOfflineView = createStableSelector(buildOfflineView);
 
@@ -369,6 +448,16 @@ export const selectPartyView = createStableSelector(buildPartyView);
 // Seletores atômicos: devolvem um valor simples, que o Zustand compara direto
 export function selectHasStarter(snapshot: GameSnapshot): boolean {
   return Object.keys(snapshot.roster).length > 0;
+}
+
+// O juazeiro só aparece depois do primeiro muro (ver isJuazeiroRevealed)
+export function selectIsJuazeiroRevealed(snapshot: GameSnapshot): boolean {
+  return isJuazeiroRevealed(snapshot);
+}
+
+// Edição que acabou de começar, para a cerimônia. Null fora desse momento.
+export function selectRebrotaCeremony(snapshot: GameSnapshot): RebrotaCeremony | null {
+  return snapshot.rebrotaCeremony;
 }
 
 export function selectIsOpenInAnotherTab(snapshot: GameSnapshot): boolean {
@@ -402,13 +491,13 @@ export function readAttackProgress(snapshot: GameSnapshot, encantadoId: string):
 
 // Quanto do tempo do chefe ainda resta, de 0 a 1. Fica em 0 sem chefe em campo.
 export function readBossTimeFraction(snapshot: GameSnapshot): number {
-  const { combat, stage } = snapshot;
+  const { combat } = snapshot;
 
   if (!combat.isBoss) {
     return 0;
   }
 
-  return combat.bossTimeLeft / getZoneForStage(stage).bossTimeLimit;
+  return combat.bossTimeLeft / getBossTimeLimit(snapshot);
 }
 
 
@@ -422,6 +511,7 @@ function buildHeaderView(snapshot: GameSnapshot): HeaderView {
     roots: snapshot.roots,
     shavings: snapshot.shavings,
     hasFoundAmulets: snapshot.stats.amuletsFound > 0,
+    edition: snapshot.edition,
     items: ITEMS.map((item) => ({
       id: item.id,
       name: item.name,
@@ -592,7 +682,21 @@ function buildBadges(snapshot: GameSnapshot): BadgeView {
     buyableUpgrades: buildUpgradeViews(snapshot).filter((upgrade) => upgrade.canBuy).length,
     sealablePacts: buildPacts(snapshot).filter((pact) => pact.canSeal).length,
     wearableAmulets: countWearableAmulets(snapshot),
+    juazeiro: countJuazeiroNews(snapshot),
   };
+}
+
+// Até 2 avisos: algum nó que dá para comprar, e a Rebrota quando já renderia metade ou mais
+// das Raízes fincadas. Contar cada nó viraria um número grande que não diz nada.
+function countJuazeiroNews(snapshot: GameSnapshot): number {
+  if (!isJuazeiroRevealed(snapshot)) {
+    return 0;
+  }
+
+  const hasBuyableNode = JUAZEIRO_NODES.some((node) => canBuyNode(snapshot, node.id));
+  const worthThreshold = snapshot.roots * BALANCE.rebrotaWorthRatio;
+  const isRebrotaWorth = canRebrota(snapshot) && getRebrotaGain(snapshot) >= worthThreshold;
+  return (hasBuyableNode ? 1 : 0) + (isRebrotaWorth ? 1 : 0);
 }
 
 // Quantos amuletos da mochila já poderiam estar vestidos: um por encantado da comitiva sem amuleto
@@ -614,7 +718,7 @@ function buildAmuletPanel(snapshot: GameSnapshot): AmuletPanelView {
   return {
     shavings: snapshot.shavings,
     bagCount: bag.length,
-    bagSize: BALANCE.amuletBagSize,
+    bagSize: getBagSize(snapshot),
     autoSalvage: snapshot.autoSalvage,
     rarities: AMULET_RARITIES.map((definition) => definition.rarity),
     slots: Object.keys(snapshot.roster).map((encantadoId) => {
@@ -656,6 +760,61 @@ function buildAmuletView(snapshot: GameSnapshot, amulet: Amulet): AmuletView {
 
 // =============================================================================
 // =============================================================================
+// J U A Z E I R O   E   R E B R O T A
+
+// Tudo que a aba do juazeiro mostra: Raízes, Rebrota e os três galhos
+function buildJuazeiroPanel(snapshot: GameSnapshot): JuazeiroPanelView {
+  return {
+    edition: snapshot.edition,
+    roots: snapshot.roots,
+    freeRoots: getFreeRoots(snapshot),
+    rootsBonus: snapshot.roots * BALANCE.rootsBonusPerRoot,
+    gain: getRebrotaGain(snapshot),
+    canRebrota: canRebrota(snapshot),
+    stageNeeded: getRebrotaStageNeeded(snapshot),
+    minRoots: BALANCE.rebrotaMinRoots,
+    nextRootStage: getNextRootStage(snapshot),
+    rootsPerHour: getRootsPerHour(snapshot),
+    maxStage: snapshot.maxStage,
+    recordStage: snapshot.recordStage,
+    hasAutoBuy: hasAutoBuyNode(snapshot),
+    autoBuy: snapshot.autoBuy,
+    branches: JUAZEIRO_BRANCHES.map((branch) => {
+      const nodes = JUAZEIRO_NODES.filter((node) => node.branch === branch.id);
+      const views = nodes.map((node) => buildJuazeiroNodeView(snapshot, node));
+      const bought = views.reduce((sum, view) => sum + view.level, 0);
+      const possible = views.reduce((sum, view) => sum + view.maxLevel, 0);
+
+      return {
+        id: branch.id,
+        name: branch.name,
+        description: branch.description,
+        nodes: views,
+        growth: possible === 0 ? 0 : bought / possible,
+      };
+    }),
+  };
+}
+
+// Um nó com o nível atual, o custo do próximo e se dá para comprar
+function buildJuazeiroNodeView(snapshot: GameSnapshot, node: JuazeiroNodeDef): JuazeiroNodeView {
+  const level = Math.min(getNodeLevel(snapshot.juazeiro, node.id), node.maxLevel);
+
+  return {
+    id: node.id,
+    name: node.name,
+    description: node.description,
+    level,
+    maxLevel: node.maxLevel,
+    cost: getNodeCost(node, level),
+    canBuy: canBuyNode(snapshot, node.id),
+    isMaxed: isNodeMaxed(node, level),
+  };
+}
+
+
+// =============================================================================
+// =============================================================================
 // A U S Ê N C I A   E   E S C O L H A   I N I C I A L
 
 // Relatório de ausência com os nomes resolvidos. Null se não há relatório aberto.
@@ -672,9 +831,9 @@ function buildOfflineView(snapshot: GameSnapshot): OfflineView | null {
   return {
     secondsAway: report.secondsAway,
     secondsSimulated: report.secondsSimulated,
-    wasCapped: report.secondsAway > BALANCE.offlineCapSeconds,
-    capSeconds: BALANCE.offlineCapSeconds,
-    efficiency: BALANCE.offlineEfficiency,
+    wasCapped: report.secondsAway > report.capSeconds,
+    capSeconds: report.capSeconds,
+    efficiency: report.efficiency,
     gold: summary.gold,
     xp: summary.xp,
     kills: summary.kills,
@@ -687,6 +846,7 @@ function buildOfflineView(snapshot: GameSnapshot): OfflineView | null {
     amuletsFound: summary.amuletsFound,
     amuletsSalvaged: summary.amuletsSalvaged,
     shavings: summary.shavings,
+    rebrotaGain: canRebrota(snapshot) ? getRebrotaGain(snapshot) : 0,
   };
 }
 
@@ -761,6 +921,11 @@ function buildResourcesView(snapshot: GameSnapshot): ResourcesView {
     amuletsInBag: getBagAmulets(snapshot).length,
     amuletsWorn: Object.keys(snapshot.equipped).length,
     amuletsFound: snapshot.stats.amuletsFound,
+    edition: snapshot.edition,
+    freeRoots: getFreeRoots(snapshot),
+    recordStage: snapshot.recordStage,
+    rebrotaGain: getRebrotaGain(snapshot),
+    canRebrota: canRebrota(snapshot),
     totalKills: snapshot.stats.totalKills,
     bossesDefeated: snapshot.stats.bossesDefeated,
     totalGoldEarned: snapshot.stats.totalGoldEarned,

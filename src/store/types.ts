@@ -37,6 +37,13 @@ export interface SessionState {
   combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
   isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
   tickCount: number; // quantos ticks rodaram desde que a página abriu. Prova que o laço anda.
+  rebrotaCeremony: RebrotaCeremony | null; // edição que acabou de começar, para a cerimônia
+}
+
+// O que a cerimônia de uma Rebrota mostra
+export interface RebrotaCeremony {
+  edition: number; // número da edição nova
+  roots: number; // Raízes ganhas nesta Rebrota
 }
 
 // O que os seletores leem: estado do jogo mais estado de sessão, sem as ações
@@ -70,6 +77,12 @@ export interface GameActions {
   carveAmulet: (amuletId: string) => boolean;
   setAutoSalvage: (maxRarity: Rarity | null) => void;
 
+  // Rebrota e juazeiro. Devolvem true quando a ação foi aplicada.
+  rebrota: () => boolean;
+  buyJuazeiroNode: (nodeId: string) => boolean;
+  setAutoBuy: (enabled: boolean) => void;
+  dismissRebrotaCeremony: () => void;
+
   // Salvamento
   saveNow: () => SaveReceipt;
   exportSave: () => string;
@@ -81,6 +94,7 @@ export interface GameActions {
   debugGrantGold: (amount: number) => void;
   debugSkipTime: (seconds: number) => void;
   debugGrantAmulet: () => void;
+  debugGrantRoots: (amount: number) => void;
 }
 
 

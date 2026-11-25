@@ -28,6 +28,7 @@ import { BALANCE } from '../data/balance';
 import { pickRandom, pickWeighted } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { getAmuletRarity } from './catalog';
+import { getBagSize } from './juazeiro';
 import type { Amulet, AmuletBaseDef, AmuletBonus, GameState, Rarity } from './types';
 
 // =============================================================================
@@ -38,7 +39,7 @@ import type { Amulet, AmuletBaseDef, AmuletBonus, GameState, Rarity } from './ty
 export interface AmuletDropInput {
   stage: number;
   isBoss: boolean;
-  dropChanceMultiplier: number; // multiplicador de chance de achado (melhorias, sinergias)
+  dropChanceMultiplier: number; // multiplicador de chance de amuleto (achado e juazeiro)
   amuletNumber: number; // número que vira o id do amuleto, se ele cair
 }
 
@@ -201,7 +202,7 @@ export function getBagAmulets(state: GameState): Amulet[] {
 
 // Diz se a mochila chegou ao limite. Amuleto vestido não ocupa lugar.
 export function isBagFull(state: GameState): boolean {
-  return getBagAmulets(state).length >= BALANCE.amuletBagSize;
+  return getBagAmulets(state).length >= getBagSize(state);
 }
 
 // Id do encantado que veste o amuleto, ou null se ele está na mochila

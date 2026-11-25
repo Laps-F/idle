@@ -1,8 +1,8 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/domain/modifiers.ts
- * O que faz: junta melhorias, sinergias, amuletos e Raízes nos multiplicadores finais
- * que o combate usa.
+ * O que faz: junta melhorias, sinergias, amuletos, Raízes e juazeiro nos
+ * multiplicadores finais que o combate usa.
  *
  * Mapa:
  *   1. Sinergias ativas
@@ -16,12 +16,14 @@ import { UPGRADES } from '../data/upgrades';
 import { getPartyAmuletBonuses } from './amulets';
 import { getEncantado } from './catalog';
 import { getRootsMultiplier } from './formulas';
+import { getJuazeiroBonuses } from './juazeiro';
 import type {
   AmuletBonus,
   DayPhase,
   GameState,
   ModifierStat,
   Modifiers,
+  StatBonuses,
   SynergyDef,
 } from './types';
 
@@ -51,8 +53,12 @@ export function getActiveSynergies(party: readonly string[], dayPhase: DayPhase)
  *
  * Para cada atributo: (1 + soma das melhorias) × (1 + soma das sinergias) ×
  * (1 + soma dos amuletos vestidos pela comitiva).
- * Dano e Patacas ainda são multiplicados pelo bônus das Raízes.
- * A chance de crítico é uma soma: base + melhorias + sinergias + amuletos, limitada a 100%.
+ * Dano e Patacas ainda são multiplicados pelo bônus das Raízes fincadas.
+ * Dano e dano em chefes ganham também o fator do juazeiro (1 + bônus do galho).
+ * A chance de crítico é uma soma: base + melhorias + sinergias + amuletos +
+ * juazeiro, limitada a 100%.
+ * As chances de Rastro, de Oferenda e de amuleto partem da chance de achado e
+ * ganham o fator próprio do juazeiro.
  *
  * @param state Estado do jogo. Só é lido.
  * @param dayPhase Fase do dia. Algumas sinergias só valem de dia ou de noite.
@@ -62,22 +68,28 @@ export function getModifiers(state: GameState, dayPhase: DayPhase): Modifiers {
   const upgradeBonus = sumUpgradeBonuses(state.upgrades);
   const synergyBonus = sumSynergyBonuses(getActiveSynergies(state.party, dayPhase));
   const amuletBonus = sumAmuletBonuses(getPartyAmuletBonuses(state));
+  const juazeiro = getJuazeiroBonuses(state.juazeiro);
   const rootsMultiplier = getRootsMultiplier(state.roots);
   const multiplierOf = (stat: ModifierStat) =>
     (1 + upgradeBonus[stat]) * (1 + synergyBonus[stat]) * (1 + amuletBonus[stat]);
+  const dropChance = multiplierOf('dropChance');
   const critChance =
     BALANCE.baseCritChance +
     upgradeBonus.critChance +
     synergyBonus.critChance +
-    amuletBonus.critChance;
+    amuletBonus.critChance +
+    juazeiro.critChance;
 
   return {
-    damage: multiplierOf('damage') * rootsMultiplier,
-    bossDamage: multiplierOf('bossDamage'),
+    damage: multiplierOf('damage') * rootsMultiplier * (1 + juazeiro.damage),
+    bossDamage: multiplierOf('bossDamage') * (1 + juazeiro.bossDamage),
     attackSpeed: multiplierOf('attackSpeed'),
     gold: multiplierOf('gold') * rootsMultiplier,
-    dropChance: multiplierOf('dropChance'),
+    dropChance,
     critChance: Math.min(1, critChance),
+    trailChance: dropChance * (1 + juazeiro.trailChance),
+    itemChance: dropChance * (1 + juazeiro.itemChance),
+    amuletChance: dropChance * (1 + juazeiro.amuletChance),
   };
 }
 
@@ -107,7 +119,7 @@ function countMembersByOrigin(party: readonly string[]): Map<string, number> {
 }
 
 // Soma dos bônus das melhorias compradas, por atributo
-function sumUpgradeBonuses(upgradeLevels: Record<string, number>): Modifiers {
+function sumUpgradeBonuses(upgradeLevels: Record<string, number>): StatBonuses {
   const bonuses = createEmptyBonuses();
 
   for (const upgrade of UPGRADES) {
@@ -119,7 +131,7 @@ function sumUpgradeBonuses(upgradeLevels: Record<string, number>): Modifiers {
 }
 
 // Soma dos bônus das sinergias acesas, por atributo
-function sumSynergyBonuses(synergies: readonly SynergyDef[]): Modifiers {
+function sumSynergyBonuses(synergies: readonly SynergyDef[]): StatBonuses {
   const bonuses = createEmptyBonuses();
 
   for (const synergy of synergies) {
@@ -130,7 +142,7 @@ function sumSynergyBonuses(synergies: readonly SynergyDef[]): Modifiers {
 }
 
 // Soma dos bônus dos amuletos em vigor, por atributo
-function sumAmuletBonuses(amuletBonuses: readonly AmuletBonus[]): Modifiers {
+function sumAmuletBonuses(amuletBonuses: readonly AmuletBonus[]): StatBonuses {
   const bonuses = createEmptyBonuses();
 
   for (const bonus of amuletBonuses) {
@@ -141,7 +153,7 @@ function sumAmuletBonuses(amuletBonuses: readonly AmuletBonus[]): Modifiers {
 }
 
 // Tabela de bônus zerada
-function createEmptyBonuses(): Modifiers {
+function createEmptyBonuses(): StatBonuses {
   return { damage: 0, bossDamage: 0, attackSpeed: 0, gold: 0, dropChance: 0, critChance: 0 };
 }
 

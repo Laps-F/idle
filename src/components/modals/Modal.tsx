@@ -17,6 +17,7 @@ interface ModalProps {
   children: ReactNode;
   onClose?: () => void; // sem esse campo, a janela só fecha por um botão do conteúdo
   width?: 'normal' | 'wide';
+  panelClassName?: string; // classes a mais no painel (por exemplo, uma animação de entrada)
 }
 
 const WIDTH_CLASSES = { normal: 'max-w-md', wide: 'max-w-3xl' } as const;
@@ -29,7 +30,13 @@ const OVERLAY_CLASS =
 const PANEL_CLASS = 'w-full border-4 border-tinta bg-jornal p-5 outline-none';
 
 // Janela por cima do jogo, com título e conteúdo
-export function Modal({ title, children, onClose, width = 'normal' }: ModalProps) {
+export function Modal({
+  title,
+  children,
+  onClose,
+  width = 'normal',
+  panelClassName = '',
+}: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,7 +67,7 @@ export function Modal({ title, children, onClose, width = 'normal' }: ModalProps
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`${PANEL_CLASS} ${WIDTH_CLASSES[width]}`}
+        className={`${PANEL_CLASS} ${WIDTH_CLASSES[width]} ${panelClassName}`}
       >
         <h2 id={titleId} className="mb-3 font-display text-2xl leading-tight">
           {title}

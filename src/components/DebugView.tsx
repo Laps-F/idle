@@ -54,6 +54,7 @@ import { formatClockTime, formatDuration, formatNumber, formatPercent } from '..
 const MANUAL_HIT_FRACTION = 0.25; // fração da vida máxima que o golpe manual tira
 const KILL_HIT_FRACTION = 1;
 const TEST_GOLD_AMOUNTS = [100, 10_000];
+const DEBUG_ROOTS_AMOUNT = 10;
 
 // Ausências que o painel simula. A segunda passa do teto de 8 horas de propósito.
 const ABSENCE_OPTIONS = [
@@ -328,6 +329,10 @@ function ResourcesSection() {
     { label: 'Amuletos na mochila', value: String(resources.amuletsInBag) },
     { label: 'Amuletos vestidos', value: String(resources.amuletsWorn) },
     { label: 'Amuletos encontrados no total', value: formatNumber(resources.amuletsFound) },
+    { label: 'Edição do folheto', value: String(resources.edition) },
+    { label: 'Raízes livres', value: formatNumber(resources.freeRoots) },
+    { label: 'Recorde de edições passadas', value: String(resources.recordStage) },
+    { label: 'Rebrotar agora rende', value: `${resources.rebrotaGain} Raízes` },
     { label: 'Visagens derrotadas', value: formatNumber(resources.totalKills) },
     { label: 'Chefes vencidos', value: formatNumber(resources.bossesDefeated) },
     { label: 'Patacas ganhas no total', value: formatNumber(resources.totalGoldEarned) },
@@ -414,6 +419,9 @@ function TestControlsSection() {
   const setAutoProgress = useGameStore((store) => store.setAutoProgress);
   const challengeBoss = useGameStore((store) => store.challengeBoss);
   const grantAmulet = useGameStore((store) => store.debugGrantAmulet);
+  const grantRoots = useGameStore((store) => store.debugGrantRoots);
+  const rebrota = useGameStore((store) => store.rebrota);
+  const resources = useGameStore(selectResourcesView);
 
   const actions: DebugAction[] = [
     {
@@ -431,6 +439,8 @@ function TestControlsSection() {
     },
     { label: 'Desafiar chefe', run: () => challengeBoss(), disabled: !combat.canChallengeBoss },
     { label: 'Ganhar um amuleto', run: grantAmulet },
+    { label: '+10 Raízes', run: () => grantRoots(DEBUG_ROOTS_AMOUNT) },
+    { label: 'Rebrotar', run: () => rebrota(), disabled: !resources.canRebrota },
   ];
 
   return <ActionButtons actions={actions} />;

@@ -24,7 +24,7 @@ const SECONDS_PER_HOUR = 3600;
 
 export const BALANCE = {
   // Salvamento
-  saveVersion: 2, // 2: entraram os amuletos (ver MIGRATIONS em src/store/saveManager.ts)
+  saveVersion: 3, // 2: amuletos. 3: Rebrota. (ver MIGRATIONS em src/store/saveManager.ts)
   saveIntervalMs: 5 * MS_PER_SECOND, // intervalo mínimo entre gravações no localStorage
 
   // Laço do jogo
@@ -67,6 +67,11 @@ export const BALANCE = {
   rootsBonusPerRoot: 0.05, // bônus de dano e de Patacas por Raiz
   rootsStageDivisor: 10,
   rootsExponent: 1.5,
+  rebrotaMinRoots: 3, // a Rebrota só libera quando renderia pelo menos isto
+  rebrotaFirstStage: 35, // a primeira Rebrota pede este estágio (o freio natural da 1ª edição)
+  rebrotaWorthRatio: 0.5, // a aba avisa quando a Rebrota renderia 50% das Raízes já fincadas
+  rebrotaStageMargin: 10, // o atalho da trilha nunca começa a menos disto do recorde
+  startGoldKills: 40, // cada nível de "Bolsa herdada" dá as Patacas de 40 visagens do início
 
   // Amuletos: queda
   amuletBossDropChance: 0.6, // chance de um chefe derrotado deixar um amuleto

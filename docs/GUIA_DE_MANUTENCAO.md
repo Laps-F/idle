@@ -15,7 +15,7 @@ Outros documentos:
 
 | Pasta | O que tem | Pode importar de |
 |---|---|---|
-| `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, amuletos, progresso offline | `data`, `utils` |
+| `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, amuletos, Rebrota, progresso offline | `data`, `utils` |
 | `src/store` | Estado global (Zustand): o `tick`, o controle do tempo, o salvamento no `localStorage` e os seletores | `domain`, `data`, `utils`, Zustand |
 | `src/data` | Datasets estáticos e tipados: inimigos, itens, zonas, amuletos, tabelas de itens, constantes | só os tipos de `domain` |
 | `src/components` | Componentes visuais "burros": mostram o que recebem e chamam ações | `store`, `utils`, React, Lucide (ícones) |
@@ -122,6 +122,9 @@ e grava o estado que ela devolveu.
 | Raridades de amuleto: peso no sorteio, força, bônus secundários, entalhe máximo, valor de desmanche | `src/data/amulets.ts`, `AMULET_RARITIES` |
 | Chance de amuleto por chefe e por visagem, tamanho da mochila | `src/data/balance.ts`, constantes `amulet...` |
 | Custo e ganho do entalhe, devolução no desmanche, ganho por estágio | `src/data/balance.ts`, constantes `carve...`, `salvage...` e `amulet...` |
+| Nós do juazeiro: efeito por nível, nível máximo e custo | `src/data/juazeiro.ts`, `JUAZEIRO_NODES` |
+| Nome e descrição dos galhos do juazeiro | `src/data/juazeiro.ts`, `JUAZEIRO_BRANCHES` |
+| Raízes por estágio, bônus por Raiz, estágio da primeira Rebrota, mínimo de Raízes, margem do atalho, Patacas da bolsa herdada | `src/data/balance.ts`, constantes `roots...`, `rebrota...` e `startGoldKills` |
 
 ### Regras (`src/domain`)
 
@@ -139,6 +142,12 @@ e grava o estado que ela devolveu.
 | O que acontece com o amuleto que cai (mochila cheia, desmanche automático) | `src/domain/amulets.ts`, `receiveAmulet` |
 | Regras de vestir, tirar, desmanchar e entalhar | `src/domain/amulets.ts` |
 | Em que momento do combate o amuleto cai | `src/domain/simulation.ts`, `rollAmulet` |
+| Quanto a Rebrota rende, quando libera, quando o juazeiro aparece | `src/domain/rebrota.ts`, blocos 1 e 2 |
+| O que fica e o que volta ao começo na Rebrota, atalho e bolsa herdada | `src/domain/rebrota.ts`, `performRebrota` |
+| Compra automática de melhorias (como escolhe o que comprar) | `src/domain/rebrota.ts`, `autoBuyUpgrades` |
+| Em que momento a compra automática roda | `src/domain/simulation.ts`, `runAutoBuy` |
+| Custo dos nós, Raízes livres e compra de um nó | `src/domain/juazeiro.ts`, blocos 1 e 2 |
+| Como o juazeiro muda tempo do chefe, mochila e ausência | `src/domain/juazeiro.ts`, bloco "Regras que dependem do juazeiro" |
 | Dia, noite e fases da lua | `src/domain/clock.ts` |
 | O que um pacto exige e o que acontece ao fechar | `src/domain/pact.ts` |
 | Cálculo do progresso offline e junção de relatórios | `src/domain/offline.ts` |
@@ -153,11 +162,13 @@ e grava o estado que ela devolveu.
 | Ligação entre uma ação e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de jogo" |
 | Exportar, importar, apagar tudo, gravar agora | `src/store/useGameStore.ts`, bloco "Ações de salvamento" |
 | Ligação entre uma ação de amuleto e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de amuletos" |
+| Rebrotar, comprar nó, compra automática e a cerimônia | `src/store/useGameStore.ts`, bloco "Ações da Rebrota" |
 | Atalhos de teste do painel de debug | `src/store/useGameStore.ts`, bloco "Ações de teste" |
 | Os dados prontos que um componente recebe | `src/store/selectors.ts` |
 | Chave do `localStorage`, formato do código exportado, mensagens de erro | `src/store/saveManager.ts` |
 | Conferência de um salvamento lido ou importado | `src/store/saveManager.ts`, bloco "Conferência do salvamento" |
 | Conferência dos amuletos de um salvamento | `src/store/saveManager.ts`, `sanitizeAmulets` e `sanitizeEquipped` |
+| Conferência do juazeiro de um salvamento | `src/store/saveManager.ts`, `sanitizeJuazeiro` |
 | Conversão de salvamentos de versões antigas | `src/store/saveManager.ts`, `MIGRATIONS` |
 | Quando o laço roda, quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
@@ -193,6 +204,11 @@ e grava o estado que ela devolveu.
 | Lista de melhorias e botão de compra | `src/components/progress/UpgradesPanel.tsx` |
 | Navegação de estágios, avanço automático e desafio ao chefe | `src/components/progress/StagesPanel.tsx` |
 | Aba de amuletos: quem veste, mochila, entalhe, desmanche e desmanche automático | `src/components/progress/AmuletsPanel.tsx` |
+| Aba do juazeiro: Raízes, quadro da Rebrota, galhos e nós | `src/components/rebrota/JuazeiroPanel.tsx` |
+| Desenho do juazeiro e como os galhos e as raízes crescem | `src/components/rebrota/JuazeiroTree.tsx` |
+| Janela de confirmação da Rebrota (o que fica e o que recomeça) | `src/components/rebrota/RebrotaConfirmModal.tsx` |
+| Cerimônia da edição nova | `src/components/rebrota/RebrotaCeremony.tsx` e as animações `.page-turn` e `.stamp-late` em `src/index.css` |
+| Quando a aba do juazeiro aparece na lateral | `src/components/GameScreen.tsx`, `PartyTabs` |
 | Janela de boas-vindas de volta | `src/components/modals/OfflineModal.tsx` |
 | Janela de escolha do encantado inicial | `src/components/modals/StarterModal.tsx` |
 | Aviso de jogo aberto em outra aba | `src/components/modals/OtherTabNotice.tsx` |
@@ -316,6 +332,24 @@ atributo em `src/domain/modifiers.ts`, usá-lo na conta certa do domínio e dar 
 - Amuleto forte ou fraco demais: `baseBonus` do tipo, `bonusMultiplier` da raridade ou
   `amuletStageScaling` (ganho por estágio).
 - Entalhe caro ou barato demais: `carveCostBase`, `carveCostGrowth` e `carveCostMultiplier`.
+
+### Acrescentar um nó ao juazeiro
+
+1. `src/data/juazeiro.ts`: acrescente a entrada em `JUAZEIRO_NODES`, no galho certo.
+2. Se o efeito ainda não existe, inclua em `JuazeiroEffect` (`src/domain/types.ts`) e em
+   `createEmptyJuazeiroBonuses` (`src/domain/juazeiro.ts`), e use o bônus onde ele vale: em
+   `getModifiers` (`src/domain/modifiers.ts`) para dano e chances, ou numa regra do bloco
+   "Regras que dependem do juazeiro".
+3. Rode `npm test`. A aba mostra o nó sozinha.
+
+### Mudar o ritmo da Rebrota
+
+- Primeira Rebrota cedo ou tarde demais: `rebrotaFirstStage`, em `src/data/balance.ts`.
+- Rebrotas seguintes frequentes demais: `rebrotaMinRoots`.
+- Raízes demais ou de menos: `rootsStageDivisor` e `rootsExponent`. Mexer aqui muda também quanto
+  as Raízes de quem já jogou valeriam numa Rebrota futura, porque o recorde é recalculado.
+- Árvore rápida ou lenta demais: `costBase` e `costStep` de cada nó.
+- Depois de mudar, simule várias edições antes de publicar, como está descrito no histórico.
 
 ### Acrescentar a figura de um encantado, inimigo ou amuleto
 

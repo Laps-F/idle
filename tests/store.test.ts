@@ -418,7 +418,7 @@ describe('amuletos e migração do salvamento', () => {
     stats: { totalKills: 120, totalGoldEarned: 900, bossesDefeated: 5, playTimeSeconds: 600 },
   };
 
-  it('abre um salvamento da versão 1 sem perder nada e já na versão 2', async () => {
+  it('abre um salvamento da versão 1 sem perder nada e já na versão atual', async () => {
     localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: versionOneState, version: 1 }));
     const useGameStore = await openGame();
     const state = useGameStore.getState();
@@ -431,7 +431,9 @@ describe('amuletos e migração do salvamento', () => {
     expect(state.stats.totalKills).toBe(120);
     expect(state.combat.enemyHp).toBe(5);
 
-    expect(state.version).toBe(2);
+    expect(state.version).toBe(BALANCE.saveVersion);
+    expect(state.edition).toBe(1);
+    expect(state.juazeiro).toEqual({});
     expect(state.amulets).toEqual({});
     expect(state.equipped).toEqual({});
     expect(state.shavings).toBe(0);
@@ -444,7 +446,7 @@ describe('amuletos e migração do salvamento', () => {
     useGameStore.getState().debugGrantAmulet();
     useGameStore.getState().saveNow();
     const saved = JSON.parse(localStorage.getItem(SAVE_STORAGE_KEY) ?? '{}');
-    expect(saved.version).toBe(2);
+    expect(saved.version).toBe(BALANCE.saveVersion);
     expect(Object.keys(saved.state.amulets)).toEqual(['amuleto-1']);
   });
 
@@ -457,7 +459,7 @@ describe('amuletos e migração do salvamento', () => {
     });
     expect(useGameStore.getState().gold).toBe(777);
     expect(useGameStore.getState().amulets).toEqual({});
-    expect(useGameStore.getState().version).toBe(2);
+    expect(useGameStore.getState().version).toBe(BALANCE.saveVersion);
   });
 
   it('guarda os amuletos no salvamento e recupera ao reabrir', async () => {
@@ -549,5 +551,107 @@ describe('amuletos e migração do salvamento', () => {
     const report = useGameStore.getState().offlineReport;
     expect(report?.summary.amuletsFound).toBeGreaterThan(0);
     expect(useGameStore.getState().stats.amuletsFound).toBe(report?.summary.amuletsFound);
+  });
+});
+
+describe('Rebrota e salvamento da versão 3', () => {
+  // Estado como a versão 2 gravava: com amuletos e sem nada da Rebrota
+  const versionTwoState = {
+    version: 2,
+    gold: 900,
+    stage: 37,
+    maxStage: 38,
+    killsInStage: 0,
+    autoProgress: true,
+    party: ['saci'],
+    roster: { saci: { id: 'saci', level: 25, xp: 0, bond: 0 } },
+    trails: {},
+    inventory: {},
+    upgrades: { 'reza-forte': 10 },
+    roots: 0,
+    amulets: {},
+    equipped: {},
+    shavings: 7,
+    autoSalvage: 'comum',
+    nextAmuletNumber: 4,
+    lastSaveTimestamp: START,
+    stats: {
+      totalKills: 800,
+      totalGoldEarned: 9000,
+      bossesDefeated: 37,
+      playTimeSeconds: 1500,
+      amuletsFound: 3,
+    },
+  };
+
+  it('abre um salvamento da versão 2 sem perder nada', async () => {
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: versionTwoState, version: 2 }));
+    const useGameStore = await openGame();
+    const state = useGameStore.getState();
+
+    expect(state.version).toBe(3);
+    expect(state.maxStage).toBe(38);
+    expect(state.shavings).toBe(7);
+    expect(state.autoSalvage).toBe('comum');
+    expect(state.edition).toBe(1);
+    expect(state.recordStage).toBe(0);
+    expect(state.juazeiro).toEqual({});
+    expect(state.autoBuy).toBe(false);
+    expect(state.editionSeconds).toBe(1500);
+    expect(state.stats.bossesFailed).toBe(0);
+  });
+
+  it('rebrota pela store, com cerimônia e linha no registro', async () => {
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: versionTwoState, version: 2 }));
+    const useGameStore = await openGame();
+
+    expect(useGameStore.getState().rebrota()).toBe(true);
+    const state = useGameStore.getState();
+    expect(state.edition).toBe(2);
+    expect(state.stage).toBe(1);
+    expect(state.roots).toBe(7);
+    expect(state.recordStage).toBe(38);
+    expect(state.rebrotaCeremony).toEqual({ edition: 2, roots: 7 });
+    expect(state.combatEvents).toEqual([{ type: 'rebrota', edition: 2, roots: 7 }]);
+
+    useGameStore.getState().dismissRebrotaCeremony();
+    expect(useGameStore.getState().rebrotaCeremony).toBeNull();
+    expect(useGameStore.getState().rebrota()).toBe(false);
+  });
+
+  it('compra nós, liga a compra automática e guarda tudo ao reabrir', async () => {
+    const firstSession = await openGame();
+    firstSession.getState().chooseStarter('saci');
+    firstSession.getState().debugGrantRoots(12);
+    expect(firstSession.getState().buyJuazeiroNode('mao-ligeira')).toBe(true);
+    expect(firstSession.getState().buyJuazeiroNode('cerne-duro')).toBe(true);
+    expect(firstSession.getState().buyJuazeiroNode('noite-comprida')).toBe(false);
+    firstSession.getState().setAutoBuy(false);
+    firstSession.getState().saveNow();
+
+    const secondSession = await openGame();
+    expect(secondSession.getState().juazeiro).toEqual({ 'mao-ligeira': 1, 'cerne-duro': 1 });
+    expect(secondSession.getState().roots).toBe(12);
+    expect(secondSession.getState().autoBuy).toBe(false);
+  });
+
+  it('conserta um juazeiro adulterado ao importar', async () => {
+    const useGameStore = await openGame();
+    const tampered = (juazeiro: unknown, roots: unknown) =>
+      btoa(
+        JSON.stringify({
+          game: 'encantados',
+          version: 3,
+          state: { party: ['saci'], roster: { saci: { level: 1 } }, roots, juazeiro, edition: -4 },
+        }),
+      );
+
+    useGameStore.getState().importSave(tampered({ 'cerne-duro': 99, inventado: 3 }, 100));
+    expect(useGameStore.getState().juazeiro).toEqual({ 'cerne-duro': 10 });
+    expect(useGameStore.getState().edition).toBe(1);
+
+    useGameStore.getState().importSave(tampered({ 'mao-ligeira': 1 }, 2));
+    expect(useGameStore.getState().juazeiro).toEqual({});
+    expect(useGameStore.getState().roots).toBe(2);
   });
 });

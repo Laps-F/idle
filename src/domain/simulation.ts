@@ -35,7 +35,9 @@ import {
   getXpReward,
   getXpToNextLevel,
 } from './formulas';
+import { getBossTimeLimit } from './juazeiro';
 import { getModifiersByPhase } from './modifiers';
+import { autoBuyUpgrades } from './rebrota';
 import {
   cloneGameState,
   createBossCombat,
@@ -120,8 +122,9 @@ interface SimulationContext {
  * - A marca de tempo (lastSaveTimestamp) não é alterada. Quem chama decide o valor.
  * - Há uma trava de 5 milhões de eventos por chamada. Se for atingida, o tempo
  *   que sobrar é descartado e "summary.seconds" mostra quanto foi simulado.
- * - Os multiplicadores são calculados uma vez, no começo. A virada de dia para
- *   noite vale a partir do primeiro evento depois dela.
+ * - Os multiplicadores são calculados no começo e de novo quando a compra
+ *   automática de melhorias compra algo. A virada de dia para noite vale a
+ *   partir do primeiro evento depois dela.
  */
 export function advanceSimulation(
   state: GameState,
@@ -149,6 +152,7 @@ export function advanceSimulation(
   const simulatedSeconds = seconds - Math.max(remainingSeconds, 0);
   context.summary.seconds = simulatedSeconds;
   context.draft.stats.playTimeSeconds += simulatedSeconds;
+  context.draft.editionSeconds += simulatedSeconds;
   return toResult(context);
 }
 
@@ -347,7 +351,8 @@ function handleCommonEnemyDefeated(context: SimulationContext): void {
   const isBossDue = draft.autoProgress && draft.killsInStage >= zone.killsToBoss;
 
   if (isBossDue) {
-    draft.combat = createBossCombat(draft.stage, draft.combat.attackProgress);
+    const timeLimit = getBossTimeLimit(draft);
+    draft.combat = createBossCombat(draft.stage, draft.combat.attackProgress, timeLimit);
     emit(context, { type: 'bossAppeared', enemyId: zone.bossId });
   } else {
     spawnCommonEnemy(context);
@@ -382,6 +387,7 @@ function resolveBossTimeout(context: SimulationContext): void {
   }
 
   summary.bossesFailed += 1;
+  draft.stats.bossesFailed += 1;
   draft.killsInStage = 0;
   emit(context, { type: 'bossFailed', enemyId: draft.combat.enemyId });
   spawnCommonEnemy(context);
@@ -417,6 +423,23 @@ function grantKillRewards(context: SimulationContext, enemy: EnemyDef, modifiers
   rollItemDrops(context, enemy, modifiers);
   rollTrails(context, modifiers);
   rollAmulet(context, isBoss, modifiers);
+  runAutoBuy(context);
+}
+
+// Compra automática de melhorias ("Mão ligeira" do juazeiro), logo depois de cada
+// recompensa. Se comprou algo, os multiplicadores são recalculados na hora.
+function runAutoBuy(context: SimulationContext): void {
+  const { draft } = context;
+  const bought = autoBuyUpgrades(draft);
+
+  if (bought === draft) {
+    return;
+  }
+
+  // autoBuyUpgrades é pura e devolve um estado novo. Os campos são copiados para a
+  // cópia de trabalho, que precisa continuar sendo o mesmo objeto até o fim da simulação.
+  Object.assign(draft, bought);
+  context.modifiersByPhase = getModifiersByPhase(draft);
 }
 
 // Cada encantado da comitiva recebe o XP inteiro e sobe de nível quando junta o bastante
@@ -448,7 +471,7 @@ function rollAmulet(context: SimulationContext, isBoss: boolean, modifiers: Modi
   const dropInput = {
     stage: draft.stage,
     isBoss,
-    dropChanceMultiplier: modifiers.dropChance,
+    dropChanceMultiplier: modifiers.amuletChance,
     amuletNumber: draft.nextAmuletNumber,
   };
   const amulet = rollAmuletDrop(dropInput, random);
@@ -479,7 +502,7 @@ function rollItemDrops(context: SimulationContext, enemy: EnemyDef, modifiers: M
   const { draft, summary, random } = context;
 
   for (const drop of enemy.drops) {
-    const chance = Math.min(1, drop.chance * modifiers.dropChance);
+    const chance = Math.min(1, drop.chance * modifiers.itemChance);
 
     if (rollChance(chance, random)) {
       const amount = randomInteger(drop.min, drop.max, random);
@@ -497,7 +520,7 @@ function rollTrails(context: SimulationContext, modifiers: Modifiers): void {
 
   for (const encounter of zone.encounters) {
     const { encantadoId } = encounter;
-    const chance = Math.min(1, encounter.trailChance * modifiers.dropChance);
+    const chance = Math.min(1, encounter.trailChance * modifiers.trailChance);
     const isClockRight = matchesClock(encounter, timestamp);
     const canFindTrail = isClockRight && isTrailStillNeeded(draft, encantadoId);
 

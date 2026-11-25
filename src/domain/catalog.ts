@@ -18,6 +18,7 @@ import {
   ENCANTADOS,
   ENEMIES,
   ITEMS,
+  JUAZEIRO_NODES,
   UPGRADES,
   ZONES,
 } from '../data';
@@ -27,6 +28,7 @@ import type {
   EncantadoDef,
   EnemyDef,
   ItemDef,
+  JuazeiroNodeDef,
   Rarity,
   UpgradeDef,
   ZoneDef,
@@ -41,6 +43,7 @@ const ENEMIES_BY_ID = indexById(ENEMIES);
 const ITEMS_BY_ID = indexById(ITEMS);
 const UPGRADES_BY_ID = indexById(UPGRADES);
 const AMULET_BASES_BY_ID = indexById(AMULET_BASES);
+const JUAZEIRO_NODES_BY_ID = indexById(JUAZEIRO_NODES);
 
 
 // =============================================================================
@@ -96,6 +99,16 @@ export function getAmuletBase(id: string): AmuletBaseDef {
 // Diz se existe um tipo de amuleto com esse id
 export function hasAmuletBase(id: string): boolean {
   return AMULET_BASES_BY_ID.has(id);
+}
+
+// Nó do juazeiro pelo id. Id desconhecido é erro de programação e lança exceção.
+export function getJuazeiroNode(id: string): JuazeiroNodeDef {
+  return getOrThrow(JUAZEIRO_NODES_BY_ID, id, 'Nó do juazeiro');
+}
+
+// Diz se existe um nó do juazeiro com esse id
+export function hasJuazeiroNode(id: string): boolean {
+  return JUAZEIRO_NODES_BY_ID.has(id);
 }
 
 // Linha da tabela de raridades dos amuletos. Lança erro se a raridade não estiver na tabela.

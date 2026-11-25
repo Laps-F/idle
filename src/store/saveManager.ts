@@ -24,14 +24,17 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { BALANCE } from '../data/balance';
 import {
   getAmuletRarity,
+  getJuazeiroNode,
   getUpgrade,
   getZoneForStage,
   hasAmuletBase,
   hasEncantado,
   hasItem,
+  hasJuazeiroNode,
   hasUpgrade,
   isAmuletRarity,
 } from '../domain/catalog';
+import { getJuazeiroBonuses, getSpentRoots } from '../domain/juazeiro';
 import { isModifierStat } from '../domain/modifiers';
 import { createCommonEnemyCombat, createInitialState } from '../domain/state';
 import type {
@@ -314,6 +317,24 @@ const MIGRATIONS: Record<number, Migration> = {
     nextAmuletNumber: 1,
     stats: { ...(isRecord(save.stats) ? save.stats : {}), amuletsFound: 0 },
   }),
+
+  // Versão 2 -> 3: entrou a Rebrota. Quem jogava antes está na edição 1, sem
+  // recorde (então tudo que já alcançou conta para as primeiras Raízes), sem nós
+  // no juazeiro e com a compra automática desligada. O tempo desta edição é o
+  // tempo de jogo inteiro até aqui.
+  2: (save) => {
+    const stats = isRecord(save.stats) ? save.stats : {};
+
+    return {
+      ...save,
+      juazeiro: {},
+      edition: 1,
+      recordStage: 0,
+      editionSeconds: toNumber(stats.playTimeSeconds, 0, 0),
+      autoBuy: false,
+      stats: { ...stats, bossesFailed: 0 },
+    };
+  },
 };
 
 /**
@@ -372,6 +393,10 @@ export function migrateSave(save: unknown, fromVersion: number): unknown {
  *   encantados: o vínculo inválido é desfeito e o amuleto volta para a mochila.
  * - O contador de ids de amuleto nunca fica abaixo do maior id já usado, para dois
  *   amuletos nunca terem o mesmo id.
+ * - Nó do juazeiro que não existe é descartado e nível acima do máximo é limitado.
+ *   Se os nós custarem mais Raízes do que as fincadas, o juazeiro é zerado (as
+ *   Raízes voltam a ficar livres).
+ * - Edição abaixo de 1 vira 1. O tempo do chefe aceita o bônus do juazeiro.
  */
 export function sanitizeGameState(raw: unknown, now: number, random: RandomSource): GameState {
   if (!isRecord(raw)) {
@@ -382,6 +407,8 @@ export function sanitizeGameState(raw: unknown, now: number, random: RandomSourc
   const party = sanitizeParty(raw.party, roster);
   const stage = toInteger(raw.stage, 1, 1);
   const amulets = sanitizeAmulets(raw.amulets);
+  const roots = toInteger(raw.roots, 0, 0);
+  const juazeiro = sanitizeJuazeiro(raw.juazeiro, roots);
 
   return {
     version: BALANCE.saveVersion,
@@ -395,13 +422,18 @@ export function sanitizeGameState(raw: unknown, now: number, random: RandomSourc
     trails: sanitizeCounters(raw.trails, hasEncantado),
     inventory: sanitizeCounters(raw.inventory, hasItem),
     upgrades: sanitizeUpgrades(raw.upgrades),
-    roots: toInteger(raw.roots, 0, 0),
+    roots,
+    juazeiro,
+    edition: toInteger(raw.edition, 1, 1),
+    recordStage: toInteger(raw.recordStage, 0, 0),
+    editionSeconds: toNumber(raw.editionSeconds, 0, 0),
+    autoBuy: raw.autoBuy === true,
     amulets,
     equipped: sanitizeEquipped(raw.equipped, roster, amulets),
     shavings: toInteger(raw.shavings, 0, 0),
     autoSalvage: isAmuletRarity(raw.autoSalvage) ? raw.autoSalvage : null,
     nextAmuletNumber: sanitizeNextAmuletNumber(raw.nextAmuletNumber, amulets),
-    combat: sanitizeCombat(raw.combat, stage, party, random),
+    combat: sanitizeCombat(raw.combat, { stage, party, juazeiro }, random),
     lastSaveTimestamp: Math.min(toNumber(raw.lastSaveTimestamp, now, 0), now),
     stats: sanitizeStats(raw.stats),
   };
@@ -485,7 +517,19 @@ function sanitizeStats(raw: unknown): GameStats {
     bossesDefeated: toInteger(stats.bossesDefeated, 0, 0),
     playTimeSeconds: toNumber(stats.playTimeSeconds, 0, 0),
     amuletsFound: toInteger(stats.amuletsFound, 0, 0),
+    bossesFailed: toInteger(stats.bossesFailed, 0, 0),
   };
+}
+
+// Juazeiro: só nós que existem, sem passar do máximo e sem gastar mais que as Raízes fincadas
+function sanitizeJuazeiro(raw: unknown, roots: number): Record<string, number> {
+  const levels = sanitizeCounters(raw, hasJuazeiroNode);
+
+  for (const [nodeId, level] of Object.entries(levels)) {
+    levels[nodeId] = Math.min(level, getJuazeiroNode(nodeId).maxLevel);
+  }
+
+  return getSpentRoots(levels) > roots ? {} : levels;
 }
 
 // Amuletos: só os de tipo e raridade que existem, com pelo menos um bônus válido
@@ -591,13 +635,16 @@ function sanitizeNextAmuletNumber(raw: unknown, amulets: Record<string, Amulet>)
   return Math.max(toInteger(raw, 1, 1), lowestFreeNumber);
 }
 
+// O que a conferência do combate precisa saber do resto do estado
+interface CombatContext {
+  stage: number;
+  party: readonly string[];
+  juazeiro: Record<string, number>;
+}
+
 // Combate: mantém o inimigo salvo se ele fizer sentido no estágio. Senão, entra uma visagem nova.
-function sanitizeCombat(
-  raw: unknown,
-  stage: number,
-  party: readonly string[],
-  random: RandomSource,
-): CombatState {
+function sanitizeCombat(raw: unknown, context: CombatContext, random: RandomSource): CombatState {
+  const { stage, party, juazeiro } = context;
   const savedProgress = isRecord(raw) ? raw.attackProgress : undefined;
   const attackProgress = sanitizeAttackProgress(savedProgress, party);
   const freshCombat = createCommonEnemyCombat(stage, attackProgress, random);
@@ -611,7 +658,8 @@ function sanitizeCombat(
   const isCommonEnemy = raw.isBoss !== true && zone.enemyIds.includes(raw.enemyId);
   const enemyMaxHp = toNumber(raw.enemyMaxHp, 0, 0);
   const enemyHp = Math.min(toNumber(raw.enemyHp, 0, 0), enemyMaxHp);
-  const bossTimeLeft = isBoss ? Math.min(toNumber(raw.bossTimeLeft, 0, 0), zone.bossTimeLimit) : 0;
+  const bossTimeLimit = zone.bossTimeLimit + getJuazeiroBonuses(juazeiro).bossTime;
+  const bossTimeLeft = isBoss ? Math.min(toNumber(raw.bossTimeLeft, 0, 0), bossTimeLimit) : 0;
   const isBossOutOfTime = isBoss && bossTimeLeft <= 0;
   const isUsable = (isBoss || isCommonEnemy) && enemyHp > 0 && !isBossOutOfTime;
 

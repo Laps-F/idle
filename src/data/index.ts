@@ -12,6 +12,7 @@ export { BALANCE, MS_PER_SECOND } from './balance';
 export { ENCANTADOS } from './encantados';
 export { ENEMIES } from './enemies';
 export { ITEMS } from './items';
+export { JUAZEIRO_BRANCHES, JUAZEIRO_NODES } from './juazeiro';
 export { SYNERGIES } from './synergies';
 export { UPGRADES } from './upgrades';
 export { ZONES } from './zones';

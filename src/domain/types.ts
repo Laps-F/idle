@@ -37,7 +37,17 @@ export type ModifierStat =
   | 'critChance';
 
 // Valores finais já calculados. critChance é probabilidade (0 a 1), o resto é multiplicador.
-export type Modifiers = Record<ModifierStat, number>;
+// Soma de bônus por atributo, antes de virar multiplicador
+export type StatBonuses = Record<ModifierStat, number>;
+
+// Multiplicadores finais que o combate usa. Além dos atributos, as chances de
+// Rastro, de Oferenda e de amuleto, que partem da chance de achado e ganham os
+// bônus próprios do juazeiro.
+export type Modifiers = StatBonuses & {
+  trailChance: number;
+  itemChance: number;
+  amuletChance: number;
+};
 
 
 // =============================================================================
@@ -135,6 +145,47 @@ export interface SynergyDef {
 }
 
 
+// ---------- Juazeiro (Rebrota) ----------
+
+// Os três galhos do juazeiro
+export type JuazeiroBranch = 'forca' | 'vento' | 'lua';
+
+// O que um nó do juazeiro altera
+export type JuazeiroEffect =
+  | 'damage' // +fração de dano
+  | 'bossDamage' // +fração de dano contra chefes
+  | 'critChance' // +chance de crítico (soma)
+  | 'bossTime' // +segundos no tempo do chefe
+  | 'startStage' // estágios à frente no começo de cada edição
+  | 'startGold' // níveis de Patacas iniciais em cada edição
+  | 'autoBuy' // 1 libera a compra automática de melhorias
+  | 'offlineEfficiency' // +eficiência da ausência (soma)
+  | 'offlineCap' // +segundos no teto da ausência
+  | 'trailChance' // +fração de chance de Rastro
+  | 'itemChance' // +fração de chance de Oferenda
+  | 'amuletChance' // +fração de chance de amuleto
+  | 'bagSize'; // +vagas na mochila de amuletos
+
+// Um galho do juazeiro: nome e ideia
+export interface JuazeiroBranchDef {
+  id: JuazeiroBranch;
+  name: string;
+  description: string;
+}
+
+// Um nó do juazeiro. Custo do próximo nível = costBase + costStep × nível atual.
+export interface JuazeiroNodeDef {
+  id: string;
+  branch: JuazeiroBranch;
+  name: string;
+  description: string; // efeito de um nível, em texto
+  effect: JuazeiroEffect;
+  valuePerLevel: number;
+  maxLevel: number;
+  costBase: number; // Raízes do primeiro nível
+  costStep: number; // quanto o custo sobe a cada nível
+}
+
 // ---------- Amuletos ----------
 
 // Tipo de amuleto: o que ele é e qual atributo fortalece
@@ -200,6 +251,7 @@ export interface GameStats {
   bossesDefeated: number;
   playTimeSeconds: number;
   amuletsFound: number;
+  bossesFailed: number; // chefes que escaparam por tempo. O primeiro revela o juazeiro.
 }
 
 export interface GameState {
@@ -214,7 +266,12 @@ export interface GameState {
   trails: Record<string, number>; // Rastros por encantado
   inventory: Record<string, number>; // Oferendas por item
   upgrades: Record<string, number>; // nível de cada melhoria
-  roots: number; // Raízes, a moeda da Rebrota
+  roots: number; // Raízes fincadas: todas as ganhas na Rebrota. Cada uma dá bônus para sempre.
+  juazeiro: Record<string, number>; // nível de cada nó do juazeiro
+  edition: number; // edição do folheto: 1 no começo, +1 a cada Rebrota
+  recordStage: number; // maior estágio liberado em edições anteriores (0 antes da 1ª Rebrota)
+  editionSeconds: number; // tempo de jogo da edição atual
+  autoBuy: boolean; // compra automática de melhorias ligada (só vale com o nó "Mão ligeira")
   amulets: Record<string, Amulet>; // todos os amuletos da pessoa, vestidos ou na mochila
   equipped: Record<string, string>; // quem veste o quê: id do encantado -> id do amuleto
   shavings: number; // Cavacos, que o desmanche rende e o entalhe gasta
@@ -250,6 +307,8 @@ export interface SimulationSummary {
 export interface OfflineReport {
   secondsAway: number; // tempo real fora do jogo
   secondsSimulated: number; // tempo que rendeu, depois do teto e da eficiência
+  capSeconds: number; // teto da ausência que valeu (o juazeiro pode aumentar)
+  efficiency: number; // eficiência que valeu, de 0 a 1
   summary: SimulationSummary;
 }
 
@@ -276,4 +335,5 @@ export type CombatEvent =
   | { type: 'levelUp'; encantadoId: string; level: number }
   | { type: 'bossAppeared'; enemyId: string }
   | { type: 'bossFailed'; enemyId: string }
-  | { type: 'stageAdvanced'; stage: number };
+  | { type: 'stageAdvanced'; stage: number }
+  | { type: 'rebrota'; edition: number; roots: number };

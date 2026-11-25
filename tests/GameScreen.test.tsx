@@ -436,3 +436,58 @@ describe('amuletos', () => {
     expect(host.querySelector('header [title="Cavacos"]')).not.toBeNull();
   });
 });
+
+describe('Rebrota e juazeiro', () => {
+  it('esconde a aba do juazeiro até o primeiro muro', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await mount();
+    expect(host.querySelector('#tab-juazeiro')).toBeNull();
+
+    await act(async () => useGameStore.setState({ maxStage: 35 }));
+    expect(host.querySelector('#tab-juazeiro')).not.toBeNull();
+  });
+
+  it('rebrota pela aba, com confirmação e cerimônia', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await act(async () => useGameStore.setState({ maxStage: 40, stage: 39 }));
+    await mount();
+    await click('Juazeiro');
+    expect(host.textContent).toContain('Rebrotar agora rende 8 Raízes');
+
+    await click('Rebrotar', '#painel-juazeiro');
+    expect(getDialogTitle()).toBe('Rebrotar a clareira?');
+    await click('Agora não');
+    expect(useGameStore.getState().edition).toBe(1);
+
+    await click('Rebrotar', '#painel-juazeiro');
+    await click('Rebrotar', '[role=dialog]');
+    expect(useGameStore.getState().edition).toBe(2);
+    expect(getDialogTitle()).toBe('A clareira rebrotou');
+    expect(document.body.textContent).toContain('8 Raízes novas fincadas');
+
+    await click('Começar a edição 2');
+    expect(document.querySelector('[role=dialog]')).toBeNull();
+    expect(host.querySelector('header')?.textContent).toContain('Edição 2');
+    expect(host.textContent).toContain('8 Raízes fincadas');
+  });
+
+  it('compra um nó e mostra a chave da compra automática', async () => {
+    useGameStore.getState().chooseStarter('saci');
+    await act(async () => useGameStore.setState({ roots: 9, edition: 2 }));
+    await mount();
+    await click('Juazeiro');
+    expect(host.querySelector('#tab-juazeiro span')?.textContent).toBeTruthy();
+    expect(host.textContent).not.toContain('Comprar melhorias sozinho');
+
+    const nodeButtons = [...host.querySelectorAll<HTMLButtonElement>('#painel-juazeiro li button')];
+    const autoBuyButton = nodeButtons.find((button) => button.textContent === 'Fincar: 8 Raízes');
+    await act(async () => autoBuyButton?.click());
+
+    expect(useGameStore.getState().juazeiro).toEqual({ 'mao-ligeira': 1 });
+    const checkbox = host.querySelector<HTMLInputElement>('#painel-juazeiro input[type=checkbox]');
+    expect(checkbox?.checked).toBe(true);
+    await act(async () => checkbox?.click());
+    expect(useGameStore.getState().autoBuy).toBe(false);
+    expect(host.textContent).toContain('1 Raiz livre para o juazeiro');
+  });
+});

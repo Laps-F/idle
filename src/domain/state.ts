@@ -52,6 +52,11 @@ export function createInitialState(now: number, random: RandomSource): GameState
     inventory: {},
     upgrades: {},
     roots: 0,
+    juazeiro: {},
+    edition: 1,
+    recordStage: 0,
+    editionSeconds: 0,
+    autoBuy: false,
     amulets: {},
     equipped: {},
     shavings: 0,
@@ -71,6 +76,7 @@ export function createEmptyStats(): GameStats {
     bossesDefeated: 0,
     playTimeSeconds: 0,
     amuletsFound: 0,
+    bossesFailed: 0,
   };
 }
 
@@ -135,11 +141,14 @@ export function createCommonEnemyCombat(
  *
  * @param stage Estágio atual. Define a zona, o chefe e a vida dele.
  * @param attackProgress Barras de ataque da comitiva, que continuam de onde estavam.
+ * @param timeLimit Segundos para vencer o chefe. Quem chama usa getBossTimeLimit
+ *                  (src/domain/juazeiro.ts), que soma o bônus do juazeiro ao da zona.
  * @returns Combate novo, com a vida cheia e o tempo do chefe inteiro.
  */
 export function createBossCombat(
   stage: number,
   attackProgress: Record<string, number>,
+  timeLimit: number,
 ): CombatState {
   const zone = getZoneForStage(stage);
   const maxHp = getEnemyMaxHp(stage, getEnemy(zone.bossId), true);
@@ -149,7 +158,7 @@ export function createBossCombat(
     enemyHp: maxHp,
     enemyMaxHp: maxHp,
     isBoss: true,
-    bossTimeLeft: zone.bossTimeLimit,
+    bossTimeLeft: timeLimit,
     attackProgress,
   };
 }
@@ -174,6 +183,11 @@ export function pickGameState(source: GameState): GameState {
     inventory: source.inventory,
     upgrades: source.upgrades,
     roots: source.roots,
+    juazeiro: source.juazeiro,
+    edition: source.edition,
+    recordStage: source.recordStage,
+    editionSeconds: source.editionSeconds,
+    autoBuy: source.autoBuy,
     amulets: source.amulets,
     equipped: source.equipped,
     shavings: source.shavings,

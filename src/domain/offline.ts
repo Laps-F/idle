@@ -10,8 +10,10 @@
  *   2. Junção de relatórios
  */
 
-import { BALANCE, MS_PER_SECOND } from '../data/balance';
+import { MS_PER_SECOND } from '../data/balance';
 import type { RandomSource } from '../utils/random';
+import { getOfflineRules } from './juazeiro';
+import type { OfflineRules } from './juazeiro';
 import { advanceSimulation } from './simulation';
 import type { GameState, OfflineReport, OfflineResult, SimulationSummary } from './types';
 
@@ -26,8 +28,9 @@ type Counters = Record<string, number>;
  * Calcula o progresso do tempo em que o jogo ficou fechado.
  *
  * O tempo ausente é o intervalo entre state.lastSaveTimestamp e "now". Ele é
- * limitado ao teto (offlineCapSeconds) e multiplicado pela eficiência
- * (offlineEfficiency). O resultado é o tempo que de fato é simulado, com a
+ * limitado ao teto e multiplicado pela eficiência. Os dois partem de
+ * offlineCapSeconds e offlineEfficiency e podem subir com o juazeiro
+ * (getOfflineRules). O resultado é o tempo que de fato é simulado, com a
  * mesma simulação do jogo aberto. O relógio do sertão acompanha o tempo real:
  * com eficiência de 50%, cada segundo simulado vale dois segundos de relógio.
  *
@@ -57,8 +60,9 @@ export function applyOfflineProgress(
     return { state: { ...state, lastSaveTimestamp: now }, report: null };
   }
 
-  const secondsSimulated = getOfflineSimulatedSeconds(secondsAway);
-  const clockMsPerSecond = MS_PER_SECOND / BALANCE.offlineEfficiency;
+  const rules = getOfflineRules(state);
+  const secondsSimulated = getOfflineSimulatedSeconds(secondsAway, rules);
+  const clockMsPerSecond = MS_PER_SECOND / rules.efficiency;
   const result = advanceSimulation(state, secondsSimulated, {
     startTimestamp,
     clockMsPerSecond,
@@ -67,7 +71,13 @@ export function applyOfflineProgress(
 
   return {
     state: { ...result.state, lastSaveTimestamp: now },
-    report: { secondsAway, secondsSimulated, summary: result.summary },
+    report: {
+      secondsAway,
+      secondsSimulated,
+      capSeconds: rules.capSeconds,
+      efficiency: rules.efficiency,
+      summary: result.summary,
+    },
   };
 }
 
@@ -78,9 +88,9 @@ export function hasOfflineGains(report: OfflineReport): boolean {
 }
 
 // Tempo que rende = menor(tempo ausente, teto) × eficiência
-export function getOfflineSimulatedSeconds(secondsAway: number): number {
-  const cappedSeconds = Math.min(secondsAway, BALANCE.offlineCapSeconds);
-  return cappedSeconds * BALANCE.offlineEfficiency;
+export function getOfflineSimulatedSeconds(secondsAway: number, rules: OfflineRules): number {
+  const cappedSeconds = Math.min(secondsAway, rules.capSeconds);
+  return cappedSeconds * rules.efficiency;
 }
 
 
@@ -106,6 +116,8 @@ export function mergeOfflineReports(
   return {
     secondsAway: previous.secondsAway + next.secondsAway,
     secondsSimulated: previous.secondsSimulated + next.secondsSimulated,
+    capSeconds: next.capSeconds,
+    efficiency: next.efficiency,
     summary: mergeSummaries(previous.summary, next.summary),
   };
 }

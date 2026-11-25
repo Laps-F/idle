@@ -20,6 +20,7 @@ import { BALANCE } from '../data/balance';
 import type { RandomSource } from '../utils/random';
 import { getEncantado, getUpgrade, getZoneForStage, hasEncantado, hasUpgrade } from './catalog';
 import { getUpgradeCost, isUpgradeMaxed } from './formulas';
+import { getBossTimeLimit } from './juazeiro';
 import { createBossCombat, createCommonEnemyCombat, createOwnedEncantado } from './state';
 import type { GameState } from './types';
 
@@ -154,7 +155,9 @@ export function challengeBoss(state: GameState): GameState | null {
     return null;
   }
 
-  return { ...state, combat: createBossCombat(state.stage, state.combat.attackProgress) };
+  const timeLimit = getBossTimeLimit(state);
+  const combat = createBossCombat(state.stage, state.combat.attackProgress, timeLimit);
+  return { ...state, combat };
 }
 
 /**

@@ -36,7 +36,8 @@ npm test
 ```
 
 O esperado é terminar com todos os arquivos e testes como `passed`. Esses testes conferem os
-dados, as fórmulas, o combate, as ações, os pactos, os amuletos, o progresso offline, o
+dados, as fórmulas, o combate, as ações, os pactos, os amuletos, a Rebrota e o juazeiro, o
+progresso offline, o
 salvamento (incluindo a abertura de salvamentos da versão anterior), a tela do jogo, o painel
 de debug e as regras de arquitetura (pastas, importações, pureza do domínio e proibição de
 `any`).
@@ -149,8 +150,29 @@ não depender da sorte, os passos 28 a 34 usam o botão "Ganhar um amuleto" do p
 | 37 | Fechar a aba por alguns minutos (ou usar "Simular 1 hora fora" no painel de debug) | O relatório de volta mostra "Amuletos encontrados" e, se a mochila encheu, "Cavacos de N amuletos desmanchados". |
 
 Para conferir que um jogo salvo antes dos amuletos continua abrindo, não é preciso fazer nada
-à mão: o teste "abre um salvamento da versão 1 sem perder nada e já na versão 2", de
+à mão: o teste "abre um salvamento da versão 1 sem perder nada e já na versão atual", de
 `tests/store.test.ts`, faz isso a cada `npm test`.
+
+### Rebrota e juazeiro
+
+Chegar ao estágio 35 leva uns 25 minutos. Para não esperar, os passos 39 a 41 usam o painel de
+debug para adiantar o jogo.
+
+| # | O que fazer | O que deve acontecer |
+|---|---|---|
+| 38 | Começar um jogo novo e olhar a lateral esquerda | Só existem as abas "Comitiva" e "Almanaque". |
+| 39 | No painel de debug, clicar em "+10,00K Patacas" algumas vezes, comprar melhorias e usar "Simular 1 hora fora" até "Estágio máximo" passar de 35 | De volta ao jogo, aparece a aba "Juazeiro", com um número vermelho. |
+| 40 | Abrir a aba "Juazeiro" | Aparecem o desenho da árvore, "Edição 1 do folheto", o quadro "Rebrota" com "Rebrotar agora rende N Raízes", o estágio da próxima Raiz e as Raízes por hora, e os três galhos com os nós apagados. |
+| 41 | Clicar em "Rebrotar" e depois em "Agora não" | A janela mostra o que fica e o que volta ao começo. "Agora não" fecha sem mudar nada. |
+| 42 | Clicar em "Rebrotar" e, na janela, em "Rebrotar" | A página vira e é carimbada "Edição 2", com as Raízes ganhas. O registro mostra "Edição 2 começou". "Começar a edição 2" fecha a janela. |
+| 43 | Olhar o resto da tela | O cabeçalho mostra "Edição 2" e as Raízes. O estágio volta a 1, Patacas e melhorias zeram e o Saci volta ao nível 1. Amuletos, Cavacos, Rastros e encantados conquistados continuam. |
+| 44 | Na aba "Juazeiro", clicar em "Fincar: 1 Raiz" no "Cerne duro" | O nó passa a "Nível 1 de 10", as Raízes livres caem 1, as fincadas continuam iguais e o galho da Força escurece no desenho. O dano do Saci na aba "Comitiva" sobe. |
+| 45 | Olhar o quadro "Rebrota" | O botão fica apagado e diz em que estágio a próxima Rebrota libera: só conta o que passar do recorde. |
+| 46 | No painel de debug, clicar em "+10 Raízes" e, no juazeiro, fincar a "Mão ligeira" | Aparece a chave "Comprar melhorias sozinho", já marcada. As melhorias passam a ser compradas sozinhas. Desmarcar para a compra. |
+| 47 | Recarregar a página (F5) | Edição, Raízes, nós do juazeiro e a chave da compra automática continuam iguais. |
+
+Um jogo salvo antes da Rebrota (versão 2) abre na edição 1, com tudo o que já tinha. O teste
+"abre um salvamento da versão 2 sem perder nada", de `tests/store.test.ts`, confere isso.
 
 ## 6. Roteiro do painel de debug
 
@@ -176,8 +198,10 @@ ordem. Cada linha diz o que fazer e o que deve acontecer.
 | 8 | Clicar em "Reza forte, nível 0: 10 Patacas" | O botão passa a mostrar "nível 1: 12 Patacas" e as Patacas caem 10. |
 | 9 | Ficar sem Patacas para uma melhoria | O botão dela fica apagado e não aceita clique. |
 
-Na seção "Recursos" também aparecem "Cavacos", "Amuletos na mochila", "Amuletos vestidos" e
-"Amuletos encontrados no total". O botão "Ganhar um amuleto", em "Controles de teste", entrega
+Na seção "Recursos" também aparecem "Cavacos", "Amuletos na mochila", "Amuletos vestidos",
+"Amuletos encontrados no total", "Edição do folheto", "Raízes livres", "Recorde de edições
+passadas" e "Rebrotar agora rende". Em "Controles de teste", "+10 Raízes" finca Raízes sem
+rebrotar e "Rebrotar" rebrota na hora (fica apagado até a Rebrota liberar). O botão "Ganhar um amuleto", em "Controles de teste", entrega
 um amuleto sorteado para o estágio atual: "Amuletos encontrados no total" sobe 1 e o amuleto
 vai para a mochila (ou vira Cavacos, se a mochila estiver cheia ou o desmanche automático
 pegar a raridade dele).

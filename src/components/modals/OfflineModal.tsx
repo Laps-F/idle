@@ -55,6 +55,15 @@ export function OfflineModal() {
           </div>
         ))}
       </dl>
+      {offline.rebrotaGain > 0 && (
+        <p className="mt-3 text-sm">
+          A Rebrota já está liberada: rebrotar agora rende{' '}
+          <span className="font-bold">
+            {formatCount(offline.rebrotaGain, 'Raiz', 'Raízes')}
+          </span>
+          . Veja na aba Juazeiro.
+        </p>
+      )}
       <div className="mt-4 flex justify-end">
         <Button variant="solid" onClick={dismissOfflineReport}>
           Continuar

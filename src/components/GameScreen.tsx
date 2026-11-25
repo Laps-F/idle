@@ -3,7 +3,8 @@
  * Arquivo: src/components/GameScreen.tsx
  * O que faz: a tela do jogo, em um painel só. Monta o cabeçalho, a arena no
  * centro e os dois painéis de abas nas laterais, e abre as janelas que
- * dependem do estado: escolha inicial, boas-vindas de volta e aviso de outra aba.
+ * dependem do estado: escolha inicial, boas-vindas de volta, cerimônia da
+ * Rebrota e aviso de outra aba.
  *
  * Este componente lê pouco da store (bioma, fase do dia e três sinais de sim
  * ou não), então quase nunca redesenha. Cada painel cuida da própria leitura.
@@ -12,7 +13,7 @@
  *
  *   GameScreen
  *   ├─ AppHeader
- *   │  ├─ ResourceBar            Patacas, Raízes e Oferendas
+ *   │  ├─ ResourceBar            Patacas, Raízes, Cavacos e Oferendas
  *   │  ├─ StageBadge             zona, estágio e relógio do sertão
  *   │  └─ SaveMenu               Exportar, Importar e Apagar tudo
  *   │     └─ ExportModal, ImportModal, ResetModal
@@ -27,12 +28,15 @@
  *   │  └─ EventLog               registro compacto
  *   ├─ Tabs "Comitiva"           lateral esquerda
  *   │  ├─ PartyPanel             elenco e sinergias
- *   │  └─ AlmanacPanel           pactos
+ *   │  ├─ AlmanacPanel           pactos
+ *   │  └─ JuazeiroPanel          Rebrota e juazeiro (aparece no primeiro muro)
+ *   │     ├─ JuazeiroTree        desenho da árvore, que cresce com os nós
+ *   │     └─ RebrotaConfirmModal o que fica e o que recomeça
  *   ├─ Tabs "Progresso"          lateral direita
  *   │  ├─ UpgradesPanel          melhorias
  *   │  ├─ StagesPanel            estágios e chefe
  *   │  └─ AmuletsPanel           quem veste, mochila, entalhe e desmanche
- *   └─ janelas: StarterModal, OfflineModal, OtherTabNotice
+ *   └─ janelas: StarterModal, OfflineModal, RebrotaCeremony, OtherTabNotice
  *
  * Mapa:
  *   1. Tela
@@ -46,6 +50,7 @@ import {
   selectBadges,
   selectClockView,
   selectHasStarter,
+  selectIsJuazeiroRevealed,
   selectIsOpenInAnotherTab,
   selectStageView,
 } from '../store/selectors';
@@ -60,6 +65,8 @@ import { PartyPanel } from './party/PartyPanel';
 import { AmuletsPanel } from './progress/AmuletsPanel';
 import { StagesPanel } from './progress/StagesPanel';
 import { UpgradesPanel } from './progress/UpgradesPanel';
+import { JuazeiroPanel } from './rebrota/JuazeiroPanel';
+import { RebrotaCeremony } from './rebrota/RebrotaCeremony';
 import { COVER_PAPER, NIGHT_COVER_MIX } from './theme';
 import { XiloFilter } from './ui/Figure';
 import { Tabs } from './ui/Tabs';
@@ -95,6 +102,7 @@ export default function GameScreen() {
 
       {!hasStarter && !isOpenInAnotherTab && <StarterModal />}
       {hasStarter && !isOpenInAnotherTab && <OfflineModal />}
+      {hasStarter && !isOpenInAnotherTab && <RebrotaCeremony />}
       {isOpenInAnotherTab && <OtherTabNotice />}
     </div>
   );
@@ -105,9 +113,18 @@ export default function GameScreen() {
 // =============================================================================
 // P A I N É I S   D E   A B A S
 
-// Lateral esquerda: quem luta e quem ainda pode ser conquistado
+// Lateral esquerda: quem luta, quem ainda pode ser conquistado e o que fica entre edições.
+// A aba do juazeiro só entra depois do primeiro muro (selectIsJuazeiroRevealed).
 function PartyTabs() {
   const badges = useGameStore(selectBadges);
+  const isJuazeiroRevealed = useGameStore(selectIsJuazeiroRevealed);
+  const juazeiroTab = {
+    id: 'juazeiro',
+    title: 'Juazeiro',
+    badge: badges.juazeiro,
+    badgeLabel: 'novidades no juazeiro',
+    content: <JuazeiroPanel />,
+  };
 
   return (
     <Tabs
@@ -122,6 +139,7 @@ function PartyTabs() {
           badgeLabel: 'pactos prontos para fechar',
           content: <AlmanacPanel />,
         },
+        ...(isJuazeiroRevealed ? [juazeiroTab] : []),
       ]}
     />
   );

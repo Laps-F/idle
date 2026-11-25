@@ -171,6 +171,33 @@ body {
 }
 
 
+/* Edição nova do folheto: a página vira, e depois o número da edição é carimbado */
+.page-turn {
+  transform-origin: left center;
+  animation: page-turn 650ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes page-turn {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) rotateY(-80deg);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0deg);
+  }
+}
+
+.stamp-late {
+  animation: stamp-in 260ms ease-out 550ms both;
+}
+
+/* Galho do juazeiro que acabou de crescer */
+.branch-grow {
+  transition: opacity 600ms ease-out;
+}
+
+
 /* ============================================================================= */
 /* ============================================================================= */
 /* M O V I M E N T O   R E D U Z I D O */
@@ -178,8 +205,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .float-text,
   .hit-shake,
-  .stamp-in {
+  .stamp-in,
+  .page-turn,
+  .stamp-late {
     animation: none;
+  }
+
+  .branch-grow {
+    transition: none;
   }
 
   .float-text {

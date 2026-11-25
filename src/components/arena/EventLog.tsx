@@ -2,7 +2,7 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/arena/EventLog.tsx
  * O que faz: o registro compacto do que acabou de acontecer na arena:
- * derrotas, chefes, Oferendas, Rastros, níveis e amuletos. Golpes ficam de fora, porque
+ * derrotas, chefes, Oferendas, Rastros, níveis, amuletos e Rebrotas. Golpes ficam de fora, porque
  * já aparecem como números na capa.
  *
  * Mapa:
@@ -19,6 +19,7 @@ import {
   Skull,
   Sparkles,
   Swords,
+  TreeDeciduous,
   TrendingUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -96,12 +97,14 @@ const LOG_ICONS: Record<LogEntryKind, LucideIcon> = {
   levelUp: TrendingUp,
   amuletFound: Gem,
   amuletSalvaged: Hammer,
+  rebrota: TreeDeciduous,
 };
 
 // Frase de uma linha do registro
 function describeEntry(entry: LogEntry): string {
   const amount = formatNumber(entry.amount);
   const shavings = formatCount(entry.amount, 'Cavaco', 'Cavacos');
+  const roots = formatCount(entry.count, 'Raiz nova', 'Raízes novas');
 
   switch (entry.kind) {
     case 'kills':
@@ -126,6 +129,8 @@ function describeEntry(entry: LogEntry): string {
       return `Amuleto encontrado: ${entry.name}${describeRarity(entry)}`;
     case 'amuletSalvaged':
       return `${entry.name}${describeRarity(entry)} virou ${shavings}`;
+    case 'rebrota':
+      return `Edição ${entry.amount} começou: a clareira rebrotou com ${roots}`;
   }
 }
 

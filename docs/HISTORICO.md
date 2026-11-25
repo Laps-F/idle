@@ -2,6 +2,73 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 25/11/2026: Rebrota e juazeiro
+
+O prestígio do jogo, conforme o design aprovado (documento "design-rebrota" do projeto). O
+salvamento subiu para a versão 3.
+
+Domínio:
+
+- `src/domain/rebrota.ts` (novo): Raízes que a Rebrota rende (só o que passa do recorde),
+  quando libera, quando o juazeiro aparece, `performRebrota` (o que fica e o que recomeça) e a
+  compra automática de melhorias.
+- `src/domain/juazeiro.ts` (novo): custo dos nós, Raízes livres, compra de nó e o efeito dos
+  nós em tempo do chefe, mochila e ausência.
+- `src/domain/types.ts`: tipos do juazeiro. O `GameState` ganhou `juazeiro`, `edition`,
+  `recordStage`, `editionSeconds` e `autoBuy`, e as estatísticas ganharam `bossesFailed`.
+  `Modifiers` ganhou as chances de Rastro, de Oferenda e de amuleto, separadas da de achado.
+  `OfflineReport` passou a guardar o teto e a eficiência que valeram. Evento novo: `rebrota`.
+- `src/domain/modifiers.ts`, `simulation.ts`, `offline.ts`, `amulets.ts`, `state.ts`,
+  `actions.ts`, `catalog.ts`: o juazeiro entra no dano, no crítico, nas chances, no tempo do
+  chefe, na ausência e na mochila. A simulação conta o tempo da edição, os chefes perdidos e
+  roda a compra automática a cada inimigo derrotado.
+
+Dados:
+
+- `src/data/juazeiro.ts` (novo): três galhos e treze nós.
+- `src/data/balance.ts`: `saveVersion: 3`, `rebrotaMinRoots`, `rebrotaFirstStage`,
+  `rebrotaWorthRatio`, `rebrotaStageMargin` e `startGoldKills`.
+
+Store:
+
+- `src/store/useGameStore.ts`: bloco "Ações da Rebrota" (rebrotar, comprar nó, ligar a compra
+  automática, fechar a cerimônia) e a ação de teste `debugGrantRoots`. `applyInput` passou a
+  aceitar campos de sessão gravados junto com o estado.
+- `src/store/saveManager.ts`: `MIGRATIONS[2]` (versão 2 para 3) e `sanitizeJuazeiro`.
+- `src/store/selectors.ts`: `selectJuazeiroPanel`, `selectIsJuazeiroRevealed`,
+  `selectRebrotaCeremony`, a edição no cabeçalho, o aviso da aba e a Rebrota no relatório de
+  volta.
+- `src/store/types.ts`, `eventViews.ts`: ações novas, a cerimônia na sessão e a linha de registro.
+
+Tela:
+
+- `src/components/rebrota/` (nova pasta): `JuazeiroPanel`, `JuazeiroTree`,
+  `RebrotaConfirmModal` e `RebrotaCeremony`.
+- `GameScreen.tsx`: aba "Juazeiro" na lateral esquerda, só depois do primeiro muro, e a
+  cerimônia. `AppHeader.tsx`: "Edição N". `EventLog.tsx`, `OfflineModal.tsx`, `DebugView.tsx`:
+  linha da Rebrota, aviso no relatório de volta, métricas e botões de teste.
+- `ui/Modal.tsx`: opção `panelClassName`. `src/index.css`: animações `.page-turn`,
+  `.stamp-late` e `.branch-grow`, desligadas para quem pede movimento reduzido.
+
+Testes:
+
+- `tests/rebrota.test.ts` (novo): 25 testes das regras.
+- `tests/store.test.ts`: salvamento da versão 2, Rebrota pela store, juazeiro guardado e
+  juazeiro adulterado. `tests/GameScreen.test.tsx`: aba escondida e revelada, Rebrota com
+  confirmação e cerimônia, compra de nó e chave da compra automática.
+
+Calibragem (simulação de 8 horas, três sementes, jogando de forma perfeita):
+
+- A primeira edição desacelera sozinha entre 25 e 30 minutos, por volta do estágio 37 a 43.
+- Pedindo só 3 Raízes (estágio 21), a primeira Rebrota liberava aos 10 minutos,
+  cedo demais. Passou a pedir o estágio 35 (`rebrotaFirstStage`) e agora libera entre 21 e
+  23 minutos, o que deve dar 25 a 35 minutos para uma pessoa.
+- Cada edição passa do recorde anterior em 7 a 13 minutos.
+- Edição 4 ou 5 depois de 2 horas, estágio 77 a 88. Depois disso a única zona pesa: o
+  progresso fica lento, o que reforça o Cerrado como próxima etapa de conteúdo.
+- Com os números atuais, o atalho máximo começa no estágio 21, sempre abaixo do limite de 10
+  estágios antes do recorde. O limite fica como proteção para números futuros.
+
 ## 25/11/2026: publicação no GitHub Pages
 
 O jogo passa a abrir em https://laps-f.github.io/idle/.

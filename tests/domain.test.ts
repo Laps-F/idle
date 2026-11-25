@@ -173,13 +173,14 @@ describe('simulação', () => {
       stage: 30,
       maxStage: 30,
       killsInStage: 10,
-      combat: createBossCombat(30, {}),
+      combat: createBossCombat(30, {}, 30),
     });
     const { state, summary } = advanceSimulation(start, 31, withSeed(2));
     expect(summary.bossesFailed).toBe(1);
     expect(state.combat.isBoss).toBe(false);
     expect(state.stage).toBe(30);
     expect(state.killsInStage).toBeLessThan(10);
+    expect(state.stats.bossesFailed).toBe(1);
   });
 
   it('só encontra Rastro do Boitatá à noite', () => {

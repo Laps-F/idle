@@ -7,9 +7,9 @@ https://laps-f.github.io/idle/?debug) Você percorre os biomas com uma
 comitiva de encantados (Saci, Curupira, Iara, Caipora, Boitatá) e enfrenta as visagens do
 Estio. Roda inteiro no navegador e salva no `localStorage`.
 
-Estado atual: MVP jogável com o primeiro sistema de retenção. Motor, estado global e interface
+Estado atual: fatia vertical jogável com retenção e prestígio. Motor, estado global e interface
 de produção prontos, com uma zona (Mata Atlântica), cinco encantados, melhorias, pactos,
-amuletos, salvamento e progresso offline.
+amuletos, Rebrota com o juazeiro, salvamento e progresso offline.
 
 O visual segue o folheto de cordel: página de papel pardo, painéis de papel jornal e a arena
 como capa do folheto, em papel colorido (uma cor por bioma) com as figuras em xilogravura.
@@ -56,12 +56,14 @@ src/
     catalog.ts         consulta dos dados por id e zona de cada estágio
     formulas.ts        contas de vida, Patacas, XP, custo e Raízes
     clock.ts           dia, noite e lua a partir de um horário
-    modifiers.ts       junta melhorias, sinergias, amuletos e Raízes
+    modifiers.ts       junta melhorias, sinergias, amuletos, Raízes e juazeiro
     state.ts           jogo novo e combate contra visagem ou chefe
     simulation.ts      combate: avança qualquer intervalo de tempo
     actions.ts         regras das ações da pessoa (comitiva, melhorias, chefe, estágio)
     pact.ts            confere e fecha pactos
     amulets.ts         amuletos: queda, atributos, mochila, vestir, desmanche e entalhe
+    juazeiro.ts        juazeiro: custo dos nós, Raízes livres, compra e efeito de cada galho
+    rebrota.ts         Rebrota: Raízes ganhas, quando libera, rebrotar, compra automática
     offline.ts         ganhos do tempo ausente
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
@@ -72,6 +74,7 @@ src/
     synergies.ts       bônus de origem da comitiva
     zones.ts           zonas, estágios e Rastros
     amulets.ts         tipos e raridades de amuleto
+    juazeiro.ts        galhos e nós do juazeiro
     index.ts           ponto único de importação dos datasets
   store/               estado global (Zustand), tempo e salvamento
     types.ts           tipagens da store: ações, estado de sessão, retornos
@@ -88,6 +91,7 @@ src/
     arena/             capa com o inimigo, barras de ataque, números flutuantes e registro
     party/             comitiva, sinergias e Almanaque de pactos
     progress/          melhorias, navegação de estágios e amuletos
+    rebrota/           aba do juazeiro, desenho da árvore, confirmação e cerimônia da Rebrota
     modals/            janelas: escolha inicial, boas-vindas de volta, salvamento, outra aba
     ui/                peças reutilizáveis: figura, barras, botão e abas
     art/               xilogravuras em SVG
@@ -142,9 +146,9 @@ escondidas. O desenho fica com o React e com CSS.
   gravar (`isOpenInAnotherTab`) e a nova continua de onde o salvamento parou.
 - Mudou o formato do `GameState`? Suba `saveVersion` em `balance.ts` e registre a conversão em
   `MIGRATIONS`, dentro de `saveManager.ts`.
-- O salvamento está na versão 2. Um jogo gravado na versão 1 (antes dos amuletos) abre
-  normalmente: ele ganha mochila vazia e zero Cavacos e passa a ser gravado na versão 2. O
-  mesmo vale para um código exportado na versão 1.
+- O salvamento está na versão 3. Jogos gravados nas versões anteriores abrem normalmente: a
+  versão 1 (antes dos amuletos) ganha mochila vazia e zero Cavacos, e a versão 2 (antes da
+  Rebrota) começa na edição 1, sem nós no juazeiro. O mesmo vale para códigos exportados.
 
 ## Amuletos
 
@@ -159,6 +163,25 @@ a três bônus secundários, conforme a raridade. Quanto mais alto o estágio, m
 
 As regras ficam em `src/domain/amulets.ts`, os números em `src/data/amulets.ts` e em
 `src/data/balance.ts`, e a tela em `src/components/progress/AmuletsPanel.tsx`.
+
+## Rebrota e juazeiro
+
+O prestígio. Quando a jornada desacelera, a clareira rebrota: o jogo recomeça do estágio 1 numa
+nova edição do folheto, e a pessoa finca Raízes.
+
+- A primeira Rebrota libera no estágio 35 (cerca de 25 minutos). As seguintes, quando renderiam
+  pelo menos 3 Raízes. Só conta o que passar do recorde das edições passadas.
+- Cada Raiz fincada dá +5% de dano e de Patacas para sempre.
+- As Raízes livres compram nós do juazeiro, em três galhos: Força (dano e chefes), Vento
+  (começar adiante, comprar melhorias sozinho, render mais na ausência) e Lua (Rastros,
+  Oferendas, amuletos). Gastar não tira o bônus das Raízes.
+- Fica: encantados, Almanaque, Rastros, amuletos, Cavacos, Raízes e juazeiro. Volta ao começo:
+  estágio, Patacas, melhorias, nível dos encantados e Oferendas.
+- A aba "Juazeiro" só aparece quando a Rebrota libera ou no primeiro chefe perdido.
+
+As regras ficam em `src/domain/rebrota.ts` e `src/domain/juazeiro.ts`, os nós em
+`src/data/juazeiro.ts`, os números em `src/data/balance.ts`, e a tela em
+`src/components/rebrota/`. O design completo está no documento "design-rebrota" do projeto.
 
 ## Árvore de componentes
 
@@ -181,12 +204,15 @@ App                          liga o laço do jogo e escolhe a tela
 │  │  └─ EventLog            registro compacto
 │  ├─ Tabs "Comitiva"        lateral esquerda
 │  │  ├─ PartyPanel          elenco e sinergias
-│  │  └─ AlmanacPanel        pactos
+│  │  ├─ AlmanacPanel        pactos
+│  │  └─ JuazeiroPanel       Rebrota e juazeiro (aparece no primeiro muro)
+│  │     ├─ JuazeiroTree     desenho da árvore
+│  │     └─ RebrotaConfirmModal
 │  ├─ Tabs "Progresso"       lateral direita
 │  │  ├─ UpgradesPanel       melhorias
 │  │  ├─ StagesPanel         estágios e chefe
 │  │  └─ AmuletsPanel        amuletos: quem veste, mochila, entalhe e desmanche
-│  └─ StarterModal, OfflineModal, OtherTabNotice
+│  └─ StarterModal, OfflineModal, RebrotaCeremony, OtherTabNotice
 └─ DebugView                 painel de debug, em /?debug
 ```
 
@@ -210,12 +236,13 @@ Para adaptar:
 - nova seção: escreva o componente e acrescente uma linha em `SECTIONS`;
 - mostrar só algumas seções: `<DebugView sectionIds={['loop', 'save']} />`.
 
-Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSkipTime` e
-`debugGrantAmulet` da store.
+Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSkipTime`,
+`debugGrantAmulet`, `debugGrantRoots` e `rebrota` da store.
 
 ## Próximas etapas
 
-1. Rebrota (prestígio), com as Raízes.
-2. Novos biomas, com visagens, chefes e encantados próprios.
-3. Lua nos pactos, laços e bônus do Almanaque.
-4. Som, com a Web Audio API.
+1. Teste com pessoas reais e balanceamento.
+2. Cerrado: segundo bioma, com visagens, chefe e encantados próprios.
+3. Lua nos pactos e um uso para as Oferendas.
+4. Primeiros minutos guiados.
+5. Som, com a Web Audio API.

@@ -33,7 +33,8 @@ export type LogEntryKind =
   | 'trail' // "name" é o encantado e "amount" quantos Rastros
   | 'levelUp' // "name" é o encantado e "amount" o nível novo
   | 'amuletFound' // "name" é o tipo do amuleto e "rarity" a raridade. Foi para a mochila.
-  | 'amuletSalvaged'; // amuleto desmanchado na hora. "amount" são os Cavacos rendidos.
+  | 'amuletSalvaged' // amuleto desmanchado na hora. "amount" são os Cavacos rendidos.
+  | 'rebrota'; // nova edição. "amount" é o número da edição e "count" as Raízes ganhas.
 
 export interface LogEntry {
   kind: LogEntryKind;
@@ -101,6 +102,8 @@ function toLogEntry(event: Exclude<CombatEvent, { type: 'hit' }>): LogEntry {
       const name = getAmuletBase(event.baseId).name;
       return { kind, name, amount: event.shavings, count: 1, rarity: event.rarity };
     }
+    case 'rebrota':
+      return { kind: 'rebrota', name: '', amount: event.edition, count: event.roots };
   }
 }
 
