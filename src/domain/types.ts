@@ -9,6 +9,7 @@
  *   2. Definições (o formato dos arquivos de src/data), incluindo os amuletos
  *   3. Estado salvo (o que vai para o localStorage)
  *   4. Resultados da simulação (resumos, relatório offline e eventos)
+ *   5. Mundo aberto (mapas, cena em tempo real, entradas e eventos do mapa)
  */
 
 // =============================================================================
@@ -278,6 +279,7 @@ export interface GameState {
   autoSalvage: Rarity | null; // desmancha sozinho os amuletos até esta raridade. Null desliga.
   nextAmuletNumber: number; // contador que dá um id único a cada amuleto encontrado
   combat: CombatState;
+  world: WorldPosition; // onde a personagem está no mundo aberto
   lastSaveTimestamp: number; // instante (ms) até onde o estado já foi simulado
   stats: GameStats;
 }
@@ -337,3 +339,106 @@ export type CombatEvent =
   | { type: 'bossFailed'; enemyId: string }
   | { type: 'stageAdvanced'; stage: number }
   | { type: 'rebrota'; edition: number; roots: number };
+
+
+// =============================================================================
+// =============================================================================
+// M U N D O   A B E R T O
+
+// As coordenadas do mundo são contadas em ladrilhos: x cresce para a direita e y para baixo.
+// O ladrilho (2, 3) ocupa o quadrado de x = 2 a 3 e de y = 3 a 4. O centro dele é (2.5, 3.5).
+
+// Um tipo de ladrilho do mapa. "symbol" é o caractere usado no desenho do mapa em src/data.
+export interface TileDef {
+  id: string;
+  symbol: string;
+  name: string;
+  isSolid: boolean; // true: ninguém passa (árvore, água)
+}
+
+// Passagem de um mapa para outro. A personagem pisa em (x, y) e aparece em (toX, toY).
+export interface WorldPortalDef {
+  x: number; // coluna do ladrilho da passagem
+  y: number; // linha do ladrilho da passagem
+  toMapId: string;
+  toX: number; // coluna de chegada no outro mapa (não pode ser uma passagem)
+  toY: number; // linha de chegada no outro mapa
+}
+
+// Um mapa do mundo aberto
+export interface WorldMapDef {
+  id: string;
+  name: string;
+  zoneId: string; // zona de onde vêm os Rastros (src/data/zones.ts)
+  level: number; // estágio equivalente: força das visagens e tamanho das recompensas
+  layout: string[]; // uma linha de texto por linha do mapa, um caractere por ladrilho
+  start: { x: number; y: number }; // ladrilho onde a personagem começa
+  enemyIds: string[]; // visagens que aparecem neste mapa
+  maxEnemies: number; // quantas visagens ficam no mapa ao mesmo tempo
+  portals: WorldPortalDef[];
+}
+
+// Posição salva da personagem: em que mapa e em que ponto (em ladrilhos, com fração)
+export interface WorldPosition {
+  mapId: string;
+  x: number;
+  y: number;
+}
+
+// Uma visagem andando pelo mapa. Só existe com o jogo aberto, não é salva.
+export interface WorldEnemy {
+  uid: number; // número único dentro da cena
+  enemyId: string;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  targetX: number; // ponto para onde ela está andando
+  targetY: number;
+  waitSeconds: number; // tempo parada antes de voltar a andar
+}
+
+// Tudo que está acontecendo no mapa agora. Só existe com o jogo aberto, não é salvo.
+export interface WorldScene {
+  mapId: string;
+  playerX: number;
+  playerY: number;
+  attackProgress: number; // de 0 a 1. Em 1, o golpe sai assim que houver visagem por perto.
+  enemies: WorldEnemy[];
+  respawnTimers: number[]; // segundos que faltam para cada visagem derrotada voltar
+  nextEnemyUid: number;
+}
+
+// Direção que a pessoa está apertando. Cada eixo vai de -1 a 1.
+export interface WorldInput {
+  moveX: number;
+  moveY: number;
+}
+
+// Quem anda e bate no mapa: o primeiro da comitiva, com os números já calculados
+export interface WorldFighter {
+  encantadoId: string;
+  damage: number; // dano de um golpe, antes do crítico
+  attackInterval: number; // segundos entre dois golpes
+  critChance: number; // de 0 a 1
+}
+
+// Uma visagem derrotada no mapa, do jeito que as recompensas precisam saber
+export interface WorldKill {
+  enemyId: string;
+  stage: number; // nível do mapa
+  zoneId: string;
+}
+
+// Eventos do mapa, para a tela desenhar números e avisos no lugar certo
+export type WorldEvent =
+  | { type: 'hit'; x: number; y: number; damage: number; isCrit: boolean }
+  | { type: 'defeat'; x: number; y: number; enemyId: string }
+  | { type: 'mapChanged'; mapId: string };
+
+// O que um passo do mundo devolve
+export interface WorldStepResult {
+  scene: WorldScene;
+  kills: WorldKill[];
+  events: WorldEvent[];
+}

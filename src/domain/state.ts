@@ -14,7 +14,7 @@
 import { BALANCE } from '../data/balance';
 import { pickRandom } from '../utils/random';
 import type { RandomSource } from '../utils/random';
-import { getEnemy, getZoneForStage } from './catalog';
+import { getEnemy, getFirstWorldMap, getZoneForStage } from './catalog';
 import { getEnemyMaxHp } from './formulas';
 import type {
   CombatState,
@@ -22,6 +22,7 @@ import type {
   GameStats,
   OwnedEncantado,
   SimulationSummary,
+  WorldPosition,
 } from './types';
 
 // =============================================================================
@@ -37,6 +38,7 @@ const FIRST_LEVEL = 1;
  * @param now Instante atual em milissegundos. Vira a marca de tempo do estado.
  * @param random Fonte de números aleatórios, usada para sortear a primeira visagem.
  * @returns Estado no estágio 1, sem comitiva, sem Patacas e com o avanço automático ligado.
+ *          No mundo aberto, a personagem está no ponto de partida do primeiro mapa.
  */
 export function createInitialState(now: number, random: RandomSource): GameState {
   return {
@@ -63,9 +65,16 @@ export function createInitialState(now: number, random: RandomSource): GameState
     autoSalvage: null,
     nextAmuletNumber: 1,
     combat: createCommonEnemyCombat(FIRST_STAGE, {}, random),
+    world: createStartPosition(),
     lastSaveTimestamp: now,
     stats: createEmptyStats(),
   };
+}
+
+// Ponto de partida do mundo aberto: o centro do ladrilho inicial do primeiro mapa
+export function createStartPosition(): WorldPosition {
+  const map = getFirstWorldMap();
+  return { mapId: map.id, x: map.start.x + 0.5, y: map.start.y + 0.5 };
 }
 
 // Estatísticas zeradas de uma partida nova
@@ -194,6 +203,7 @@ export function pickGameState(source: GameState): GameState {
     autoSalvage: source.autoSalvage,
     nextAmuletNumber: source.nextAmuletNumber,
     combat: source.combat,
+    world: source.world,
     lastSaveTimestamp: source.lastSaveTimestamp,
     stats: source.stats,
   };

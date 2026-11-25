@@ -9,7 +9,8 @@
  *   1. Índices por id
  *   2. Consultas por id
  *   3. Zonas e estágios
- *   4. Ferramentas
+ *   4. Mundo aberto: mapas e ladrilhos
+ *   5. Ferramentas
  */
 
 import {
@@ -19,7 +20,9 @@ import {
   ENEMIES,
   ITEMS,
   JUAZEIRO_NODES,
+  TILES,
   UPGRADES,
+  WORLD_MAPS,
   ZONES,
 } from '../data';
 import type {
@@ -30,7 +33,9 @@ import type {
   ItemDef,
   JuazeiroNodeDef,
   Rarity,
+  TileDef,
   UpgradeDef,
+  WorldMapDef,
   ZoneDef,
 } from './types';
 
@@ -44,6 +49,9 @@ const ITEMS_BY_ID = indexById(ITEMS);
 const UPGRADES_BY_ID = indexById(UPGRADES);
 const AMULET_BASES_BY_ID = indexById(AMULET_BASES);
 const JUAZEIRO_NODES_BY_ID = indexById(JUAZEIRO_NODES);
+const ZONES_BY_ID = indexById(ZONES);
+const WORLD_MAPS_BY_ID = indexById(WORLD_MAPS);
+const TILES_BY_SYMBOL = new Map(TILES.map((tile) => [tile.symbol, tile]));
 
 
 // =============================================================================
@@ -162,6 +170,58 @@ export function getZoneForStage(stage: number): ZoneDef {
   }
 
   return lastZone;
+}
+
+
+// Zona pelo id (o mundo aberto liga cada mapa a uma zona)
+export function getZone(id: string): ZoneDef {
+  return getOrThrow(ZONES_BY_ID, id, 'Zona');
+}
+
+export function hasZone(id: string): boolean {
+  return ZONES_BY_ID.has(id);
+}
+
+
+// =============================================================================
+// =============================================================================
+// M U N D O   A B E R T O :   M A P A S   E   L A D R I L H O S
+
+export function getWorldMap(id: string): WorldMapDef {
+  return getOrThrow(WORLD_MAPS_BY_ID, id, 'Mapa');
+}
+
+export function hasWorldMap(id: string): boolean {
+  return WORLD_MAPS_BY_ID.has(id);
+}
+
+// Mapa onde todo jogo novo começa: o primeiro da lista de src/data/world.ts
+export function getFirstWorldMap(): WorldMapDef {
+  const first = WORLD_MAPS[0];
+
+  if (first === undefined) {
+    throw new Error('Nenhum mapa cadastrado em src/data/world.ts.');
+  }
+
+  return first;
+}
+
+/**
+ * Ladrilho de uma coluna e linha do mapa.
+ *
+ * @param map Mapa consultado.
+ * @param column Coluna, a partir de 0, da esquerda para a direita.
+ * @param row Linha, a partir de 0, de cima para baixo.
+ * @returns A definição do ladrilho, ou null fora do mapa ou com símbolo que não existe.
+ */
+export function getTileAt(map: WorldMapDef, column: number, row: number): TileDef | null {
+  const symbol = map.layout[row]?.[column];
+  return symbol === undefined ? null : (TILES_BY_SYMBOL.get(symbol) ?? null);
+}
+
+// Largura e altura do mapa, em ladrilhos. A largura é a da primeira linha.
+export function getMapSize(map: WorldMapDef): { width: number; height: number } {
+  return { width: map.layout[0]?.length ?? 0, height: map.layout.length };
 }
 
 

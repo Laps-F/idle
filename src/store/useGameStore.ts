@@ -21,13 +21,20 @@
  * desenho. Toda ação da pessoa primeiro simula o jogo até o instante do clique
  * e só depois é aplicada. Assim uma compra nunca vale para o tempo que já passou.
  *
+ * Dois motores: o tick roda o que a tela pediu (campo de sessão "engine").
+ * No mundo aberto ("mundo"), cada tick anda com a cena do mapa
+ * (src/domain/world.ts) e entrega as derrotas para as recompensas
+ * (rewardKills). A ausência usa a conta própria do mapa
+ * (src/domain/worldOffline.ts). Na tela clássica ("estagios"), roda o combate
+ * de estágios, como antes. Os dois nunca rodam juntos.
+ *
  * É aqui, e não no domínio, que o relógio (Date.now) e o sorteio (Math.random)
  * são lidos. O domínio recebe os dois por parâmetro.
  *
  * Mapa:
  *   1. Constantes e tipos internos
  *   2. Store
- *   3. Ações de simulação (tick, progresso offline e troca de aba)
+ *   3. Ações de simulação (tick, progresso offline, troca de aba e mundo aberto)
  *   4. Ações de jogo (comitiva, melhorias, pactos, estágios)
  *   5. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
  *   6. Ações da Rebrota (rebrotar, juazeiro, compra automática)
@@ -63,9 +70,11 @@ import { buyJuazeiroNode } from '../domain/juazeiro';
 import { applyOfflineProgress, hasOfflineGains, mergeOfflineReports } from '../domain/offline';
 import { sealPact } from '../domain/pact';
 import { performRebrota, setAutoBuy } from '../domain/rebrota';
-import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
+import { advanceSimulation, dealDirectDamage, rewardKills } from '../domain/simulation';
 import { createInitialState, pickGameState } from '../domain/state';
-import type { CombatEvent, GameState } from '../domain/types';
+import type { CombatEvent, GameState, WorldEvent, WorldInput } from '../domain/types';
+import { advanceWorld, createWorldScene, getWorldFighter, recordWorldStep } from '../domain/world';
+import { applyWorldOfflineProgress } from '../domain/worldOffline';
 import { preserveUnchangedReferences } from '../utils/object';
 import {
   createThrottledStorage,
@@ -82,8 +91,14 @@ import type { GameActions, GameStore, SessionState } from './types';
 
 // Lista vazia única: reaproveitar a mesma referência evita redesenhar a interface à toa
 const NO_EVENTS: readonly CombatEvent[] = [];
+const NO_WORLD_EVENTS: readonly WorldEvent[] = [];
+const NO_INPUT: WorldInput = { moveX: 0, moveY: 0 };
 
 const SESSION_DEFAULTS: SessionState = {
+  engine: 'estagios',
+  worldScene: null,
+  worldInput: NO_INPUT,
+  worldEvents: NO_WORLD_EVENTS,
   offlineReport: null,
   combatEvents: NO_EVENTS,
   isOpenInAnotherTab: false,
@@ -137,7 +152,10 @@ export const useGameStore = create<GameStore>()(
 // =============================================================================
 // A Ç Õ E S   D E   S I M U L A Ç Ã O
 
-type SimulationActions = Pick<GameActions, 'tick' | 'dismissOfflineReport' | 'yieldToAnotherTab'>;
+type SimulationActions = Pick<
+  GameActions,
+  'tick' | 'dismissOfflineReport' | 'yieldToAnotherTab' | 'setEngine' | 'setWorldInput'
+>;
 
 // O tick e o que depende do tempo
 function createSimulationActions(set: SetStore, get: GetStore): SimulationActions {
@@ -163,6 +181,8 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      * - Jogo aberto em outra aba: nada acontece.
      * - Os eventos de combate só são entregues em intervalos de até 1 segundo.
      *   Acima disso a aba estava em segundo plano e não há o que animar.
+     * - Com o motor "mundo", o jogo aberto anda com a cena do mapa e a ausência
+     *   usa a conta do mapa. Os limites de tempo são os mesmos.
      */
     tick: (now = Date.now()) => {
       const elapsedSeconds = (now - get().lastSaveTimestamp) / MS_PER_SECOND;
@@ -174,6 +194,8 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
         set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
       } else if (elapsedSeconds > BALANCE.offlineThresholdSeconds) {
         runOfflineTick(set, get, now);
+      } else if (elapsedSeconds > 0 && get().engine === 'mundo') {
+        runWorldTick(set, get, now, elapsedSeconds);
       } else if (elapsedSeconds > 0) {
         runOnlineTick(set, get, now, elapsedSeconds);
       }
@@ -193,9 +215,65 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      */
     yieldToAnotherTab: () => {
       saveStorage.disable();
-      set({ isOpenInAnotherTab: true, combatEvents: NO_EVENTS });
+      set({ isOpenInAnotherTab: true, combatEvents: NO_EVENTS, worldEvents: NO_WORLD_EVENTS });
+    },
+
+    /**
+     * Escolhe o motor que o tick roda. Quem chama é o laço do jogo, conforme a tela.
+     *
+     * Caso de borda: a cena do mapa é descartada e remontada no próximo tick, a
+     * partir da posição salva. Trocar para o mesmo motor também remonta.
+     */
+    setEngine: (engine) => set({ engine, worldScene: null, worldEvents: NO_WORLD_EVENTS }),
+
+    // Guarda a direção apertada. Só grava quando muda, para não redesenhar à toa.
+    setWorldInput: (input) => {
+      const current = get().worldInput;
+
+      if (current.moveX !== input.moveX || current.moveY !== input.moveY) {
+        set({ worldInput: { moveX: input.moveX, moveY: input.moveY } });
+      }
     },
   };
+}
+
+/**
+ * Um passo do mundo aberto com o jogo aberto.
+ *
+ * Ordem: monta a cena se ainda não existe (a partir da posição salva), anda com
+ * ela pelo tempo que passou, entrega as derrotas para as recompensas e grava a
+ * posição da personagem no estado salvo.
+ *
+ * @param set Função de gravação da store.
+ * @param get Função de leitura da store.
+ * @param now Instante atual em ms. Vira a marca de tempo.
+ * @param elapsedSeconds Tempo desde o último tick. Até offlineThresholdSeconds.
+ *
+ * Caso de borda: como no combate de estágios, os eventos só são entregues em
+ * intervalos de até maxSecondsWithEvents. Acima disso a aba estava escondida.
+ */
+function runWorldTick(set: SetStore, get: GetStore, now: number, elapsedSeconds: number): void {
+  const current = pickGameState(get());
+  const { mapId, x, y } = current.world;
+  const scene = get().worldScene ?? createWorldScene(mapId, { x, y }, Math.random);
+  const fighter = getWorldFighter(current, now);
+  const step = advanceWorld(scene, fighter, get().worldInput, elapsedSeconds, Math.random);
+  const rewarded = rewardKills(current, step.kills, {
+    startTimestamp: now,
+    random: Math.random,
+  });
+  const next: GameState = {
+    ...recordWorldStep(rewarded.state, step.scene, elapsedSeconds),
+    lastSaveTimestamp: now,
+  };
+  const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
+  const hasEvents = isTabActive && step.events.length > 0;
+
+  commitState(set, current, next, {
+    worldScene: step.scene,
+    worldEvents: hasEvents ? step.events : NO_WORLD_EVENTS,
+    tickCount: get().tickCount + 1,
+  });
 }
 
 // Jogo aberto: simula o intervalo inteiro e entrega os eventos para a interface
@@ -217,10 +295,18 @@ function runOnlineTick(set: SetStore, get: GetStore, now: number, elapsedSeconds
 }
 
 // Volta de uma ausência: simula com teto e eficiência reduzida e guarda o relatório
+// No mundo aberto a conta é a do mapa, e a cena é remontada a partir da posição salva.
 function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
   const current = pickGameState(get());
-  const result = applyOfflineProgress(current, now, Math.random);
+  const isWorld = get().engine === 'mundo';
+  const result = isWorld
+    ? applyWorldOfflineProgress(current, now, Math.random)
+    : applyOfflineProgress(current, now, Math.random);
   const tickCount = get().tickCount + 1;
+
+  if (isWorld) {
+    set({ worldScene: null, worldEvents: NO_WORLD_EVENTS });
+  }
 
   // Ausência sem ganho nenhum não abre o modal de volta
   if (result.report === null || !hasOfflineGains(result.report)) {
@@ -445,7 +531,14 @@ function createSaveActions(set: SetStore, get: GetStore): SaveActions {
 
 // Substitui o jogo inteiro e grava na hora, para o salvamento antigo não voltar
 function replaceGame(set: SetStore, state: GameState): void {
-  set({ ...state, offlineReport: null, combatEvents: NO_EVENTS, rebrotaCeremony: null });
+  set({
+    ...state,
+    offlineReport: null,
+    combatEvents: NO_EVENTS,
+    rebrotaCeremony: null,
+    worldScene: null,
+    worldEvents: NO_WORLD_EVENTS,
+  });
   saveStorage.flush();
 }
 

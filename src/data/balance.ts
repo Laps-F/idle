@@ -24,7 +24,7 @@ const SECONDS_PER_HOUR = 3600;
 
 export const BALANCE = {
   // Salvamento
-  saveVersion: 3, // 2: amuletos. 3: Rebrota. (ver MIGRATIONS em src/store/saveManager.ts)
+  saveVersion: 4, // 2: amuletos. 3: Rebrota. 4: mundo aberto. (ver MIGRATIONS no saveManager)
   saveIntervalMs: 5 * MS_PER_SECOND, // intervalo mínimo entre gravações no localStorage
 
   // Laço do jogo
@@ -94,4 +94,21 @@ export const BALANCE = {
   // Relógio do sertão
   dayLengthMs: 24 * SECONDS_PER_MINUTE * MS_PER_SECOND, // 1 dia do jogo = 24 minutos reais
   moonCycleDays: 8, // a lua completa o ciclo em 8 dias do jogo (3h12 reais)
+
+  // Mundo aberto (protótipo). Distâncias em ladrilhos, velocidades em ladrilhos por segundo.
+  worldTickIntervalMs: 16, // no mapa o laço roda ~60 vezes por segundo, para o passo ser suave
+  worldMaxStepSeconds: 0.05, // intervalo maior que isso é dividido em passos menores
+  playerSpeed: 4,
+  bodyRadius: 0.3, // metade da largura da personagem e das visagens, para a colisão
+  attackRange: 1.6, // a personagem bate na visagem mais perto dentro desta distância
+  enemySpeed: 0.8,
+  enemyWanderRadius: 2.5, // até onde a visagem passeia a cada vez que anda
+  enemyWaitSecondsMin: 1, // tempo parada entre dois passeios: de 1...
+  enemyWaitSecondsMax: 3, // ...a 3 segundos
+  enemyRespawnSeconds: 4, // tempo para uma visagem derrotada voltar ao mapa
+  enemyMinSpawnDistance: 4, // visagem nova não nasce mais perto da personagem do que isto
+
+  // Mundo aberto: ausência. Rende pelo mesmo teto e eficiência da ausência de cima.
+  worldAfkWalkSeconds: 1.5, // tempo médio andando de uma visagem até a outra
+  worldOfflineMaxKills: 50_000, // trava de segurança para a conta da ausência
 } as const;

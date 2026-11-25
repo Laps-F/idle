@@ -11,6 +11,10 @@
  * plano), mas isso não atrapalha: o tick mede o tempo real que passou em vez
  * de supor que foram 100 ms. O desenho fica com o React e com CSS.
  *
+ * Motor: quem liga o laço diz qual motor ele roda. No mundo aberto o intervalo
+ * é bem menor (worldTickIntervalMs), para a personagem andar suave. O desenho
+ * do mapa é feito à parte, no canvas, com requestAnimationFrame.
+ *
  * Mapa:
  *   1. Laço do jogo
  *   2. Passos do laço
@@ -18,16 +22,24 @@
 
 import { BALANCE } from '../data/balance';
 import { claimActiveTab } from './tabGuard';
+import type { GameEngine } from './types';
 import { useGameStore } from './useGameStore';
 
 // =============================================================================
 // =============================================================================
 // L A Ç O   D O   J O G O
 
-// Liga o laço e devolve a função que desliga. Use dentro de um useEffect.
-export function startGameLoop(): () => void {
+// Intervalo do laço de cada motor
+const TICK_INTERVAL_MS: Record<GameEngine, number> = {
+  mundo: BALANCE.worldTickIntervalMs,
+  estagios: BALANCE.tickIntervalMs,
+};
+
+// Liga o laço com o motor pedido e devolve a função que desliga. Use dentro de um useEffect.
+export function startGameLoop(engine: GameEngine = 'estagios'): () => void {
+  useGameStore.getState().setEngine(engine);
   runTick();
-  const intervalId = window.setInterval(runTick, BALANCE.tickIntervalMs);
+  const intervalId = window.setInterval(runTick, TICK_INTERVAL_MS[engine]);
 
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('pagehide', saveProgress);

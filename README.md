@@ -7,9 +7,14 @@ https://laps-f.github.io/idle/?debug) Você percorre os biomas com uma
 comitiva de encantados (Saci, Curupira, Iara, Caipora, Boitatá) e enfrenta as visagens do
 Estio. Roda inteiro no navegador e salva no `localStorage`.
 
-Estado atual: fatia vertical jogável com retenção e prestígio. Motor, estado global e interface
-de produção prontos, com uma zona (Mata Atlântica), cinco encantados, melhorias, pactos,
-amuletos, Rebrota com o juazeiro, salvamento e progresso offline.
+Estado atual: o jogo está mudando de gênero. A tela principal agora é o **protótipo do mundo
+aberto** (no estilo de Legends of Idleon): a personagem anda por mapas vistos de cima, bate
+sozinha nas visagens que chegam perto e continua lutando com o jogo fechado. Dois mapas, sem
+imagens ainda (cada coisa é um bloco colorido com o nome do arquivo que vai entrar).
+
+A tela antiga, por estágios, continua em `?classico`, com uma zona (Mata Atlântica), cinco
+encantados, melhorias, pactos, amuletos, Rebrota com o juazeiro, salvamento e progresso offline.
+As duas telas usam o mesmo salvamento e as mesmas regras de recompensa.
 
 O visual segue o folheto de cordel: página de papel pardo, painéis de papel jornal e a arena
 como capa do folheto, em papel colorido (uma cor por bioma) com as figuras em xilogravura.
@@ -19,6 +24,7 @@ como capa do folheto, em papel colorido (uma cor por bioma) com as figuras em xi
 - [docs/GUIA_DE_MANUTENCAO.md](docs/GUIA_DE_MANUTENCAO.md): o que mudar e onde mudar.
 - [docs/COMO_TESTAR.md](docs/COMO_TESTAR.md): passo a passo para rodar e testar.
 - [docs/HISTORICO.md](docs/HISTORICO.md): o que mudou em cada etapa.
+- [docs/SPRITES.md](docs/SPRITES.md): as imagens que faltam no mapa e onde colocar cada uma.
 
 Toda mudança no código atualiza esses três documentos. A lista do que conferir está na seção 6
 do guia de manutenção.
@@ -27,7 +33,7 @@ do guia de manutenção.
 
 ```bash
 npm install
-npm run dev        # abre o jogo em http://localhost:5173 (painel de debug em /?debug)
+npm run dev        # abre o jogo em http://localhost:5173 (/?classico: estágios, /?debug: painel)
 npm test           # roda os testes dos dados, do domínio, da store, do painel e da arquitetura
 npm run typecheck  # confere as tipagens
 npm run build      # gera a versão final em dist/
@@ -65,6 +71,8 @@ src/
     juazeiro.ts        juazeiro: custo dos nós, Raízes livres, compra e efeito de cada galho
     rebrota.ts         Rebrota: Raízes ganhas, quando libera, rebrotar, compra automática
     offline.ts         ganhos do tempo ausente
+    world.ts           mundo aberto: cena do mapa, movimento, passagens, visagens e golpe automático
+    worldOffline.ts    mundo aberto: ritmo do mapa e ganhos do tempo ausente
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
     encantados.ts      encantados e seus pactos
@@ -75,6 +83,7 @@ src/
     zones.ts           zonas, estágios e Rastros
     amulets.ts         tipos e raridades de amuleto
     juazeiro.ts        galhos e nós do juazeiro
+    world.ts           mundo aberto: tipos de ladrilho e mapas desenhados em texto
     index.ts           ponto único de importação dos datasets
   store/               estado global (Zustand), tempo e salvamento
     types.ts           tipagens da store: ações, estado de sessão, retornos
@@ -82,10 +91,11 @@ src/
     selectors.ts       dados prontos para a tela, com reaproveitamento de resultado
     eventViews.ts      eventos de combate traduzidos em golpes e linhas de registro
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
-    gameLoop.ts        liga o tick e grava ao esconder ou fechar a aba
+    gameLoop.ts        liga o tick do motor pedido e grava ao esconder ou fechar a aba
     tabGuard.ts        garante que só uma aba cuida do jogo
   components/          componentes visuais burros
-    GameScreen.tsx     a tela do jogo: cabeçalho, arena, abas laterais e janelas
+    world/             mundo aberto: tela, canvas do mapa, painel do lado e vagas de imagem
+    GameScreen.tsx     a tela clássica: cabeçalho, arena, abas laterais e janelas
     theme.ts           cor do papel de cada bioma e textos de origem, raridade e relógio
     header/            cabeçalho: recursos, zona e estágio, controles de salvamento
     arena/             capa com o inimigo, barras de ataque, números flutuantes e registro
@@ -95,7 +105,7 @@ src/
     modals/            janelas: escolha inicial, boas-vindas de volta, salvamento, outra aba
     ui/                peças reutilizáveis: figura, barras, botão e abas
     art/               xilogravuras em SVG
-    hooks/             barra movida por ref e escuta dos eventos de combate
+    hooks/             barra movida por ref, escuta dos eventos de combate e teclado do mapa
     DebugView.tsx      painel de debug: métricas, indicador de tick, ausência e controles
   utils/               funções utilitárias puras
     format.ts          números grandes, porcentagem, bônus com sinal, plural, duração e horário
@@ -103,7 +113,8 @@ src/
     id.ts              gerador de identificador único
     object.ts          comparação de objetos
     base64.ts          Base64 com acentos
-  App.tsx              liga o laço do jogo e mostra a tela
+  App.tsx              escolhe a tela pelo endereço e liga o laço com o motor dela
+public/sprites/        onde entram as imagens do mapa (lista em docs/SPRITES.md)
 tests/                 testes automáticos, incluindo o que vigia a arquitetura
 docs/                  guia de manutenção, roteiro de teste e histórico
 .github/workflows/     publicação automática no GitHub Pages
@@ -133,6 +144,22 @@ passou.
 
 O laço usa `setInterval`, não `requestAnimationFrame`, porque o segundo para em abas
 escondidas. O desenho fica com o React e com CSS.
+
+### Dois motores
+
+O tick roda um motor por vez, escolhido pela tela (campo de sessão `engine`):
+
+- **Mundo aberto** (`mundo`, tela principal): o laço roda a cada 16 ms. Cada tick anda com a
+  cena do mapa (`src/domain/world.ts`): personagem, visagens e golpe automático. As visagens
+  derrotadas vão para `rewardKills` (`src/domain/simulation.ts`), que entrega Patacas, XP,
+  Oferendas, Rastros e amuletos pelas mesmas regras do combate de estágios. A ausência é
+  calculada pelo ritmo do mapa (`src/domain/worldOffline.ts`), com o mesmo teto e eficiência.
+  A cena (onde estão as visagens) não é salva. Só a posição da personagem vai para o
+  salvamento, no campo `world`.
+- **Estágios** (`estagios`, telas `?classico` e `?debug`): o combate de sempre, a cada 100 ms.
+
+O mapa é desenhado num canvas, fora do React, a cada quadro do navegador
+(`requestAnimationFrame`). O React só desenha o painel do lado e as janelas.
 
 ## Salvamento
 
@@ -187,7 +214,12 @@ As regras ficam em `src/domain/rebrota.ts` e `src/domain/juazeiro.ts`, os nós e
 
 ```
 App                          liga o laço do jogo e escolhe a tela
-├─ GameScreen                tela do jogo
+├─ WorldScreen               mundo aberto (tela principal)
+│  ├─ ResourceBar, SaveMenu  recursos e salvamento, como na tela clássica
+│  ├─ WorldCanvas            mapa no canvas, desenhado fora do React (worldRenderer.ts)
+│  ├─ WorldSidePanel         personagem, como jogar e legenda das imagens que faltam
+│  └─ StarterModal, OfflineModal, OtherTabNotice
+├─ GameScreen                tela clássica, em /?classico
 │  ├─ AppHeader
 │  │  ├─ ResourceBar         Patacas, Raízes, Cavacos e Oferendas
 │  │  ├─ StageBadge          zona, estágio e relógio do sertão
@@ -241,8 +273,8 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSki
 
 ## Próximas etapas
 
-1. Teste com pessoas reais e balanceamento.
-2. Cerrado: segundo bioma, com visagens, chefe e encantados próprios.
-3. Lua nos pactos e um uso para as Oferendas.
-4. Primeiros minutos guiados.
-5. Som, com a Web Audio API.
+1. Jogar o protótipo do mundo aberto e decidir se o combate é divertido.
+2. Visagens que reagem (perseguem e batem), vida da personagem e um golpe especial.
+3. Melhorias, amuletos e Almanaque dentro da tela do mundo aberto.
+4. Rastros como pegadas no mapa e pactos como encontros. Repensar a Rebrota.
+5. Imagens no lugar dos blocos coloridos (docs/SPRITES.md) e controle na tela para celular.

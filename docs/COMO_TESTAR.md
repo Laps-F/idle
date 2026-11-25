@@ -1,6 +1,7 @@
 # Como testar
 
-Passo a passo para rodar o jogo no seu computador e conferir o motor pelo painel de debug.
+Passo a passo para rodar o jogo no seu computador, conferir o protótipo do mundo aberto, a tela
+clássica por estágios e o motor pelo painel de debug.
 
 ## 1. Preparar o computador (só na primeira vez)
 
@@ -36,8 +37,9 @@ npm test
 ```
 
 O esperado é terminar com todos os arquivos e testes como `passed`. Esses testes conferem os
-dados, as fórmulas, o combate, as ações, os pactos, os amuletos, a Rebrota e o juazeiro, o
-progresso offline, o
+dados (incluindo os mapas), as fórmulas, o combate, o mundo aberto (movimento, passagens,
+ataque automático e ausência no mapa), as ações, os pactos, os amuletos, a Rebrota e o
+juazeiro, o progresso offline, o
 salvamento (incluindo a abertura de salvamentos da versão anterior), a tela do jogo, o painel
 de debug e as regras de arquitetura (pastas, importações, pureza do domínio e proibição de
 `any`).
@@ -55,9 +57,11 @@ npm run lint
 npm run dev
 ```
 
-O terminal mostra um endereço, normalmente `http://localhost:5173`. São duas telas:
+O terminal mostra um endereço, normalmente `http://localhost:5173`. São três telas, com o mesmo
+salvamento:
 
-- `http://localhost:5173/` abre o jogo.
+- `http://localhost:5173/` abre o protótipo do mundo aberto (andar pelo mapa).
+- `http://localhost:5173/?classico` abre a tela antiga, por estágios.
 - `http://localhost:5173/?debug` abre o painel de debug, com os números crus e os botões de teste.
 
 Para jogar sem instalar nada, use o site: https://laps-f.github.io/idle/ (e
@@ -69,9 +73,32 @@ abra `http://localhost:4173/idle/`.
 
 Para parar, volte ao terminal e aperte `Ctrl + C`.
 
-## 5. Roteiro do jogo
+## 5. Roteiro do mundo aberto (protótipo)
 
-Abra `http://localhost:5173/`. Faça na ordem. Cada linha diz o que fazer e o que deve acontecer.
+Abra `http://localhost:5173/`. Faça na ordem. Para começar do zero, use "Apagar tudo".
+
+Nesta fase nada tem imagem: cada coisa do mapa é um bloco colorido com o nome do arquivo que vai
+entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
+
+| # | O que fazer | O que deve acontecer |
+|---|---|---|
+| 1 | Abrir a página com o jogo zerado | Abre a janela "Quem começa com você?". Não dá para fechar sem escolher. |
+| 2 | Clicar em "Começar com Saci" | A janela fecha. O mapa "Beira da Mata" aparece com um bloco amarelo escrito `saci.png` (a personagem) dentro de um círculo claro (o alcance do golpe). O painel da direita mostra "Saci", "Nível 1" e "Beira da Mata (nível 1)". |
+| 3 | Apertar as setas ou W, A, S e D | A personagem anda nas quatro direções e na diagonal, na mesma velocidade. A câmera acompanha. A página não rola. |
+| 4 | Andar contra uma árvore (`tree.png`) ou a água (`water.png`) | A personagem para ao encostar. Andando na diagonal, ela desliza ao longo da borda. |
+| 5 | Olhar as visagens (blocos vermelhos com nome) | Elas passeiam devagar e param de vez em quando. Cada uma tem a barra de vida vermelha em cima. |
+| 6 | Chegar perto de uma visagem, até ela entrar no círculo | A barra amarela embaixo da personagem enche e o golpe sai sozinho: sobe um número e a vida da visagem cai. Crítico aparece maior, em amarelo, com "!". |
+| 7 | Derrotar uma visagem | Ela some. As Patacas do cabeçalho sobem e "Visagens derrotadas" soma 1. A barra de XP do painel anda. Uns 4 segundos depois, outra visagem aparece longe da personagem. |
+| 8 | Seguir a trilha para a direita até o bloco roxo "→ Brejo Escuro" | A tela troca para o mapa "Brejo Escuro (nível 4)", com visagens mais fortes. O bloco roxo da esquerda leva de volta. |
+| 9 | Recarregar a página | A personagem volta no mesmo mapa e no mesmo ponto. |
+| 10 | Fechar a aba por mais de 2 minutos e abrir de novo | Abre a janela de boas-vindas de volta, com as visagens derrotadas e as Patacas do tempo fora. O tempo fora rende pela metade, com teto de 8 horas. |
+
+O botão de pular tempo do `?debug` usa a conta da tela clássica. Para ver a ausência do mapa, é
+preciso fechar a aba de verdade e esperar mais de 2 minutos.
+
+## 6. Roteiro da tela clássica (por estágios)
+
+Abra `http://localhost:5173/?classico`. Faça na ordem. Cada linha diz o que fazer e o que deve acontecer.
 
 Para começar do zero, use "Apagar tudo" no cabeçalho.
 
@@ -174,7 +201,7 @@ debug para adiantar o jogo.
 Um jogo salvo antes da Rebrota (versão 2) abre na edição 1, com tudo o que já tinha. O teste
 "abre um salvamento da versão 2 sem perder nada", de `tests/store.test.ts`, confere isso.
 
-## 6. Roteiro do painel de debug
+## 7. Roteiro do painel de debug
 
 Abra `http://localhost:5173/?debug`. O painel usa o mesmo jogo salvo da tela principal. Faça na
 ordem. Cada linha diz o que fazer e o que deve acontecer.
@@ -251,13 +278,15 @@ Com o jogo rodando por alguns minutos, "Rastros: Caipora" sobe até 3 de 3 e "Me
 aumenta. "Rastros: Boitatá" só sobe quando o "Relógio do sertão" marca noite. O painel ainda
 não tem botão para fechar pacto.
 
-## 7. Se algo der errado
+## 8. Se algo der errado
 
 | Problema | O que fazer |
 |---|---|
 | `npm install` falha com erro de versão | Confira o `node -v`. Atualize o Node.js para a versão LTS. |
 | A página abre em branco | Abra as ferramentas do navegador (F12), aba Console, e veja o erro em vermelho. |
 | O jogo abriu com números estranhos de um teste antigo | Use "Apagar tudo" (três cliques). |
+| A personagem não anda no mapa | Clique uma vez na página, fora de caixas de texto, para ela receber as teclas. |
+| A personagem continua andando sozinha | Aperte e solte a tecla da direção. Trocar de janela também solta todas as teclas. |
 | Aviso de jogo aberto em outra aba | Feche as outras abas do jogo e recarregue esta. O jogo e o painel de debug abertos ao mesmo tempo também contam como duas abas. |
 | A porta 5173 está ocupada | O Vite escolhe outra porta e mostra o endereço novo no terminal. |
 | O site do Pages abre em branco | Confira se `PAGES_BASE`, em `vite.config.ts`, tem o nome do repositório entre barras. |

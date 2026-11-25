@@ -6,7 +6,11 @@
  * ausência, porque ela pula de evento em evento (próximo golpe ou fim do
  * tempo do chefe) em vez de andar em passos fixos.
  *
- * Pureza: advanceSimulation e dealDirectDamage são funções puras. Elas não
+ * O mesmo bloco de recompensas também serve o mundo aberto: rewardKills
+ * entrega Patacas, XP, Oferendas, Rastros e amuletos das visagens derrotadas
+ * no mapa, sem passar pelo combate de estágios.
+ *
+ * Pureza: advanceSimulation, dealDirectDamage e rewardKills são funções puras. Elas não
  * alteram o estado recebido, não leem o relógio e não sorteiam por conta
  * própria (o sorteio entra por parâmetro). Por dentro, trabalham em uma cópia
  * privada do estado, o "draft". As funções internas deste arquivo alteram só
@@ -19,14 +23,14 @@
  *   4. Tempo: próximo evento e relógios
  *   5. Golpes
  *   6. Derrota de inimigos e chefes
- *   7. Recompensas
+ *   7. Recompensas (também usadas pelo mundo aberto)
  */
 
 import { BALANCE, MS_PER_SECOND } from '../data/balance';
 import { randomInteger, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { receiveAmulet, rollAmuletDrop } from './amulets';
-import { getEncantado, getEnemy, getZoneForStage } from './catalog';
+import { getEncantado, getEnemy, getZone, getZoneForStage } from './catalog';
 import { getDayPhase, matchesClock } from './clock';
 import {
   getAttackDamage,
@@ -52,6 +56,8 @@ import type {
   Modifiers,
   SimulationResult,
   SimulationSummary,
+  WorldKill,
+  ZoneDef,
 } from './types';
 
 // =============================================================================
@@ -75,6 +81,14 @@ export interface SimulationOptions {
   random: RandomSource; // fonte dos sorteios (crítico, itens, Rastros, próxima visagem)
   clockMsPerSecond?: number; // quanto o relógio real anda por segundo simulado. Padrão: 1000.
   collectEvents?: boolean; // se o resultado deve trazer os eventos. Padrão: false.
+}
+
+// De quem são as recompensas: o inimigo, o estágio (ou nível do mapa) e a zona dos Rastros
+interface RewardTarget {
+  enemy: EnemyDef;
+  stage: number;
+  isBoss: boolean;
+  zone: ZoneDef;
 }
 
 // Um golpe já calculado: quem bateu, quanto tirou e se foi crítico
@@ -185,6 +199,49 @@ export function dealDirectDamage(
   const modifiers = getCurrentModifiers(context);
 
   applyDamage(context, { attackerId: DIRECT_ATTACKER_ID, damage, isCrit: false }, modifiers);
+  return toResult(context);
+}
+
+/**
+ * Entrega as recompensas de visagens derrotadas fora do combate de estágios.
+ *
+ * É a ponte entre o mundo aberto e as regras de recompensa: cada derrota no
+ * mapa rende Patacas, XP para a comitiva, Oferendas, Rastros da zona do mapa e,
+ * com sorte, um amuleto, pelas mesmas regras do combate de estágios. A compra
+ * automática de melhorias também roda depois de cada derrota.
+ *
+ * Função pura: não altera "state". Não mexe no combate de estágios, no estágio
+ * atual nem na contagem até o chefe.
+ *
+ * @param state Estado de partida. Não é alterado.
+ * @param kills Visagens derrotadas, na ordem em que caíram.
+ * @param options Instante das derrotas (decide dia, noite e lua dos Rastros) e sorteio.
+ * @returns Estado novo, resumo do que rendeu e os eventos (se pedidos).
+ *
+ * Casos de borda: lista vazia devolve o mesmo "state" recebido, com o resumo
+ * zerado. Todas as derrotas da lista usam o mesmo instante.
+ */
+export function rewardKills(
+  state: GameState,
+  kills: readonly WorldKill[],
+  options: SimulationOptions,
+): SimulationResult {
+  if (kills.length === 0) {
+    return { state, summary: createEmptySummary(), events: [] };
+  }
+
+  const context = createContext(state, options);
+
+  for (const kill of kills) {
+    const target = {
+      enemy: getEnemy(kill.enemyId),
+      stage: kill.stage,
+      isBoss: false,
+      zone: getZone(kill.zoneId),
+    };
+    grantKillRewards(context, target, getCurrentModifiers(context));
+  }
+
   return toResult(context);
 }
 
@@ -333,7 +390,13 @@ function handleEnemyDefeated(context: SimulationContext, modifiers: Modifiers): 
   const { combat } = context.draft;
   const wasBoss = combat.isBoss;
 
-  grantKillRewards(context, getEnemy(combat.enemyId), modifiers);
+  const target = {
+    enemy: getEnemy(combat.enemyId),
+    stage: context.draft.stage,
+    isBoss: wasBoss,
+    zone: getZoneForStage(context.draft.stage),
+  };
+  grantKillRewards(context, target, modifiers);
 
   if (wasBoss) {
     handleBossDefeated(context);
@@ -405,11 +468,15 @@ function spawnCommonEnemy(context: SimulationContext): void {
 // R E C O M P E N S A S
 
 // Patacas, XP, Oferendas, Rastros e, com sorte, um amuleto de um inimigo derrotado
-function grantKillRewards(context: SimulationContext, enemy: EnemyDef, modifiers: Modifiers): void {
+function grantKillRewards(
+  context: SimulationContext,
+  target: RewardTarget,
+  modifiers: Modifiers,
+): void {
   const { draft, summary } = context;
-  const { isBoss } = draft.combat;
-  const gold = getGoldReward(draft.stage, enemy, isBoss, modifiers.gold);
-  const xp = getXpReward(draft.stage, enemy, isBoss);
+  const { enemy, stage, isBoss } = target;
+  const gold = getGoldReward(stage, enemy, isBoss, modifiers.gold);
+  const xp = getXpReward(stage, enemy, isBoss);
 
   draft.gold += gold;
   draft.stats.totalGoldEarned += gold;
@@ -421,8 +488,8 @@ function grantKillRewards(context: SimulationContext, enemy: EnemyDef, modifiers
 
   grantXpToParty(context, xp);
   rollItemDrops(context, enemy, modifiers);
-  rollTrails(context, modifiers);
-  rollAmulet(context, isBoss, modifiers);
+  rollTrails(context, target.zone, modifiers);
+  rollAmulet(context, target, modifiers);
   runAutoBuy(context);
 }
 
@@ -466,11 +533,11 @@ function grantXpToParty(context: SimulationContext, xp: number): void {
 
 // Sorteia a queda de um amuleto e, se cair, guarda na mochila ou desmancha.
 // As regras são de src/domain/amulets.ts. Aqui só se liga a derrota à queda.
-function rollAmulet(context: SimulationContext, isBoss: boolean, modifiers: Modifiers): void {
+function rollAmulet(context: SimulationContext, target: RewardTarget, modifiers: Modifiers): void {
   const { draft, summary, random } = context;
   const dropInput = {
-    stage: draft.stage,
-    isBoss,
+    stage: target.stage,
+    isBoss: target.isBoss,
     dropChanceMultiplier: modifiers.amuletChance,
     amuletNumber: draft.nextAmuletNumber,
   };
@@ -514,9 +581,8 @@ function rollItemDrops(context: SimulationContext, enemy: EnemyDef, modifiers: M
 }
 
 // Sorteia Rastros dos encantados da zona que ainda não entraram na comitiva
-function rollTrails(context: SimulationContext, modifiers: Modifiers): void {
+function rollTrails(context: SimulationContext, zone: ZoneDef, modifiers: Modifiers): void {
   const { draft, summary, random, timestamp } = context;
-  const zone = getZoneForStage(draft.stage);
 
   for (const encounter of zone.encounters) {
     const { encantadoId } = encounter;

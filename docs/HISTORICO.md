@@ -2,6 +2,71 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 25/11/2026: protótipo do mundo aberto
+
+Começo da mudança de gênero escolhida no documento "pivo-gameplay-ativa" do projeto: o caminho A,
+mundo aberto no estilo de Legends of Idleon. A personagem anda por mapas vistos de cima, bate
+sozinha nas visagens que chegam perto e continua lutando com o jogo fechado. A tela principal
+passou a ser o mundo aberto. A tela antiga continua em `?classico`. A Rebrota fica para ser
+repensada depois. O salvamento subiu para a versão 4.
+
+Tudo é protótipo: dois mapas, sem imagens (blocos coloridos com o nome do arquivo que vai entrar),
+visagens que só passeiam e não batem, e só o primeiro da comitiva luta no mapa.
+
+Domínio:
+
+- `src/domain/world.ts` (novo): cena do mapa, movimento com colisão, passagens entre mapas,
+  nascimento, passeio e volta das visagens, golpe automático, quem anda e bate
+  (`getWorldFighter`) e o registro da posição (`recordWorldStep`).
+- `src/domain/worldOffline.ts` (novo): ritmo do mapa (visagens por segundo) e os ganhos do
+  tempo fora, com o teto e a eficiência de sempre.
+- `src/domain/simulation.ts`: o bloco de recompensas passou a receber o estágio e a zona por
+  parâmetro, e ganhou a função pública `rewardKills`, que entrega as recompensas das derrotas no
+  mapa pelas mesmas regras.
+- `src/domain/types.ts`: bloco "Mundo aberto" (ladrilho, mapa, passagem, cena, visagem no mapa,
+  entrada, eventos). O `GameState` ganhou `world` (mapa e posição da personagem).
+- `src/domain/catalog.ts`: `getZone`, `hasZone`, `getWorldMap`, `hasWorldMap`,
+  `getFirstWorldMap`, `getTileAt` e `getMapSize`. `src/domain/state.ts`: `createStartPosition`.
+
+Dados:
+
+- `src/data/world.ts` (novo): quatro tipos de ladrilho e os mapas "Beira da Mata" (nível 1) e
+  "Brejo Escuro" (nível 4), ligados por uma passagem.
+- `src/data/balance.ts`: `saveVersion: 4` e o bloco do mundo aberto (velocidades, alcance,
+  tamanho do corpo, passeio, volta das visagens, ritmo da ausência).
+
+Store:
+
+- `src/store/useGameStore.ts`: o tick roda um motor por vez (campo de sessão `engine`).
+  `runWorldTick` anda com a cena e entrega as derrotas para `rewardKills`. A ausência usa a conta
+  do mapa no motor `mundo`. Ações novas `setEngine` e `setWorldInput`.
+- `src/store/types.ts`: `GameEngine` e os campos de sessão `engine`, `worldScene`, `worldInput`
+  e `worldEvents`.
+- `src/store/gameLoop.ts`: `startGameLoop(engine)`, com 16 ms no mundo aberto.
+- `src/store/saveManager.ts`: `MIGRATIONS[3]` (versão 3 para 4) e `sanitizeWorld`.
+- `src/store/selectors.ts`: bloco "Mundo aberto" com `selectWorldMapView`, `selectWorldHud` e
+  `readWorldFrame`.
+
+Tela:
+
+- `src/components/world/` (nova pasta): `WorldScreen`, `WorldCanvas` (desenho no canvas, fora do
+  React), `worldRenderer.ts` (câmera e camadas), `WorldSidePanel` e `sprites.ts` (o arquivo de
+  imagem de cada coisa do mapa).
+- `src/components/hooks/useWorldKeyboard.ts` (novo): setas e W, A, S e D.
+- `src/App.tsx`: abre o mundo aberto por padrão, `?classico` para a tela antiga e `?debug` para
+  o painel.
+- `public/sprites/` (nova pasta) e `docs/SPRITES.md` (novo): onde entram as imagens e a lista de
+  arquivos.
+
+Testes:
+
+- `tests/world.test.ts` (novo): montagem da cena, movimento, colisão, passagens, golpe, volta das
+  visagens, recompensas e ausência no mapa.
+- `tests/WorldScreen.test.tsx` (novo): escolha inicial, painel, legenda das imagens e teclado.
+- `tests/data.test.ts`: mapas (desenho retangular, ladrilhos conhecidos, ids, início e
+  passagens). `tests/store.test.ts`: salvamento da versão 3, passo e ausência no mapa, posição
+  estragada ao importar.
+
 ## 25/11/2026: Rebrota e juazeiro
 
 O prestígio do jogo, conforme o design aprovado (documento "design-rebrota" do projeto). O

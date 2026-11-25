@@ -589,7 +589,7 @@ describe('Rebrota e salvamento da versão 3', () => {
     const useGameStore = await openGame();
     const state = useGameStore.getState();
 
-    expect(state.version).toBe(3);
+    expect(state.version).toBe(BALANCE.saveVersion);
     expect(state.maxStage).toBe(38);
     expect(state.shavings).toBe(7);
     expect(state.autoSalvage).toBe('comum');
@@ -653,5 +653,116 @@ describe('Rebrota e salvamento da versão 3', () => {
     useGameStore.getState().importSave(tampered({ 'mao-ligeira': 1 }, 2));
     expect(useGameStore.getState().juazeiro).toEqual({});
     expect(useGameStore.getState().roots).toBe(2);
+  });
+});
+
+describe('mundo aberto e salvamento da versão 4', () => {
+  // Estado como a versão 3 gravava: com a Rebrota e sem o mundo aberto
+  const versionThreeState = {
+    version: 3,
+    gold: 321,
+    stage: 12,
+    maxStage: 12,
+    killsInStage: 0,
+    autoProgress: true,
+    party: ['iara'],
+    roster: { iara: { id: 'iara', level: 8, xp: 0, bond: 0 } },
+    trails: {},
+    inventory: {},
+    upgrades: {},
+    roots: 0,
+    juazeiro: {},
+    edition: 1,
+    recordStage: 0,
+    editionSeconds: 600,
+    autoBuy: false,
+    amulets: {},
+    equipped: {},
+    shavings: 0,
+    autoSalvage: null,
+    nextAmuletNumber: 1,
+    lastSaveTimestamp: START,
+    stats: {
+      totalKills: 120,
+      totalGoldEarned: 900,
+      bossesDefeated: 1,
+      playTimeSeconds: 600,
+      amuletsFound: 0,
+      bossesFailed: 0,
+    },
+  };
+
+  // Abre o jogo no motor do mundo, com o Saci escolhido
+  async function openWorld(): Promise<StoreModule['useGameStore']> {
+    const useGameStore = await openGame();
+    useGameStore.getState().setEngine('mundo');
+    useGameStore.getState().chooseStarter('saci');
+    return useGameStore;
+  }
+
+  it('abre um salvamento da versão 3 no começo do primeiro mapa, sem perder nada', async () => {
+    localStorage.setItem(
+      SAVE_STORAGE_KEY,
+      JSON.stringify({ state: versionThreeState, version: 3 }),
+    );
+    const useGameStore = await openGame();
+    const state = useGameStore.getState();
+
+    expect(state.version).toBe(BALANCE.saveVersion);
+    expect(state.world).toEqual({ mapId: 'beira-da-mata', x: 4.5, y: 10.5 });
+    expect(state.gold).toBe(321);
+    expect(state.stage).toBe(12);
+    expect(state.party).toEqual(['iara']);
+  });
+
+  it('anda com a personagem no tick e guarda a posição', async () => {
+    const useGameStore = await openWorld();
+    const startX = useGameStore.getState().world.x;
+    const combatBefore = useGameStore.getState().combat;
+
+    useGameStore.getState().setWorldInput({ moveX: 1, moveY: 0 });
+    for (let tick = 0; tick < 10; tick += 1) {
+      vi.advanceTimersByTime(100);
+      useGameStore.getState().tick(Date.now());
+    }
+
+    const state = useGameStore.getState();
+    expect(state.worldScene).not.toBeNull();
+    expect(state.world.x).toBeCloseTo(startX + BALANCE.playerSpeed, 6);
+    expect(state.world.x).toBe(state.worldScene?.playerX);
+    // O motor de estágios fica parado enquanto se joga no mapa
+    expect(state.killsInStage).toBe(0);
+    expect(state.combat).toEqual(combatBefore);
+  });
+
+  it('rende a ausência pela conta do mapa', async () => {
+    const useGameStore = await openWorld();
+    useGameStore.getState().tick(Date.now());
+    vi.advanceTimersByTime(ONE_HOUR_MS);
+    useGameStore.getState().tick(Date.now());
+
+    const state = useGameStore.getState();
+    expect(state.offlineReport?.summary.kills).toBeGreaterThan(0);
+    expect(state.offlineReport?.summary.stagesAdvanced).toBe(0);
+    expect(state.gold).toBeGreaterThan(0);
+    expect(state.stage).toBe(1);
+  });
+
+  it('volta para o começo do mapa ao importar uma posição estragada', async () => {
+    const useGameStore = await openWorld();
+    const broken = { ...versionThreeState, version: 4, world: { mapId: 'nada', x: 3, y: 3 } };
+    const code = btoa(JSON.stringify({ game: 'encantados', version: 4, state: broken }));
+
+    expect(useGameStore.getState().importSave(code)).toEqual({ ok: true });
+    expect(useGameStore.getState().world).toEqual({ mapId: 'beira-da-mata', x: 4.5, y: 10.5 });
+    expect(useGameStore.getState().worldScene).toBeNull();
+  });
+
+  it('só grava a direção quando ela muda', async () => {
+    const useGameStore = await openWorld();
+    useGameStore.getState().setWorldInput({ moveX: 1, moveY: 0 });
+    const first = useGameStore.getState().worldInput;
+    useGameStore.getState().setWorldInput({ moveX: 1, moveY: 0 });
+    expect(useGameStore.getState().worldInput).toBe(first);
   });
 });

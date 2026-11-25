@@ -11,7 +11,15 @@
  *   4. Store completa
  */
 
-import type { CombatEvent, GameState, OfflineReport, Rarity } from '../domain/types';
+import type {
+  CombatEvent,
+  GameState,
+  OfflineReport,
+  Rarity,
+  WorldEvent,
+  WorldInput,
+  WorldScene,
+} from '../domain/types';
 
 // =============================================================================
 // =============================================================================
@@ -31,8 +39,15 @@ export interface SaveReceipt {
 // =============================================================================
 // E S T A D O   D E   S E S S Ã O
 
+// Qual motor o tick roda: o mapa em tempo real ou o combate de estágios (tela clássica)
+export type GameEngine = 'mundo' | 'estagios';
+
 // Campos que existem só enquanto o jogo está aberto. Não vão para o localStorage.
 export interface SessionState {
+  engine: GameEngine; // escolhido pela tela que abriu (src/App.tsx)
+  worldScene: WorldScene | null; // o que está no mapa agora. Null: ainda não montado.
+  worldInput: WorldInput; // direção que a pessoa está apertando
+  worldEvents: readonly WorldEvent[]; // golpes e derrotas do último tick, para a tela animar
   offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
   combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
   isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
@@ -59,6 +74,10 @@ export interface GameActions {
   tick: (now?: number) => void;
   dismissOfflineReport: () => void;
   yieldToAnotherTab: () => void;
+
+  // Mundo aberto
+  setEngine: (engine: GameEngine) => void;
+  setWorldInput: (input: WorldInput) => void;
 
   // Jogo. Devolvem true quando a ação foi aplicada.
   chooseStarter: (encantadoId: string) => boolean;

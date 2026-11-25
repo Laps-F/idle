@@ -32,7 +32,8 @@
  *   9. Construção: juazeiro e Rebrota
  *  10. Construção: ausência e escolha inicial
  *  11. Construção: visões do painel de debug
- *  12. Ferramentas
+ *  12. Mundo aberto: visões, seletores e a leitura de cada quadro
+ *  13. Ferramentas
  */
 
 import {
@@ -60,6 +61,9 @@ import {
   getEncantado,
   getEnemy,
   getItem,
+  getMapSize,
+  getTileAt,
+  getWorldMap,
   getZoneForStage,
 } from '../domain/catalog';
 import { getClockInfo, getDayPhase } from '../domain/clock';
@@ -100,6 +104,7 @@ import type {
   MoonPhase,
   Origin,
   Rarity,
+  WorldEvent,
 } from '../domain/types';
 import { isDeepEqual } from '../utils/object';
 import type { GameSnapshot, RebrotaCeremony } from './types';
@@ -946,6 +951,145 @@ function buildPartyView(snapshot: GameSnapshot): PartyView {
       isInParty: card.isInParty,
       attackProgress: readAttackProgress(snapshot, card.id),
     })),
+  };
+}
+
+
+// =============================================================================
+// =============================================================================
+// M U N D O   A B E R T O
+
+// O desenho de um mapa: um id de ladrilho por coluna, uma lista por linha
+export interface WorldMapView {
+  id: string;
+  name: string;
+  level: number;
+  width: number; // em ladrilhos
+  height: number;
+  tiles: string[][]; // tiles[linha][coluna] = id do ladrilho (src/data/world.ts)
+  portals: { x: number; y: number; toName: string }[];
+}
+
+// Painel ao lado do mapa: onde a personagem está e quem é ela
+export interface WorldHudView {
+  mapName: string;
+  mapLevel: number;
+  leadName: string | null; // null antes da escolha do encantado inicial
+  leadLevel: number;
+  leadXp: number;
+  leadXpToNextLevel: number;
+  totalKills: number;
+}
+
+// Uma visagem no quadro atual
+export interface WorldEnemyFrame {
+  uid: number;
+  enemyId: string;
+  name: string;
+  x: number;
+  y: number;
+  hpFraction: number; // de 0 a 1
+}
+
+// Tudo que o canvas desenha num quadro. Muda a cada tick, então não passa pelo React.
+export interface WorldFrame {
+  mapId: string;
+  leadId: string | null;
+  playerX: number;
+  playerY: number;
+  attackProgress: number; // de 0 a 1
+  attackRange: number; // em ladrilhos
+  bodyRadius: number; // em ladrilhos
+  enemies: WorldEnemyFrame[];
+}
+
+// Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota, troca de mapa)
+export type WorldEventView = WorldEvent;
+
+// O desenho de cada mapa é montado uma vez só: o mapa não muda durante o jogo
+const worldMapViewCache = new Map<string, WorldMapView>();
+
+// Mapa da cena atual (ou do salvamento, antes de a cena existir)
+export function selectWorldMapView(snapshot: GameSnapshot): WorldMapView {
+  const mapId = snapshot.worldScene?.mapId ?? snapshot.world.mapId;
+  const cached = worldMapViewCache.get(mapId);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const view = buildWorldMapView(mapId);
+  worldMapViewCache.set(mapId, view);
+  return view;
+}
+
+export const selectWorldHud = createStableSelector(buildWorldHud);
+
+/**
+ * Leitura de cada quadro do canvas: personagem, visagens e barra de ataque.
+ *
+ * Não use com useGameStore(...): muda a cada tick e redesenharia o React.
+ * O canvas chama esta leitura com useGameStore.getState() a cada quadro.
+ *
+ * @param snapshot Retrato da store.
+ * @returns O quadro, ou null antes de a cena do mapa existir (antes do primeiro tick).
+ */
+export function readWorldFrame(snapshot: GameSnapshot): WorldFrame | null {
+  const scene = snapshot.worldScene;
+
+  if (scene === null) {
+    return null;
+  }
+
+  return {
+    mapId: scene.mapId,
+    leadId: snapshot.party[0] ?? null,
+    playerX: scene.playerX,
+    playerY: scene.playerY,
+    attackProgress: scene.attackProgress,
+    attackRange: BALANCE.attackRange,
+    bodyRadius: BALANCE.bodyRadius,
+    enemies: scene.enemies.map((enemy) => ({
+      uid: enemy.uid,
+      enemyId: enemy.enemyId,
+      name: getEnemy(enemy.enemyId).name,
+      x: enemy.x,
+      y: enemy.y,
+      hpFraction: enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0,
+    })),
+  };
+}
+
+// Desenho de um mapa a partir de src/data/world.ts
+function buildWorldMapView(mapId: string): WorldMapView {
+  const map = getWorldMap(mapId);
+  const { width, height } = getMapSize(map);
+  const tiles = Array.from({ length: height }, (_, row) =>
+    Array.from({ length: width }, (_, column) => getTileAt(map, column, row)?.id ?? 'desconhecido'),
+  );
+  const portals = map.portals.map((portal) => ({
+    x: portal.x,
+    y: portal.y,
+    toName: getWorldMap(portal.toMapId).name,
+  }));
+
+  return { id: map.id, name: map.name, level: map.level, width, height, tiles, portals };
+}
+
+// Painel do mapa: nome, nível e o encantado que anda
+function buildWorldHud(snapshot: GameSnapshot): WorldHudView {
+  const map = selectWorldMapView(snapshot);
+  const leadId = snapshot.party[0];
+  const owned = leadId === undefined ? undefined : snapshot.roster[leadId];
+
+  return {
+    mapName: map.name,
+    mapLevel: map.level,
+    leadName: leadId === undefined ? null : getEncantado(leadId).name,
+    leadLevel: owned?.level ?? 0,
+    leadXp: owned?.xp ?? 0,
+    leadXpToNextLevel: owned === undefined ? 0 : getXpToNextLevel(owned.level),
+    totalKills: snapshot.stats.totalKills,
   };
 }
 

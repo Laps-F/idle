@@ -26,17 +26,19 @@ import {
   getAmuletRarity,
   getJuazeiroNode,
   getUpgrade,
+  getWorldMap,
   getZoneForStage,
   hasAmuletBase,
   hasEncantado,
   hasItem,
   hasJuazeiroNode,
   hasUpgrade,
+  hasWorldMap,
   isAmuletRarity,
 } from '../domain/catalog';
 import { getJuazeiroBonuses, getSpentRoots } from '../domain/juazeiro';
 import { isModifierStat } from '../domain/modifiers';
-import { createCommonEnemyCombat, createInitialState } from '../domain/state';
+import { createCommonEnemyCombat, createInitialState, createStartPosition } from '../domain/state';
 import type {
   Amulet,
   AmuletBonus,
@@ -44,7 +46,9 @@ import type {
   GameState,
   GameStats,
   OwnedEncantado,
+  WorldPosition,
 } from '../domain/types';
+import { getMapStart, isWalkablePosition } from '../domain/world';
 import { decodeBase64, encodeBase64 } from '../utils/base64';
 import { isRecord } from '../utils/object';
 import type { RandomSource } from '../utils/random';
@@ -335,6 +339,10 @@ const MIGRATIONS: Record<number, Migration> = {
       stats: { ...stats, bossesFailed: 0 },
     };
   },
+
+  // Versão 3 -> 4: entrou o mundo aberto. Quem jogava antes começa no ponto de
+  // partida do primeiro mapa. Todo o resto (comitiva, estágio, amuletos) fica igual.
+  3: (save) => ({ ...save, world: createStartPosition() }),
 };
 
 /**
@@ -397,6 +405,8 @@ export function migrateSave(save: unknown, fromVersion: number): unknown {
  *   Se os nós custarem mais Raízes do que as fincadas, o juazeiro é zerado (as
  *   Raízes voltam a ficar livres).
  * - Edição abaixo de 1 vira 1. O tempo do chefe aceita o bônus do juazeiro.
+ * - Posição no mundo aberto num mapa que não existe, dentro de árvore ou água, ou
+ *   fora do mapa: volta para o ponto de partida daquele mapa (ou do primeiro mapa).
  */
 export function sanitizeGameState(raw: unknown, now: number, random: RandomSource): GameState {
   if (!isRecord(raw)) {
@@ -434,6 +444,7 @@ export function sanitizeGameState(raw: unknown, now: number, random: RandomSourc
     autoSalvage: isAmuletRarity(raw.autoSalvage) ? raw.autoSalvage : null,
     nextAmuletNumber: sanitizeNextAmuletNumber(raw.nextAmuletNumber, amulets),
     combat: sanitizeCombat(raw.combat, { stage, party, juazeiro }, random),
+    world: sanitizeWorld(raw.world),
     lastSaveTimestamp: Math.min(toNumber(raw.lastSaveTimestamp, now, 0), now),
     stats: sanitizeStats(raw.stats),
   };
@@ -680,6 +691,26 @@ function sanitizeAttackProgress(raw: unknown, party: readonly string[]): Record<
   }
 
   return attackProgress;
+}
+
+
+// Posição no mundo aberto: mapa que existe e ponto livre. Senão, o início do mapa.
+function sanitizeWorld(raw: unknown): WorldPosition {
+  const fallback = createStartPosition();
+
+  if (!isRecord(raw) || typeof raw.mapId !== 'string' || !hasWorldMap(raw.mapId)) {
+    return fallback;
+  }
+
+  const map = getWorldMap(raw.mapId);
+  const x = toNumber(raw.x, -1, -1);
+  const y = toNumber(raw.y, -1, -1);
+
+  if (isWalkablePosition(map, x, y)) {
+    return { mapId: map.id, x, y };
+  }
+
+  return { mapId: map.id, ...getMapStart(map) };
 }
 
 
