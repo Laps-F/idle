@@ -392,6 +392,29 @@ export interface ExpeditionState {
   mapId: string;
   encantadoId: string; // quem saiu em expedição (o primeiro da comitiva na hora de partir)
   loot: ExpeditionLoot[];
+  trails: Record<string, number>; // Rastros das pegadas pegas, por encantado, entregues na volta
+}
+
+// Um encantado cujas pegadas podem aparecer no mapa, e quantas ainda faltam para o pacto
+export interface TrailTarget {
+  encantadoId: string;
+  remaining: number; // pegadas que ainda valem a pena (o que falta, menos o que já está na bolsa)
+}
+
+// Uma pegada no chão do mapa. Passar por cima vira um Rastro na bolsa.
+export interface SceneFootprint {
+  uid: number;
+  encantadoId: string;
+  x: number;
+  y: number;
+}
+
+// O que a cena precisa para começar (createExpeditionScene)
+export interface SceneSetup {
+  mapId: string;
+  fighter: Pick<ExpeditionFighter, 'maxHp' | 'damage'> | null; // null: vida base e nível 1
+  trailTargets: TrailTarget[]; // de quem as pegadas podem ser. Vazio: nenhuma pegada.
+  trailChance: number; // multiplicador de chance de Rastro de quem sai (1: normal)
 }
 
 // Como a expedição terminou
@@ -434,6 +457,11 @@ export interface ExpeditionScene {
   spawnTimer: number; // segundos até a próxima visagem entrar no mapa
   nextEnemyUid: number;
   nextProjectileUid: number;
+  footprints: SceneFootprint[];
+  trailTargets: TrailTarget[]; // "remaining" desce a cada pegada que surge
+  footprintTimer: number; // segundos até a próxima pegada surgir
+  footprintIntervalSeconds: number; // intervalo entre pegadas, já com a chance de Rastro
+  nextFootprintUid: number;
 }
 
 // Um projétil voando pelo mapa. Só existe com o jogo aberto, não é salvo.
@@ -478,12 +506,14 @@ export interface MapKill {
 export type SceneEvent =
   | { type: 'hit'; x: number; y: number; damage: number; isCrit: boolean }
   | { type: 'defeat'; x: number; y: number; enemyId: string }
-  | { type: 'hurt'; x: number; y: number; damage: number };
+  | { type: 'hurt'; x: number; y: number; damage: number }
+  | { type: 'trail'; x: number; y: number; encantadoId: string };
 
 // O que um passo da cena devolve. "outcome" vem preenchido quando a expedição acabou.
 export interface SceneStepResult {
   scene: ExpeditionScene;
   kills: MapKill[];
+  trails: string[]; // encantado de cada pegada pega no passo (um Rastro cada)
   events: SceneEvent[];
   outcome: ExpeditionOutcome | null;
 }

@@ -79,6 +79,7 @@ src/
     expeditionProjectiles.ts  voo e acerto dos projéteis da expedição
     expeditionScaling.ts  escala da expedição: nível pelo poder de quem sai, dano da encostada
     expeditionLoot.ts  saque próprio da expedição: o que cada visagem da bolsa rende
+    expeditionFootprints.ts  pegadas de Rastro no mapa: surgir e pegar
     sceneGeometry.ts   distâncias, colisão e ladrilhos livres do mapa
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
@@ -168,6 +169,9 @@ laço passa a rodar a cada 16 ms para a personagem andar suave.
 
 - As visagens derrotadas no mapa vão para a bolsa (`src/domain/expedition.ts`). A bolsa é salva.
   A cena (onde estão as visagens, a vida) não é.
+- Pegadas de Rastro surgem no chão (`src/domain/expeditionFootprints.ts`). Passar por cima guarda
+  um Rastro na bolsa. A expedição é a fonte principal de Rastros: a clareira dá só 15% do que
+  dava (`clearingTrailMultiplier`).
 - Na volta, a bolsa vira Patacas, XP, Oferendas, Rastros e amuletos pelo saque próprio de cada
   mapa (`src/data/expeditionLoot.ts`, entregue por `src/domain/expeditionLoot.ts`).
 - A expedição não roda com o jogo fechado. Ela pausa ao esconder a aba, ao trocar de janela e
@@ -304,8 +308,9 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSki
 
 ## Próximas etapas
 
-1. Jogar o protótipo da expedição e decidir se o combate é divertido. Balancear as ondas.
-2. Esquiva e um golpe especial diferente para cada encantado.
-3. Dar à expedição um saque próprio (o que só ela entrega) e ligar Rastros a pegadas no mapa.
+1. Caminho 1 (ligar a clareira e a expedição): pausa, escala, saque próprio e pegadas prontos.
+   Falta o preparo com Oferendas antes de partir.
+2. Jogar a expedição e decidir se o combate é divertido. Balancear as ondas.
+3. Esquiva, bênçãos e um golpe especial diferente para cada encantado.
 4. Repensar a Rebrota com a clareira e as expedições.
 5. Imagens no lugar dos blocos coloridos (docs/SPRITES.md) e controle na tela para celular.

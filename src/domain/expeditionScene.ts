@@ -26,8 +26,10 @@
  * Coordenadas em ladrilhos (ver o bloco "Expedições" de src/domain/types.ts).
  *
  * Arquivos vizinhos: o voo e o acerto dos projéteis ficam em
- * src/domain/expeditionProjectiles.ts, e distâncias, colisão e ladrilhos
- * livres em src/domain/sceneGeometry.ts.
+ * src/domain/expeditionProjectiles.ts, as pegadas de Rastro em
+ * src/domain/expeditionFootprints.ts, o nível e o dano das visagens em
+ * src/domain/expeditionScaling.ts, e distâncias, colisão e ladrilhos livres em
+ * src/domain/sceneGeometry.ts.
  *
  * Mapa:
  *   1. Constantes e tipos
@@ -42,6 +44,12 @@ import { BALANCE } from '../data/balance';
 import { pickRandom, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { getEnemy, getExpeditionMap } from './catalog';
+import {
+  copyTrailTargets,
+  getFootprintInterval,
+  maybeDropFootprint,
+  updateFootprints,
+} from './expeditionFootprints';
 import { launchProjectile, updateProjectiles } from './expeditionProjectiles';
 import { getEnemyContactDamage, getFighterBaseLevel, getWaveLevel } from './expeditionScaling';
 import { getEnemyMaxHp } from './formulas';
@@ -63,6 +71,7 @@ import type {
   MapKill,
   SceneEnemy,
   SceneEvent,
+  SceneSetup,
   SceneStepResult,
 } from './types';
 
@@ -75,9 +84,6 @@ const WANDER_ATTEMPTS = 6;
 
 const SECONDS_PER_MINUTE = 60;
 
-// O que a cena precisa saber de quem sai para começar (ExpeditionFighter serve)
-type SceneFighterStats = Pick<ExpeditionFighter, 'maxHp' | 'damage'>;
-
 // Tudo que um passo precisa. O draft é a cópia de trabalho da cena.
 interface StepContext {
   draft: ExpeditionScene;
@@ -85,6 +91,7 @@ interface StepContext {
   fighter: ExpeditionFighter | null;
   random: RandomSource;
   kills: MapKill[];
+  trails: string[];
   events: SceneEvent[];
   outcome: ExpeditionOutcome | null;
   isSpecialPending: boolean; // o pedido de golpe especial vale uma vez por chamada
@@ -100,24 +107,22 @@ interface StepContext {
  *
  * O nível de partida (baseLevel) sai do dano de quem sai e fica fixo durante a
  * expedição inteira (src/domain/expeditionScaling.ts). Se a comitiva ficar mais
- * forte na clareira no meio da expedição, as visagens não mudam.
+ * forte na clareira no meio da expedição, as visagens não mudam. A primeira
+ * pegada surge na metade do intervalo normal, para aparecer logo.
  *
- * @param mapId Mapa da expedição. Precisa existir em src/data/world.ts.
- * @param fighter Quem sai: a vida cheia e o dano decidem a cena. Null: vida
- *                playerBaseHp e nível de partida 1.
+ * @param setup Mapa, quem sai (vida e dano), de quem são as pegadas e a chance de
+ *              Rastro. Sem quem sai: vida playerBaseHp e nível de partida 1.
  * @param random Fonte de sorteio para o lugar e o tipo das primeiras visagens.
  * @returns Cena no tempo zero: personagem no início do mapa, olhando para a direita, com a vida
- *          cheia, golpe especial pronto e waveStartEnemies visagens longe dela.
+ *          cheia, golpe especial pronto, waveStartEnemies visagens longe dela e nenhuma pegada.
  * @throws Error se o mapa não existir.
  */
-export function createExpeditionScene(
-  mapId: string,
-  fighter: SceneFighterStats | null,
-  random: RandomSource,
-): ExpeditionScene {
+export function createExpeditionScene(setup: SceneSetup, random: RandomSource): ExpeditionScene {
+  const { mapId, fighter } = setup;
   const map = getExpeditionMap(mapId);
   const start = toTileCenter(map.start.x, map.start.y);
   const maxHp = fighter?.maxHp ?? BALANCE.playerBaseHp;
+  const footprintInterval = getFootprintInterval(setup.trailChance);
   const context = createContext(
     {
       mapId,
@@ -137,6 +142,11 @@ export function createExpeditionScene(
       spawnTimer: BALANCE.waveSpawnSecondsStart,
       nextEnemyUid: 1,
       nextProjectileUid: 1,
+      footprints: [],
+      trailTargets: copyTrailTargets(setup.trailTargets),
+      footprintTimer: footprintInterval / 2,
+      footprintIntervalSeconds: footprintInterval,
+      nextFootprintUid: 1,
     },
     null,
     random,
@@ -157,7 +167,8 @@ export function createExpeditionScene(
  * passagem de volta é conferida, as visagens passeiam ou perseguem e batem ao
  * encostar, o projétil especial sai (se pedido e pronto), o projétil comum
  * sai (se a barra encheu e há visagem no alcance), os projéteis voam e
- * acertam, as ondas trazem visagens novas e o fim do tempo é conferido.
+ * acertam, as ondas trazem visagens novas, as pegadas são pegas ou surgem e o
+ * fim do tempo é conferido.
  * Quando a expedição acaba, o resto do intervalo é ignorado.
  *
  * Função pura: não altera "scene" nem "input".
@@ -167,8 +178,8 @@ export function createExpeditionScene(
  * @param input Direção (cada eixo de -1 a 1) e pedido de golpe especial.
  * @param seconds Quantos segundos de jogo simular.
  * @param random Fonte de sorteio (crítico, passeio e nascimento das visagens).
- * @returns Cena nova, visagens derrotadas, eventos para a tela e como a expedição
- *          terminou (null se ela continua).
+ * @returns Cena nova, visagens derrotadas, pegadas pegas (um encantado por Rastro),
+ *          eventos para a tela e como a expedição terminou (null se ela continua).
  *
  * Casos de borda:
  * - "seconds" zero, negativo ou NaN: devolve a mesma cena, sem nada acontecer.
@@ -188,7 +199,7 @@ export function advanceScene(
   random: RandomSource,
 ): SceneStepResult {
   if (!(seconds > 0)) {
-    return { scene, kills: [], events: [], outcome: null };
+    return { scene, kills: [], trails: [], events: [], outcome: null };
   }
 
   const context = createContext(structuredClone(scene), fighter, random);
@@ -204,6 +215,7 @@ export function advanceScene(
   return {
     scene: context.draft,
     kills: context.kills,
+    trails: context.trails,
     events: context.events,
     outcome: context.outcome,
   };
@@ -227,6 +239,7 @@ function createContext(
     fighter,
     random,
     kills: [],
+    trails: [],
     events: [],
     outcome: null,
     isSpecialPending: false,
@@ -260,6 +273,7 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
     damageEnemy(context, enemy, damage, isCrit),
   );
   updateWaves(context, seconds);
+  updateFootprints(context, seconds);
 
   if (draft.elapsedSeconds >= BALANCE.expeditionDurationSeconds - SCENE_EPSILON) {
     context.outcome = 'concluida';
@@ -593,4 +607,5 @@ function damageEnemy(
   draft.enemies = draft.enemies.filter((candidate) => candidate.uid !== enemy.uid);
   context.kills.push({ enemyId: enemy.enemyId, stage: enemy.level, zoneId: map.zoneId });
   context.events.push({ type: 'defeat', x: enemy.x, y: enemy.y, enemyId: enemy.enemyId });
+  maybeDropFootprint(context, { x: enemy.x, y: enemy.y });
 }

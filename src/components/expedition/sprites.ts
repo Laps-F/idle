@@ -56,6 +56,9 @@ const MISSING_TILE_SPRITE: SpriteSlot = { file: 'faltando.png', color: '#ff00aa'
 // A passagem de volta para a clareira
 export const EXIT_SPRITE: SpriteSlot = { file: 'portal.png', color: '#7a4fa8' };
 
+// Pegada de Rastro no chão (a mesma imagem para todos os encantados, com o nome escrito)
+export const FOOTPRINT_SPRITE: SpriteSlot = { file: 'pegada.png', color: '#e07b2e' };
+
 // Projéteis: o comum e o especial
 export const PROJECTILE_SPRITE: SpriteSlot = { file: 'projectile.png', color: '#f1ead8' };
 export const SPECIAL_PROJECTILE_SPRITE: SpriteSlot = {

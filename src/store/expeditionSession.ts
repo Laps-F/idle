@@ -21,13 +21,15 @@
 import { BALANCE } from '../data/balance';
 import {
   addKillsToLoot,
+  addTrailsToLoot,
   finishExpedition,
   getExpeditionFighter,
+  getSceneSetup,
   startExpedition,
 } from '../domain/expedition';
 import { advanceScene, createExpeditionScene } from '../domain/expeditionScene';
 import { pickGameState } from '../domain/state';
-import type { ExpeditionOutcome } from '../domain/types';
+import type { ExpeditionOutcome, ExpeditionScene, GameState } from '../domain/types';
 import { applyInput, commitState, NO_INPUT, NO_SCENE_EVENTS } from './storeTools';
 import type { GetStore, SetStore } from './storeTools';
 import type { GameActions, SessionState } from './types';
@@ -69,11 +71,7 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
         get,
         (state) => startExpedition(state, mapId),
         (_previous, next) => ({
-          expeditionScene: createExpeditionScene(
-            mapId,
-            getExpeditionFighter(next, Date.now()),
-            Math.random,
-          ),
+          expeditionScene: createSceneFor(next),
           moveInput: NO_INPUT,
           isSpecialPending: false,
           isExpeditionPaused: false,
@@ -167,7 +165,8 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
 /**
  * Um passo da expedição, depois do passo da clareira.
  *
- * Anda com a cena pelo tempo que passou, guarda as derrotas na bolsa e, se a
+ * Anda com a cena pelo tempo que passou, guarda as derrotas e os Rastros das
+ * pegadas pegas na bolsa e, se a
  * expedição acabou (fim do tempo, vida zerada ou passagem de volta), entrega a bolsa.
  *
  * @param set Função de gravação da store.
@@ -208,7 +207,9 @@ export function runExpeditionTick(
   const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
   const hasEvents = isTabActive && step.events.length > 0;
 
-  commitState(set, current, addKillsToLoot(current, step.kills), {
+  const withLoot = addTrailsToLoot(addKillsToLoot(current, step.kills), step.trails);
+
+  commitState(set, current, withLoot, {
     expeditionScene: step.scene,
     sceneEvents: hasEvents ? step.events : NO_SCENE_EVENTS,
     isSpecialPending: false,
@@ -281,6 +282,12 @@ export function holdExpeditionDuringAbsence(set: SetStore, get: GetStore): void 
   } else {
     set(PAUSED_SESSION);
   }
+}
+
+// Cena do começo da expedição que acabou de partir. Null não acontece depois de startExpedition.
+function createSceneFor(state: GameState): ExpeditionScene | null {
+  const setup = getSceneSetup(state, Date.now());
+  return setup === null ? null : createExpeditionScene(setup, Math.random);
 }
 
 // Dá para pausar: há expedição com cena, ainda não pausada, e esta aba cuida do jogo

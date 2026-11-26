@@ -726,7 +726,13 @@ describe('expedições e salvamento da versão 5', () => {
     const useGameStore = await openExpedition();
     const state = useGameStore.getState();
 
-    expect(state.expedition).toEqual({ mapId: 'beira-da-mata', encantadoId: 'saci', loot: [] });
+    expect(state.expedition).toEqual({
+      mapId: 'beira-da-mata',
+      encantadoId: 'saci',
+      loot: [],
+      trails: {},
+    });
+    expect(state.expeditionScene?.trailTargets).toEqual([{ encantadoId: 'caipora', remaining: 3 }]);
     expect(state.expeditionScene?.playerHp).toBe(BALANCE.playerBaseHp);
     expect(state.startExpedition('brejo-escuro')).toBe(false);
   });
@@ -751,6 +757,7 @@ describe('expedições e salvamento da versão 5', () => {
         mapId: 'beira-da-mata',
         encantadoId: 'saci',
         loot: [{ enemyId: 'visagem-da-neblina', level: 1, count: 5 }],
+        trails: {},
       },
     });
     const goldBefore = useGameStore.getState().gold;
@@ -850,9 +857,34 @@ describe('expedições e salvamento da versão 5', () => {
     const useGameStore = await openGame();
 
     expect(useGameStore.getState().expedition?.loot).toHaveLength(1);
+    // Salvamento da versão 5 de antes das pegadas: sem "trails", abre com a bolsa sem Rastros
+    expect(useGameStore.getState().expedition?.trails).toEqual({});
     runTicks(useGameStore, 1);
     expect(useGameStore.getState().expedition).toBeNull();
     expect(useGameStore.getState().expeditionReport?.kills).toBe(3);
+  });
+
+  it('entrega os Rastros das pegadas da bolsa salva, sem os que não existem', async () => {
+    const saved = {
+      ...versionFourState,
+      version: 5,
+      world: undefined,
+      expedition: {
+        mapId: 'beira-da-mata',
+        encantadoId: 'iara',
+        loot: [],
+        trails: { caipora: 2, nada: 4, boitata: -1 },
+      },
+    };
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: saved, version: 5 }));
+    const useGameStore = await openGame();
+    const trailsBefore = useGameStore.getState().trails.caipora ?? 0;
+
+    // Encantado que não existe sai. Número negativo vira zero, como nos outros contadores.
+    expect(useGameStore.getState().expedition?.trails).toEqual({ caipora: 2, boitata: 0 });
+    runTicks(useGameStore, 1);
+    expect(useGameStore.getState().expeditionReport?.outcome).toBe('interrompida');
+    expect(useGameStore.getState().trails.caipora).toBe(Math.min(3, trailsBefore + 2));
   });
 
   it('só grava a direção quando muda e só guarda o golpe especial em expedição', async () => {

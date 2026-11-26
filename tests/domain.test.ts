@@ -62,6 +62,19 @@ function createGameWith(encantadoId: string, changes: Partial<GameState> = {}): 
 }
 
 // Opções de simulação com sorteio repetível
+// Roda "run" com outra chance de Rastro na clareira e devolve o valor de antes no fim
+function withClearingTrailMultiplier<T>(multiplier: number, run: () => T): T {
+  const balance = BALANCE as { clearingTrailMultiplier: number };
+  const original = balance.clearingTrailMultiplier;
+  balance.clearingTrailMultiplier = multiplier;
+
+  try {
+    return run();
+  } finally {
+    balance.clearingTrailMultiplier = original;
+  }
+}
+
 function withSeed(seed: number, startTimestamp = START) {
   return { startTimestamp, random: createSeededRandom(seed) };
 }
@@ -183,16 +196,35 @@ describe('simulação', () => {
     expect(state.stats.bossesFailed).toBe(1);
   });
 
+  // As regras de hora e de teto valem com qualquer chance. Para ver a regra, a chance da
+  // clareira volta a 100% só nestes testes.
   it('só encontra Rastro do Boitatá à noite', () => {
-    const byDay = advanceSimulation(createGameWith('saci'), 600, withSeed(9, START)).state;
-    const byNight = advanceSimulation(createGameWith('saci'), 600, withSeed(9, NIGHT)).state;
-    expect(byDay.trails.boitata ?? 0).toBe(0);
-    expect(byNight.trails.boitata).toBeGreaterThan(0);
+    withClearingTrailMultiplier(1, () => {
+      const byDay = advanceSimulation(createGameWith('saci'), 600, withSeed(9, START)).state;
+      const byNight = advanceSimulation(createGameWith('saci'), 600, withSeed(9, NIGHT)).state;
+      expect(byDay.trails.boitata ?? 0).toBe(0);
+      expect(byNight.trails.boitata).toBeGreaterThan(0);
+    });
   });
 
   it('para de dar Rastro quando já tem o bastante', () => {
-    const { state } = advanceSimulation(createGameWith('saci'), 1800, withSeed(4));
-    expect(state.trails.caipora).toBe(3);
+    withClearingTrailMultiplier(1, () => {
+      const { state } = advanceSimulation(createGameWith('saci'), 1800, withSeed(4));
+      expect(state.trails.caipora).toBe(3);
+    });
+  });
+
+  it('a clareira dá só uma fração dos Rastros (a fonte principal são as pegadas)', () => {
+    const full = withClearingTrailMultiplier(1, () =>
+      advanceSimulation(createGameWith('saci'), 300, withSeed(4)),
+    );
+    const none = withClearingTrailMultiplier(0, () =>
+      advanceSimulation(createGameWith('saci'), 300, withSeed(4)),
+    );
+
+    expect(BALANCE.clearingTrailMultiplier).toBeLessThan(1);
+    expect(full.summary.trails.caipora ?? 0).toBeGreaterThan(0);
+    expect(none.summary.trails).toEqual({});
   });
 });
 

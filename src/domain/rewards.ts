@@ -25,6 +25,7 @@
  *   4. Peças de recompensa
  */
 
+import { BALANCE } from '../data/balance';
 import { randomInteger, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { receiveAmulet, rollAmuletDrop } from './amulets';
@@ -218,12 +219,15 @@ export function grantItem(context: RewardContext, itemId: string, amount: number
 }
 
 // Sorteia Rastros dos encantados da zona que ainda não entraram na comitiva
+// Na clareira (e na ausência), a chance ainda vale clearingTrailMultiplier: a fonte principal
+// de Rastros é a expedição, com as pegadas no chão (src/domain/expeditionFootprints.ts).
 export function rollTrails(context: RewardContext, zone: ZoneDef, modifiers: Modifiers): void {
   const { draft, random, timestamp } = context;
 
   for (const encounter of zone.encounters) {
     const { encantadoId } = encounter;
-    const chance = Math.min(1, encounter.trailChance * modifiers.trailChance);
+    const baseChance = encounter.trailChance * BALANCE.clearingTrailMultiplier;
+    const chance = Math.min(1, baseChance * modifiers.trailChance);
     const isClockRight = matchesClock(encounter, timestamp);
     const canFindTrail = isClockRight && isTrailStillNeeded(draft, encantadoId);
 

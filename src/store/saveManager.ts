@@ -702,6 +702,7 @@ function sanitizeAttackProgress(raw: unknown, party: readonly string[]): Record<
 
 
 // Expedição em andamento: mapa e encantado que existem, e a bolsa conferida linha a linha
+// (visagens e Rastros das pegadas)
 function sanitizeExpedition(
   raw: unknown,
   roster: Record<string, OwnedEncantado>,
@@ -722,7 +723,9 @@ function sanitizeExpedition(
   }
 
   const loot = Array.isArray(raw.loot) ? raw.loot.flatMap(sanitizeLootEntry) : [];
-  return { mapId, encantadoId, loot };
+  // Salvamento da versão 5 de antes das pegadas não tem "trails": vira bolsa sem Rastros
+  const trails = sanitizeCounters(raw.trails, hasEncantado);
+  return { mapId, encantadoId, loot, trails };
 }
 
 // Uma linha da bolsa: visagem que existe, nível e contagem inteiros e positivos

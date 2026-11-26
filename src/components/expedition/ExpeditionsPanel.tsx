@@ -3,10 +3,16 @@
  * Arquivo: src/components/expedition/ExpeditionsPanel.tsx
  * O que faz: a aba "Expedições" da clareira. Explica como a expedição
  * funciona, mostra quem sairia e com quanta vida, e lista os mapas com o
- * botão de partir. Só formata o que recebe do seletor.
+ * nível, as visagens, de quem são as pegadas que podem surgir e o botão de
+ * partir. Só formata o que recebe do seletor.
+ *
+ * Mapa:
+ *   1. Aba
+ *   2. Textos
  */
 
 import { selectExpeditionList } from '../../store/expeditionSelectors';
+import type { NamedAmount } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatDuration, formatNumber, formatPercent } from '../../utils/format';
 import { Button } from '../ui/Button';
@@ -48,6 +54,7 @@ export function ExpeditionsPanel() {
               <span className="text-xs">nível {option.level}</span>
             </div>
             <p className="text-xs">{option.enemyNames.join(', ')}</p>
+            <p className="text-xs">{describeFootprints(option.footprints)}</p>
             <Button
               size="small"
               variant="solid"
@@ -61,4 +68,19 @@ export function ExpeditionsPanel() {
       </ul>
     </div>
   );
+}
+
+
+// =============================================================================
+// =============================================================================
+// T E X T O S
+
+// "Pegadas: Caipora (faltam 3)", ou o aviso de que ninguém precisa de Rastro agora
+function describeFootprints(footprints: readonly NamedAmount[]): string {
+  if (footprints.length === 0) {
+    return 'Pegadas: nenhum encantado precisa de Rastro agora.';
+  }
+
+  const names = footprints.map(({ name, amount }) => `${name} (faltam ${formatNumber(amount)})`);
+  return `Pegadas: ${names.join(', ')}.`;
 }

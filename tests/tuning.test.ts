@@ -127,7 +127,8 @@ describe('efeito no jogo', () => {
     setTuningValue('balance.playerBaseHp', 250);
     setTuningValue('map.beira-da-mata.levelBonus', 6);
     const fighter = game === null ? null : getExpeditionFighter(game, 0);
-    const scene = createExpeditionScene('beira-da-mata', fighter, createSeededRandom(2));
+    const setup = { mapId: 'beira-da-mata', fighter, trailTargets: [], trailChance: 1 };
+    const scene = createExpeditionScene(setup, createSeededRandom(2));
 
     expect(fighter?.maxHp).toBe(250);
     expect(scene.enemies.every((enemy) => enemy.level === 7)).toBe(true);

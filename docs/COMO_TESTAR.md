@@ -92,6 +92,9 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. Cada encostada tira uma parte maior da vida. |
 | 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força de quem sai. O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
 | 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. Com umas 15 visagens, as Patacas ficam perto do que a clareira rende em 5 minutos. |
+| 9b | Na aba "Expedições", ler a linha "Pegadas" de cada mapa | De dia aparece "Caipora (faltam 3)". À noite aparece também o Boitatá. Depois de fechar os dois pactos, "nenhum encantado precisa de Rastro agora". |
+| 9c | Partir e esperar uns 10 segundos | Surge um bloco laranja pequeno escrito "Pegada: Caipora", longe da personagem. A cada uns 20 segundos surge outra, no máximo 2 no chão. Às vezes uma visagem derrotada deixa uma pegada onde caiu. |
+| 9d | Passar por cima da pegada | Sobe "+1 Rastro", a pegada some e "Rastros" no painel de cima e em "Rastros na bolsa" sobe 1. Na volta, a janela mostra os Rastros e o Almanaque soma, sem passar do que o pacto pede. |
 | 9a | Fazer algumas expedições no Brejo Escuro | De vez em quando a bolsa traz brasa viva, que antes só o Corpo-Seco da clareira deixava. Os amuletos caem com mais frequência que na Beira da Mata. |
 | 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
@@ -146,7 +149,7 @@ Para começar do zero, use "Apagar tudo" no cabeçalho.
 | # | O que fazer | O que deve acontecer |
 |---|---|---|
 | 12 | Abrir a aba "Almanaque" | Aparecem Caipora e Boitatá, cada um com a quadra de cordel e a lista do que o pacto pede. O Boitatá mostra "Só fecha de noite". |
-| 13 | Jogar até juntar 3 Rastros e 5 de mel silvestre (alguns minutos) | Aparece um número vermelho na aba "Almanaque" e o botão "Fechar pacto" da Caipora acende. |
+| 13 | Juntar 3 Rastros e 5 de mel silvestre. O jeito rápido é uma expedição (pegadas no chão). Só na clareira leva uns 15 minutos. | Aparece um número vermelho na aba "Almanaque" e o botão "Fechar pacto" da Caipora acende. |
 | 14 | Clicar em "Fechar pacto" | A Caipora entra na comitiva: surge uma segunda barra de ataque embaixo da capa e um segundo cartão na aba "Comitiva". |
 | 15 | Na aba "Comitiva", clicar em "Tirar da comitiva" em um dos dois | Ele sai e a barra dele some. O botão do outro fica apagado, porque a comitiva não pode ficar vazia. "Chamar para a comitiva" traz de volta. |
 
@@ -292,8 +295,9 @@ roteiro pede para fechar antes.
 
 ### Pactos (só leitura no painel)
 
-Com o jogo rodando por alguns minutos, "Rastros: Caipora" sobe até 3 de 3 e "Mel silvestre"
-aumenta. "Rastros: Boitatá" só sobe quando o "Relógio do sertão" marca noite. O painel ainda
+Com o jogo rodando, "Rastros: Caipora" sobe até 3 de 3 (devagar na clareira, que dá poucos
+Rastros; nas expedições, pelas pegadas, bem mais rápido) e "Mel silvestre" aumenta. "Rastros:
+Boitatá" só sobe quando o "Relógio do sertão" marca noite. O painel ainda
 não tem botão para fechar pacto.
 
 ## 8. Se algo der errado

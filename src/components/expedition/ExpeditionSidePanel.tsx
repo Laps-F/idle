@@ -13,6 +13,7 @@ import { formatNumber } from '../../utils/format';
 import { Button } from '../ui/Button';
 import {
   EXIT_SPRITE,
+  FOOTPRINT_SPRITE,
   getPlayerSprite,
   listTileSprites,
   PROJECTILE_SPRITE,
@@ -52,6 +53,7 @@ function ExpeditionSection() {
       <h2 className={TITLE_CLASS}>{hud.mapName}</h2>
       <p className="text-sm">Quem saiu: {hud.leaderName}</p>
       <p className="text-sm">Visagens na bolsa: {formatNumber(hud.lootCount)}</p>
+      <p className="text-sm">Rastros na bolsa: {formatNumber(hud.trailCount)}</p>
       <Button variant="outline" onClick={leaveExpedition}>
         Voltar para a clareira agora
       </Button>
@@ -72,6 +74,10 @@ function HowToPlaySection() {
           visagens e precisa recarregar.
         </li>
         <li>As visagens perseguem e batem ao encostar. Fuja, elas são mais lentas.</li>
+        <li>
+          Os blocos laranja pequenos são pegadas de encantados. Passe por cima para guardar um
+          Rastro na bolsa. É aqui que os Rastros dos pactos aparecem mais.
+        </li>
         <li>O bloco roxo leva de volta para a clareira, com a bolsa inteira.</li>
         <li>Aguentando até o fim do tempo, a bolsa rende mais.</li>
         <li>
@@ -88,6 +94,7 @@ function LegendSection() {
   const slots: { name: string; slot: SpriteSlot }[] = [
     ...listTileSprites().map(({ tileId, slot }) => ({ name: tileId, slot })),
     { name: 'passagem', slot: EXIT_SPRITE },
+    { name: 'pegada', slot: FOOTPRINT_SPRITE },
     { name: 'personagem', slot: getPlayerSprite(null) },
     { name: 'projétil', slot: PROJECTILE_SPRITE },
     { name: 'projétil especial', slot: SPECIAL_PROJECTILE_SPRITE },

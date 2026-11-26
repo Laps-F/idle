@@ -177,6 +177,17 @@ function toEffect(event: SceneEventView): MapEffect[] {
           ageSeconds: 0,
         },
       ];
+    case 'trail':
+      return [
+        {
+          x: event.x,
+          y: event.y - 0.4,
+          text: '+1 Rastro',
+          color: EFFECT_COLORS.trail,
+          isBig: true,
+          ageSeconds: 0,
+        },
+      ];
     case 'defeat':
       return [];
   }

@@ -29,6 +29,7 @@ Imagem que faltar continua aparecendo como bloco colorido, então dá para entre
 | `tree.png` | Árvore (não dá para passar) | verde-escuro |
 | `water.png` | Água (não dá para passar) | azul |
 | `portal.png` | Passagem de volta para a clareira | roxo |
+| `pegada.png` | Pegada de Rastro no chão (a mesma para todos os encantados, com o nome escrito por cima) | laranja |
 | `projectile.png` | Projétil comum | claro |
 | `special-projectile.png` | Projétil especial | azul-claro |
 | `saci.png` | Personagem: Saci | amarelo |

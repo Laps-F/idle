@@ -10,9 +10,12 @@
  *     entregam tudo o que foi juntado.
  *   - Quem aguenta até o fim do tempo ganha expeditionCompletionBonus de
  *     visagens extras na bolsa (50% a mais).
- *   - A entrega usa o saque próprio do mapa (rewardExpeditionKills, em
- *     expeditionLoot.ts): Patacas, XP para a comitiva, Oferendas, Rastros e
- *     amuletos pela tabela de src/data/expeditionLoot.ts.
+ *   - A bolsa também guarda os Rastros das pegadas pegas no mapa (addTrailsToLoot).
+ *   - A entrega usa o saque próprio do mapa (rewardExpeditionBag, em
+ *     expeditionLoot.ts): Patacas, XP para a comitiva, Oferendas e amuletos pela
+ *     tabela de src/data/expeditionLoot.ts, e os Rastros da bolsa.
+ *   - getTrailTargets e getSceneSetup dizem de quem as pegadas podem ser e o que
+ *     a cena recebe para começar.
  *
  * Funções puras: recebem o estado e devolvem um estado novo. Ação recusada
  * devolve null.
@@ -25,11 +28,12 @@
  */
 
 import { BALANCE } from '../data/balance';
-import { getEncantado, getExpeditionMap, hasExpeditionMap } from './catalog';
-import { getDayPhase } from './clock';
+import { getEncantado, getExpeditionMap, getZone, hasExpeditionMap } from './catalog';
+import { getDayPhase, matchesClock } from './clock';
 import { getAttackDamage, getAttackInterval, getExpeditionMaxHp } from './formulas';
 import { getModifiers } from './modifiers';
-import { rewardExpeditionKills } from './expeditionLoot';
+import { rewardExpeditionBag } from './expeditionLoot';
+import { isTrailStillNeeded } from './rewards';
 import type { SimulationOptions } from './rewards';
 import type {
   ExpeditionFighter,
@@ -38,6 +42,8 @@ import type {
   ExpeditionReport,
   GameState,
   MapKill,
+  SceneSetup,
+  TrailTarget,
 } from './types';
 
 // =============================================================================
@@ -106,7 +112,32 @@ export function startExpedition(state: GameState, mapId: string): GameState | nu
     return null;
   }
 
-  return { ...state, expedition: { mapId, encantadoId, loot: [] } };
+  return { ...state, expedition: { mapId, encantadoId, loot: [], trails: {} } };
+}
+
+
+/**
+ * O que a cena precisa para começar a expedição em andamento.
+ *
+ * @param state Estado com a expedição já em andamento (depois de startExpedition).
+ * @param timestamp Instante da partida em ms. Decide sinergias de dia ou de noite e de
+ *                  quem as pegadas podem ser (o Boitatá só à noite).
+ * @returns Mapa, quem sai, de quem são as pegadas e a chance de Rastro de quem sai.
+ *          Null sem expedição em andamento.
+ */
+export function getSceneSetup(state: GameState, timestamp: number): SceneSetup | null {
+  const { expedition } = state;
+
+  if (expedition === null) {
+    return null;
+  }
+
+  return {
+    mapId: expedition.mapId,
+    fighter: getExpeditionFighter(state, timestamp),
+    trailTargets: getTrailTargets(state, expedition.mapId, timestamp),
+    trailChance: getModifiers(state, getDayPhase(timestamp)).trailChance,
+  };
 }
 
 
@@ -132,6 +163,71 @@ export function addKillsToLoot(state: GameState, kills: readonly MapKill[]): Gam
 
   const loot = kills.reduce<ExpeditionLoot[]>(addKill, expedition.loot);
   return { ...state, expedition: { ...expedition, loot } };
+}
+
+/**
+ * Guarda na bolsa os Rastros das pegadas pegas no mapa.
+ *
+ * @param state Estado do jogo. Não é alterado.
+ * @param encantadoIds Encantado de cada pegada pega no passo (um Rastro cada).
+ * @returns Estado com a bolsa nova. Sem expedição ou sem pegadas, devolve o mesmo "state".
+ */
+export function addTrailsToLoot(state: GameState, encantadoIds: readonly string[]): GameState {
+  const { expedition } = state;
+
+  if (expedition === null || encantadoIds.length === 0) {
+    return state;
+  }
+
+  const trails = { ...expedition.trails };
+
+  for (const encantadoId of encantadoIds) {
+    trails[encantadoId] = (trails[encantadoId] ?? 0) + 1;
+  }
+
+  return { ...state, expedition: { ...expedition, trails } };
+}
+
+// Quantos Rastros há na bolsa
+export function countTrails(trails: Readonly<Record<string, number>>): number {
+  return Object.values(trails).reduce((sum, amount) => sum + amount, 0);
+}
+
+/**
+ * De quem as pegadas podem ser num mapa, e quantas ainda valem a pena.
+ *
+ * Entram os encantados da zona do mapa (encounters de src/data/zones.ts) que
+ * ainda precisam de Rastro para o pacto e cuja hora (dia, noite, lua) bate com
+ * "timestamp". Para cada um, o que falta para o pacto menos o que já está na
+ * bolsa da expedição em andamento.
+ *
+ * @param state Estado do jogo.
+ * @param mapId Mapa da expedição.
+ * @param timestamp Instante em ms. Decide dia, noite e lua.
+ * @returns Lista na ordem da zona. Vazia se ninguém precisa de Rastro agora.
+ */
+export function getTrailTargets(
+  state: GameState,
+  mapId: string,
+  timestamp: number,
+): TrailTarget[] {
+  const zone = getZone(getExpeditionMap(mapId).zoneId);
+  const inBag = state.expedition?.trails ?? {};
+
+  return zone.encounters
+    .filter((encounter) => matchesClock(encounter, timestamp))
+    .filter((encounter) => isTrailStillNeeded(state, encounter.encantadoId))
+    .map(({ encantadoId }) => ({
+      encantadoId,
+      remaining: getTrailsMissing(state, encantadoId) - (inBag[encantadoId] ?? 0),
+    }))
+    .filter((target) => target.remaining > 0);
+}
+
+// Rastros que ainda faltam para o pacto de um encantado (zero se já tem ou não precisa)
+function getTrailsMissing(state: GameState, encantadoId: string): number {
+  const pact = getEncantado(encantadoId).pact;
+  return pact === null ? 0 : Math.max(0, pact.trailsNeeded - (state.trails[encantadoId] ?? 0));
 }
 
 // Quantas visagens há na bolsa
@@ -195,7 +291,8 @@ export function finishExpedition(
   const bonusKills = Array.from({ length: bonusCount }, (_, index) => kills[index % kills.length])
     .filter((kill): kill is MapKill => kill !== undefined);
   const allKills = [...kills, ...bonusKills];
-  const result = rewardExpeditionKills(state, expedition.mapId, allKills, options);
+  const bag = { mapId: expedition.mapId, kills: allKills, trails: expedition.trails };
+  const result = rewardExpeditionBag(state, bag, options);
 
   return {
     state: { ...result.state, expedition: null },

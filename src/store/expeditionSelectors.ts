@@ -26,7 +26,12 @@ import {
   getMapSize,
   getTileAt,
 } from '../domain/catalog';
-import { countLoot, getExpeditionFighter } from '../domain/expedition';
+import {
+  countLoot,
+  countTrails,
+  getExpeditionFighter,
+  getTrailTargets,
+} from '../domain/expedition';
 import { getFighterBaseLevel, getMapStartLevel } from '../domain/expeditionScaling';
 import type { ExpeditionOutcome, SceneEvent } from '../domain/types';
 import { createStableSelector, toNamedAmounts } from './selectorTools';
@@ -53,9 +58,10 @@ export interface ExpeditionOptionView {
   name: string;
   level: number; // nível das visagens no começo, pelo poder de quem sairia agora
   enemyNames: string[];
+  footprints: NamedAmount[]; // de quem as pegadas podem ser agora, e quantas faltam
 }
 
-// Aba "Expedições": quem sairia, com quanta vida, e os mapas
+// Aba "Expedições": quem sairia, com quanta vida, e os mapas (com as pegadas que podem surgir)
 export interface ExpeditionListView {
   leaderName: string | null; // null sem comitiva
   leaderMaxHp: number;
@@ -69,6 +75,7 @@ export interface ExpeditionHudView {
   mapName: string;
   leaderName: string;
   lootCount: number; // visagens na bolsa
+  trailCount: number; // Rastros das pegadas na bolsa
 }
 
 // Uma visagem no quadro atual
@@ -80,6 +87,15 @@ export interface SceneEnemyFrame {
   x: number;
   y: number;
   hpFraction: number; // de 0 a 1
+}
+
+// Uma pegada de Rastro no quadro atual
+export interface SceneFootprintFrame {
+  uid: number;
+  encantadoId: string;
+  name: string; // nome do encantado que deixou a pegada
+  x: number;
+  y: number;
 }
 
 // Um projétil no quadro atual
@@ -104,10 +120,12 @@ export interface SceneFrame {
   specialReadiness: number; // de 0 (acabou de usar) a 1 (pronto)
   secondsLeft: number; // até o fim do tempo da expedição
   lootCount: number;
+  trailCount: number; // Rastros das pegadas pegas, na bolsa
   attackRange: number; // em ladrilhos
   projectileRadius: number; // em ladrilhos
   enemies: SceneEnemyFrame[];
   projectiles: SceneProjectileFrame[];
+  footprints: SceneFootprintFrame[];
 }
 
 // Janela da volta: como terminou e o que a bolsa rendeu
@@ -199,9 +217,17 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
     specialReadiness: 1 - scene.specialCooldown / BALANCE.specialCooldownSeconds,
     secondsLeft: Math.max(0, BALANCE.expeditionDurationSeconds - scene.elapsedSeconds),
     lootCount: countLoot(expedition.loot),
+    trailCount: countTrails(expedition.trails),
     attackRange: BALANCE.attackRange,
     projectileRadius: BALANCE.projectileRadius,
     projectiles: scene.projectiles.map(({ uid, isSpecial, x, y }) => ({ uid, isSpecial, x, y })),
+    footprints: scene.footprints.map(({ uid, encantadoId, x, y }) => ({
+      uid,
+      encantadoId,
+      name: getEncantado(encantadoId).name,
+      x,
+      y,
+    })),
     enemies: scene.enemies.map((enemy) => ({
       uid: enemy.uid,
       enemyId: enemy.enemyId,
@@ -245,6 +271,13 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
       name: map.name,
       level: getMapStartLevel(baseLevel, map),
       enemyNames: map.enemyIds.map((enemyId) => getEnemy(enemyId).name),
+      footprints: getTrailTargets(snapshot, map.id, snapshot.lastSaveTimestamp).map(
+        ({ encantadoId, remaining }) => ({
+          id: encantadoId,
+          name: getEncantado(encantadoId).name,
+          amount: remaining,
+        }),
+      ),
     })),
   };
 }
@@ -261,6 +294,7 @@ function buildExpeditionHud(snapshot: GameSnapshot): ExpeditionHudView | null {
     mapName: getExpeditionMap(expedition.mapId).name,
     leaderName: getEncantado(expedition.encantadoId).name,
     lootCount: countLoot(expedition.loot),
+    trailCount: countTrails(expedition.trails),
   };
 }
 

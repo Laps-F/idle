@@ -2,6 +2,74 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: pegadas de Rastro na expedição (Etapa 4 do Caminho 1)
+
+A expedição virou a fonte principal de Rastros. A clareira continua dando alguns, para quem só
+joga idle não travar nos pactos.
+
+Regras:
+
+- **Clareira e ausência:** a chance de Rastro de cada zona vale 15% do que valia
+  (`clearingTrailMultiplier`).
+- **Pegadas:** uma surge a cada 20 segundos (`footprintSpawnSeconds`, a primeira aos 10) num
+  ladrilho livre a pelo menos 5 ladrilhos da personagem. No máximo 2 no chão
+  (`footprintMaxOnMap`). Uma visagem derrotada deixa uma pegada onde caiu em 5% das vezes
+  (`footprintDropChance`).
+- **De quem:** só de encantados da zona do mapa que ainda precisam de Rastro para o pacto, na hora
+  certa (o Boitatá só à noite). Nunca surge mais pegada do que falta, contando o que já está na
+  bolsa. Pegada que fica no chão no fim da expedição se perde.
+- **Chance de Rastro:** Olho de mateiro, sinergia da mata e Faro de mateiro encurtam o intervalo
+  entre pegadas.
+- **Pegar:** passar por cima (a 0,6 ladrilho). O Rastro vai para a bolsa, que é salva. Na volta,
+  ele é entregue sem passar do que o pacto pede. Uma recarga no meio também entrega.
+- **Tela:** bloco laranja pequeno escrito "Pegada: Caipora" (vaga `pegada.png`), "+1 Rastro" ao
+  pegar, "Rastros" no painel de cima e "Rastros na bolsa" ao lado do mapa. A aba "Expedições"
+  mostra de quem as pegadas podem ser em cada mapa e quantas faltam.
+
+Ritmo medido (Saci com 15 minutos de jogo, de dia, doze sementes, com o pacto da Caipora pedindo
+999 Rastros só na simulação, para o teto não atrapalhar a conta):
+
+| Onde | Rastros por minuto |
+|---|---|
+| Clareira, antes | 0,99 |
+| Clareira, agora | 0,18 |
+| Expedição, robô que desvia e vai até as pegadas | 1,27 em média (de 0 a 4) |
+
+A expedição rende em média quase 7 vezes mais que a clareira, dentro da meta de 5 a 10 vezes.
+Com 10% na clareira, a diferença chegava a 20 vezes. Por isso ficou 15%. Na prática: só na
+clareira, os 3 Rastros da Caipora levam uns 15 minutos; numa expedição, de 1 a 3 minutos.
+
+Ponto a observar: depois dos dois pactos, nenhuma pegada surge, porque são só 8 Rastros no jogo
+inteiro. As pegadas ganham peso quando houver mais encantados (Cerrado).
+
+Arquivos:
+
+- `src/domain/expeditionFootprints.ts` (novo): intervalo, surgir, pegar e a pegada da visagem
+  derrotada.
+- `src/domain/expeditionScene.ts`: `createExpeditionScene` recebe um `SceneSetup` (mapa, quem sai,
+  de quem são as pegadas, chance de Rastro). O passo chama as pegadas e devolve `trails`.
+- `src/domain/expedition.ts`: `getTrailTargets`, `getSceneSetup`, `addTrailsToLoot`,
+  `countTrails`. A bolsa (`ExpeditionState.trails`) guarda os Rastros.
+- `src/domain/expeditionLoot.ts`: `rewardExpeditionBag` (no lugar de `rewardExpeditionKills`)
+  entrega visagens e Rastros. As visagens da expedição não sorteiam mais Rastro.
+- `src/domain/rewards.ts`: `rollTrails` usa `clearingTrailMultiplier`.
+- `src/domain/types.ts`: `TrailTarget`, `SceneFootprint`, `SceneSetup`, campos novos da cena, o
+  evento `trail` e `SceneStepResult.trails`.
+- `src/data/balance.ts`: bloco "Expedições: pegadas de Rastro".
+- `src/store/saveManager.ts`: a bolsa salva sem `trails` (salvamento da versão 5 de antes) abre
+  sem Rastros. O salvamento continua na versão 5.
+- `src/store/expeditionSession.ts`: monta a cena por `getSceneSetup` e guarda os Rastros pegos.
+- `src/store/expeditionSelectors.ts`: pegadas no quadro, Rastros na bolsa e de quem são as
+  pegadas de cada mapa.
+- `src/store/tuning.ts`: grupo "Expedição: pegadas de Rastro".
+- Tela: `mapRenderer.ts`, `sprites.ts`, `ExpeditionCanvas.tsx`, `ExpeditionSidePanel.tsx` e
+  `ExpeditionsPanel.tsx`.
+- Testes: `tests/expedition.test.ts` (bloco "pegadas de Rastro"), `tests/domain.test.ts` (a
+  clareira dá só uma fração), `tests/store.test.ts` (bolsa salva com e sem Rastros) e
+  `tests/tuning.test.ts`.
+- Documentação: guia de manutenção, `docs/SPRITES.md`, `docs/COMO_TESTAR.md` (passos 9b a 9d e
+  13) e `README.md`.
+
 ## 26/11/2026: saque próprio da expedição (Etapa 3 do Caminho 1)
 
 A bolsa deixou de usar as regras da clareira (`rewardKills`) e passou a ter uma tabela por mapa,

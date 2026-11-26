@@ -2,10 +2,11 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/expedition/mapRenderer.ts
  * O que faz: desenha um quadro da expedição no canvas: ladrilhos, passagem
- * de volta, visagens, projéteis, a personagem, o alcance do golpe, os números
- * que sobem e o painel por cima do mapa (vida, tempo, bolsa e golpe especial).
- * Não decide nada do jogo: só pinta o que recebe (MapView e SceneFrame, de
- * src/store/selectors.ts). Quem chama a cada quadro é ExpeditionCanvas.tsx.
+ * de volta, pegadas de Rastro, visagens, projéteis, a personagem, o alcance do
+ * golpe, os números que sobem e o painel por cima do mapa (vida, tempo, bolsa,
+ * Rastros e golpe especial). Não decide nada do jogo: só pinta o que recebe
+ * (MapView e SceneFrame, de src/store/expeditionSelectors.ts). Quem chama a
+ * cada quadro é ExpeditionCanvas.tsx.
  *
  * Cada coisa é desenhada pela vaga de imagem dela (sprites.ts). Sem imagem,
  * vira um bloco colorido com o nome do arquivo escrito por cima.
@@ -14,7 +15,7 @@
  *   1. Medidas, cores e tipos
  *   2. Quadro completo
  *   3. Câmera
- *   4. Camadas do mapa: chão, passagem, visagens, projéteis e personagem
+ *   4. Camadas do mapa: chão, passagem, pegadas, visagens, projéteis e personagem
  *   5. Números que sobem
  *   6. Painel por cima do mapa
  *   7. Peças de desenho e vagas de imagem
@@ -24,6 +25,7 @@ import type { MapView, SceneFrame } from '../../store/expeditionSelectors';
 import { formatDuration, formatNumber } from '../../utils/format';
 import {
   EXIT_SPRITE,
+  FOOTPRINT_SPRITE,
   getEnemySprite,
   getPlayerSprite,
   getTileSprite,
@@ -50,6 +52,9 @@ export const VIEW_HEIGHT_PX = 576;
 // Tamanho do desenho da personagem e das visagens, em ladrilhos (a colisão é menor)
 const FIGURE_SIZE = 0.8;
 
+// Pegada: menor que as figuras, para parecer coisa no chão
+const FOOTPRINT_SIZE = 0.5;
+
 // Quanto tempo um número fica na tela, e quanto ele sobe (em ladrilhos)
 export const EFFECT_SECONDS = 0.8;
 const FLOATING_TEXT_RISE = 1;
@@ -61,6 +66,7 @@ const HP_COLOR = '#b3301a';
 const ATTACK_COLOR = '#e8b93a';
 const SPECIAL_COLOR = '#8fd3ff';
 const HURT_COLOR = '#ff5a3c';
+const TRAIL_COLOR = '#ffb35c';
 const RANGE_COLOR = 'rgba(241, 234, 216, 0.35)';
 const HUD_BACKGROUND = 'rgba(27, 22, 18, 0.75)';
 const LABEL_FONT = '9px sans-serif';
@@ -112,6 +118,7 @@ export function drawExpedition(
 
   if (isSameMap) {
     drawAttackRange(context, frame, camera);
+    drawFootprints(context, frame, camera);
     drawEnemies(context, frame, camera);
     drawProjectiles(context, frame, camera);
     drawPlayer(context, frame, camera);
@@ -202,6 +209,18 @@ function drawAttackRange(context: CanvasRenderingContext2D, frame: SceneFrame, c
   context.stroke();
 }
 
+// Cada pegada: um bloco pequeno no chão, com o nome de quem deixou
+function drawFootprints(context: CanvasRenderingContext2D, frame: SceneFrame, camera: Camera) {
+  const size = FOOTPRINT_SIZE * TILE_PX;
+
+  for (const footprint of frame.footprints) {
+    const left = toScreen(footprint.x, camera.left) - size / 2;
+    const top = toScreen(footprint.y, camera.top) - size / 2;
+    drawSlot(context, FOOTPRINT_SPRITE, left, top, size, false);
+    drawCenteredText(context, `Pegada: ${footprint.name}`, left + size / 2, top - 4, NAME_FONT);
+  }
+}
+
 // Cada visagem: bloco, nome com o nível e barra de vida
 function drawEnemies(context: CanvasRenderingContext2D, frame: SceneFrame, camera: Camera): void {
   const size = FIGURE_SIZE * TILE_PX;
@@ -273,6 +292,7 @@ export const EFFECT_COLORS = {
   hit: PAPER_COLOR,
   crit: ATTACK_COLOR,
   hurt: HURT_COLOR,
+  trail: TRAIL_COLOR,
 } as const;
 
 
@@ -280,7 +300,7 @@ export const EFFECT_COLORS = {
 // =============================================================================
 // P A I N E L   P O R   C I M A   D O   M A P A
 
-// Vida e golpe especial à esquerda, tempo no meio, bolsa à direita
+// Vida e golpe especial à esquerda, tempo no meio, bolsa e Rastros à direita
 function drawHud(context: CanvasRenderingContext2D, frame: SceneFrame): void {
   const barWidth = 220;
   const isSpecialReady = frame.specialReadiness >= 1;
@@ -296,7 +316,9 @@ function drawHud(context: CanvasRenderingContext2D, frame: SceneFrame): void {
   drawBar(context, 260, 26, 200, frame.specialReadiness, SPECIAL_COLOR, 8);
 
   drawHudText(context, `Falta ${formatDuration(Math.ceil(frame.secondsLeft))}`, 640, 30, 'center');
-  drawHudText(context, `Bolsa: ${formatNumber(frame.lootCount)}`, VIEW_WIDTH_PX - 12, 30, 'right');
+  const loot = formatNumber(frame.lootCount);
+  const bagText = `Bolsa: ${loot} · Rastros: ${formatNumber(frame.trailCount)}`;
+  drawHudText(context, bagText, VIEW_WIDTH_PX - 12, 30, 'right');
 }
 
 // Texto do painel, claro sobre o fundo escuro

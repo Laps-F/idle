@@ -13,12 +13,15 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../src/data';
 import { chooseStarter } from '../src/domain/actions';
 import { getEnemy, getExpeditionLoot, getExpeditionMap } from '../src/domain/catalog';
-import { rewardExpeditionKills } from '../src/domain/expeditionLoot';
+import { rewardExpeditionBag } from '../src/domain/expeditionLoot';
 import {
   addKillsToLoot,
+  addTrailsToLoot,
   countLoot,
+  countTrails,
   finishExpedition,
   getExpeditionFighter,
+  getTrailTargets,
   startExpedition,
 } from '../src/domain/expedition';
 import { advanceScene, createExpeditionScene } from '../src/domain/expeditionScene';
@@ -41,7 +44,10 @@ import type {
   ExpeditionFighter,
   ExpeditionScene,
   GameState,
+  MapKill,
   SceneEnemy,
+  SceneSetup,
+  TrailTarget,
 } from '../src/domain/types';
 import { createSeededRandom } from '../src/utils/random';
 
@@ -64,6 +70,11 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
   return deepFreeze({
     mapId: FIRST_MAP,
     baseLevel: 1,
+    footprints: [],
+    trailTargets: [],
+    footprintTimer: 999,
+    footprintIntervalSeconds: 20,
+    nextFootprintUid: 1,
     elapsedSeconds: 0,
     playerX: 10.5,
     playerY: 11.5,
@@ -81,6 +92,11 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
     nextProjectileUid: 1,
     ...changes,
   });
+}
+
+// O que a cena precisa para começar, no primeiro mapa e sem pegadas
+function setupFor(fighter: SceneSetup['fighter'], targets: TrailTarget[] = []): SceneSetup {
+  return { mapId: FIRST_MAP, fighter, trailTargets: targets, trailChance: 1 };
 }
 
 // Visagem parada num ponto
@@ -134,6 +150,7 @@ function createGameOnExpedition(): GameState {
         { enemyId: 'visagem-da-neblina', level: 1, count: 4 },
         { enemyId: 'vulto-da-capoeira', level: 2, count: 2 },
       ],
+      trails: {},
     },
   });
 }
@@ -142,7 +159,7 @@ describe('montagem da cena', () => {
   it('põe a personagem no início, com vida cheia, e as visagens longe dela', () => {
     const map = getExpeditionMap(FIRST_MAP);
     const fighter = { maxHp: 130, damage: 3 };
-    const scene = createExpeditionScene(FIRST_MAP, fighter, createSeededRandom(3));
+    const scene = createExpeditionScene(setupFor(fighter), createSeededRandom(3));
 
     expect(scene.playerX).toBe(map.start.x + 0.5);
     expect(scene.playerHp).toBe(130);
@@ -159,7 +176,7 @@ describe('montagem da cena', () => {
 
   it('o nível de partida acompanha o dano de quem sai', () => {
     const strongFighter = { maxHp: 100, damage: 50 };
-    const strong = createExpeditionScene(FIRST_MAP, strongFighter, createSeededRandom(3));
+    const strong = createExpeditionScene(setupFor(strongFighter), createSeededRandom(3));
     const level = getFighterBaseLevel(50);
     const commonHp = getEnemyMaxHp(level, getEnemy('visagem-da-neblina'), false);
 
@@ -179,7 +196,7 @@ describe('montagem da cena', () => {
     expect(getFighterBaseLevel(0)).toBe(1);
     expect(getFighterBaseLevel(Number.NaN)).toBe(1);
     expect(getFighterBaseLevel(1)).toBe(1);
-    expect(createExpeditionScene(FIRST_MAP, null, createSeededRandom(1)).baseLevel).toBe(1);
+    expect(createExpeditionScene(setupFor(null), createSeededRandom(1)).baseLevel).toBe(1);
     expect(getMapStartLevel(10, brejo)).toBe(10 + brejo.levelBonus);
   });
 
@@ -409,7 +426,12 @@ describe('partir, bolsa e volta', () => {
 
     expect(startExpedition(createInitialState(0, Math.random), FIRST_MAP)).toBeNull();
     expect(startExpedition(game, 'nada')).toBeNull();
-    expect(started?.expedition).toEqual({ mapId: FIRST_MAP, encantadoId: 'saci', loot: [] });
+    expect(started?.expedition).toEqual({
+      mapId: FIRST_MAP,
+      encantadoId: 'saci',
+      loot: [],
+      trails: {},
+    });
     expect(started === null ? null : startExpedition(started, FIRST_MAP)).toBeNull();
   });
 
@@ -472,6 +494,7 @@ describe('saque próprio da expedição', () => {
   // Sorteio que nunca acerta: nada de Oferenda, Rastro nem amuleto, só Patacas e XP
   const neverLucky = (): number => 0.999999;
   const alwaysLucky = (): number => 0;
+  const onFirstMap = (kills: MapKill[]) => ({ mapId: FIRST_MAP, kills, trails: {} });
 
   it('Patacas e XP são a fórmula da clareira no nível da visagem, vezes o mapa', () => {
     const game = createGame();
@@ -481,7 +504,7 @@ describe('saque próprio da expedição', () => {
     for (const mapId of ['beira-da-mata', 'brejo-escuro']) {
       const loot = getExpeditionLoot(mapId);
       const options = { startTimestamp: 0, random: neverLucky };
-      const result = rewardExpeditionKills(game, mapId, [kill, kill], options);
+      const result = rewardExpeditionBag(game, { mapId, kills: [kill, kill], trails: {} }, options);
       const gold = getGoldReward(12, enemy, false, modifiers.gold) * loot.goldMultiplier;
       const xp = getXpReward(12, enemy, false) * loot.xpMultiplier;
 
@@ -497,7 +520,8 @@ describe('saque próprio da expedição', () => {
   it('as Oferendas vêm da tabela do mapa, não da tabela da visagem', () => {
     const game = createGame();
     const options = { startTimestamp: 0, random: alwaysLucky };
-    const result = rewardExpeditionKills(game, 'brejo-escuro', [kill], options);
+    const bag = { mapId: 'brejo-escuro', kills: [kill], trails: {} };
+    const result = rewardExpeditionBag(game, bag, options);
     const expected = Object.fromEntries(
       getExpeditionLoot('brejo-escuro').drops.map((drop) => [drop.itemId, drop.min]),
     );
@@ -514,7 +538,7 @@ describe('saque próprio da expedição', () => {
     const mapChance = getExpeditionLoot(FIRST_MAP).amuletChance;
     const between = (BALANCE.amuletCommonDropChance + mapChance) / 2;
     const random = (): number => between;
-    const result = rewardExpeditionKills(game, FIRST_MAP, [kill], { startTimestamp: 0, random });
+    const result = rewardExpeditionBag(game, onFirstMap([kill]), { startTimestamp: 0, random });
     const amulet = Object.values(result.state.amulets)[0];
 
     expect(result.summary.amuletsFound).toBe(1);
@@ -525,7 +549,140 @@ describe('saque próprio da expedição', () => {
     const game = createGame();
     const options = { startTimestamp: 0, random: alwaysLucky };
 
-    expect(rewardExpeditionKills(game, FIRST_MAP, [], options).state).toBe(game);
-    expect(() => rewardExpeditionKills(game, FIRST_MAP, [kill], options)).not.toThrow();
+    expect(rewardExpeditionBag(game, onFirstMap([]), options).state).toBe(game);
+    expect(() => rewardExpeditionBag(game, onFirstMap([kill]), options)).not.toThrow();
+  });
+});
+
+describe('pegadas de Rastro', () => {
+  const caipora: TrailTarget = { encantadoId: 'caipora', remaining: 2 };
+  const lucky = (): number => 0;
+
+  it('surge uma pegada longe da personagem quando o tempo chega, e o que falta desce', () => {
+    const scene = createScene({ trailTargets: [caipora], footprintTimer: 0.01 });
+    const result = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(2));
+    const footprint = result.scene.footprints[0];
+    const distance = Math.hypot(
+      (footprint?.x ?? 0) - scene.playerX,
+      (footprint?.y ?? 0) - scene.playerY,
+    );
+
+    expect(result.scene.footprints).toHaveLength(1);
+    expect(footprint?.encantadoId).toBe('caipora');
+    expect(distance).toBeGreaterThanOrEqual(BALANCE.footprintMinSpawnDistance);
+    expect(result.scene.trailTargets[0]?.remaining).toBe(1);
+    expect(result.scene.footprintTimer).toBeCloseTo(scene.footprintIntervalSeconds, 6);
+  });
+
+  it('nunca surge mais pegada do que falta, nem mais que o teto no chão', () => {
+    const one = { encantadoId: 'caipora', remaining: 1 };
+    const scene = createScene({
+      trailTargets: [one],
+      footprintTimer: 0,
+      footprintIntervalSeconds: 1,
+    });
+    const result = advanceScene(scene, null, STOPPED, 10, createSeededRandom(2));
+    const crowded = createScene({
+      trailTargets: [{ encantadoId: 'caipora', remaining: 10 }],
+      footprintTimer: 0,
+      footprintIntervalSeconds: 1,
+    });
+    const full = advanceScene(crowded, null, STOPPED, 10, createSeededRandom(2));
+
+    expect(result.scene.footprints).toHaveLength(1);
+    expect(result.scene.trailTargets[0]?.remaining).toBe(0);
+    expect(full.scene.footprints).toHaveLength(BALANCE.footprintMaxOnMap);
+  });
+
+  it('sem ninguém precisando de Rastro, nenhuma pegada surge', () => {
+    const scene = createScene({ footprintTimer: 0, footprintIntervalSeconds: 1 });
+    const result = advanceScene(scene, null, STOPPED, 10, createSeededRandom(2));
+
+    expect(result.scene.footprints).toEqual([]);
+    expect(result.trails).toEqual([]);
+  });
+
+  it('passar por cima pega a pegada: vira Rastro no passo e some do chão', () => {
+    const footprint = { uid: 1, encantadoId: 'caipora', x: 10.8, y: 11.5 };
+    const scene = createScene({ footprints: [footprint] });
+    const result = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(1));
+
+    expect(result.trails).toEqual(['caipora']);
+    expect(result.scene.footprints).toEqual([]);
+    expect(result.events).toContainEqual({
+      type: 'trail',
+      x: 10.8,
+      y: 11.5,
+      encantadoId: 'caipora',
+    });
+  });
+
+  it('com sorte, a visagem derrotada deixa uma pegada onde caiu', () => {
+    const enemy = createEnemy(12.5, 11.5);
+    const scene = createScene({ trailTargets: [caipora], attackProgress: 1, enemies: [enemy] });
+    const result = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.5, lucky);
+
+    const defeat = result.events.find((event) => event.type === 'defeat');
+
+    expect(result.kills).toHaveLength(1);
+    expect(result.scene.footprints).toEqual([
+      { uid: 1, encantadoId: 'caipora', x: defeat?.x, y: defeat?.y },
+    ]);
+  });
+
+  it('a chance de Rastro de quem sai encurta o intervalo entre pegadas', () => {
+    const normal = createExpeditionScene(setupFor(null, [caipora]), createSeededRandom(1));
+    const setup = { ...setupFor(null, [caipora]), trailChance: 2 };
+    const doubled = createExpeditionScene(setup, createSeededRandom(1));
+
+    expect(normal.footprintIntervalSeconds).toBe(BALANCE.footprintSpawnSeconds);
+    expect(doubled.footprintIntervalSeconds).toBe(BALANCE.footprintSpawnSeconds / 2);
+    expect(normal.footprintTimer).toBe(BALANCE.footprintSpawnSeconds / 2);
+    expect(normal.trailTargets).toEqual([caipora]);
+    expect(normal.trailTargets[0]).not.toBe(caipora); // cópia: a cena não mexe no que recebeu
+  });
+
+  it('as pegadas são de quem ainda precisa, na hora certa, menos o que já está na bolsa', () => {
+    const game = createGame();
+    const night = BALANCE.dayLengthMs * 0.75;
+    const withBag = {
+      ...game,
+      expedition: { mapId: FIRST_MAP, encantadoId: 'saci', loot: [], trails: { caipora: 1 } },
+    };
+    const withPact = { ...game, trails: { caipora: 3 } };
+
+    expect(getTrailTargets(game, FIRST_MAP, 0)).toEqual([{ encantadoId: 'caipora', remaining: 3 }]);
+    expect(getTrailTargets(game, FIRST_MAP, night)).toEqual([
+      { encantadoId: 'caipora', remaining: 3 },
+      { encantadoId: 'boitata', remaining: 5 },
+    ]);
+    expect(getTrailTargets(withBag, FIRST_MAP, 0)).toEqual([
+      { encantadoId: 'caipora', remaining: 2 },
+    ]);
+    expect(getTrailTargets(withPact, FIRST_MAP, 0)).toEqual([]);
+  });
+
+  it('a bolsa guarda os Rastros e a volta entrega sem passar do que o pacto pede', () => {
+    const game = createGameOnExpedition();
+    const withTrails = addTrailsToLoot(game, ['caipora', 'caipora', 'caipora', 'caipora']);
+    const result = finishExpedition(withTrails, 'voltou', 30, {
+      startTimestamp: 0,
+      random: createSeededRandom(1),
+    });
+
+    expect(withTrails.expedition?.trails).toEqual({ caipora: 4 });
+    expect(countTrails(withTrails.expedition?.trails ?? {})).toBe(4);
+    expect(addTrailsToLoot(game, [])).toBe(game);
+    expect(result.state.trails.caipora).toBe(3);
+    expect(result.report?.summary.trails.caipora).toBe(3);
+  });
+
+  it('uma bolsa só com Rastros também é entregue', () => {
+    const game = createGame();
+    const bag = { mapId: FIRST_MAP, kills: [], trails: { caipora: 2 } };
+    const result = rewardExpeditionBag(game, bag, { startTimestamp: 0, random: lucky });
+
+    expect(result.state.trails.caipora).toBe(2);
+    expect(result.summary.kills).toBe(0);
   });
 });

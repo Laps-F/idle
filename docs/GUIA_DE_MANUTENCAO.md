@@ -38,7 +38,7 @@ na raiz do projeto.
 - Ação que não é permitida devolve `null`, em vez de lançar erro ou alterar algo.
 - `simulation.ts` e `rewards.ts` trabalham, por dentro, em uma cópia privada do estado (o
   `draft`, dentro de `RewardContext`). As funções internas alteram só essa cópia. Por fora,
-  `advanceSimulation`, `dealDirectDamage` e `rewardExpeditionKills` são puras. `expeditionScene.ts` faz o
+  `advanceSimulation`, `dealDirectDamage` e `rewardExpeditionBag` são puras. `expeditionScene.ts` faz o
   mesmo com a cena do mapa em `advanceScene`, e `expeditionProjectiles.ts` só altera essa cena de
   trabalho.
 
@@ -136,7 +136,7 @@ essas ações às outras e chama o passo dentro do `tick`.
 4. A expedição termina no fim do tempo (`concluida`), quando a vida zera (`caiu`), na passagem
    de volta ou no botão (`voltou`), ou numa recarga no meio dela (`interrompida`).
    `endExpedition` chama `finishExpedition`, que entrega a bolsa pelo saque próprio do mapa
-   (`rewardExpeditionKills`, em `src/domain/expeditionLoot.ts`, com a tabela de
+   (`rewardExpeditionBag`, em `src/domain/expeditionLoot.ts`, com a tabela de
    `src/data/expeditionLoot.ts` e bônus só em `concluida`), e guarda o relatório em
    `expeditionReport`.
 5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
@@ -171,6 +171,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Quantos golpes uma visagem aguenta no nível de partida (a escala da expedição) | `src/data/balance.ts`, `expeditionHitsPerEnemy` |
 | Projéteis: velocidade, tamanho e distância máxima (comum e especial) | `src/data/balance.ts`, bloco "Expedições: projéteis" |
 | Visagens na expedição: perseguição, encostada, dano (fração da vida e crescimento), passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
+| Pegadas: intervalo, quantas no chão, chance na visagem derrotada, distância para pegar e para surgir; quanto a clareira ainda dá de Rastro (`clearingTrailMultiplier`) | `src/data/balance.ts`, bloco "Expedições: pegadas de Rastro" |
 | Ondas: visagens no começo, teto, ritmo de chegada, nível subindo com o tempo | `src/data/balance.ts`, bloco "Expedições: ondas" |
 | Desenho de um mapa, bônus de nível (`levelBonus`), visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
 | Saque de um mapa: Patacas e XP por visagem, Oferendas que caem, chance de amuleto | `src/data/expeditionLoot.ts`, `EXPEDITION_LOOT` |
@@ -226,12 +227,16 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | O que acontece com a visagem acertada (dano, derrota, bolsa) | `src/domain/expeditionScene.ts`, `damageEnemy` |
 | Voo do projétil, acerto, atravessar visagens e fim (parede ou distância) | `src/domain/expeditionProjectiles.ts` |
 | Colisão com árvore e água, distâncias, ladrilhos livres para nascer | `src/domain/sceneGeometry.ts` |
+| Pegadas de Rastro: quando surgem, onde, de quem, como são pegas, pegada da visagem derrotada | `src/domain/expeditionFootprints.ts` |
+| De quem as pegadas podem ser num mapa e quantas faltam (zona, hora, pacto, bolsa) | `src/domain/expedition.ts`, `getTrailTargets` |
+| O que a cena recebe para começar (mapa, quem sai, pegadas, chance de Rastro) | `src/domain/expedition.ts`, `getSceneSetup` |
+| Entrega dos Rastros da bolsa na volta (sem passar do pacto) | `src/domain/expeditionLoot.ts`, `rewardExpeditionBag` |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
 | Quando dá para partir | `src/domain/expedition.ts`, `canStartExpedition` e `startExpedition` |
 | Como a bolsa junta as visagens | `src/domain/expedition.ts`, `addKillsToLoot` |
 | O bônus de quem aguenta até o fim | `src/domain/expedition.ts`, `finishExpedition` |
-| O que cada visagem da bolsa rende (ordem das peças de recompensa) | `src/domain/expeditionLoot.ts`, `rewardExpeditionKills` |
+| O que cada visagem da bolsa rende (ordem das peças de recompensa) | `src/domain/expeditionLoot.ts`, `rewardExpeditionBag` |
 
 ### Estado, ações e salvamento (`src/store`)
 

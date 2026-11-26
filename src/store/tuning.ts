@@ -98,6 +98,7 @@ const GROUP = {
   waves: 'Expedição: ondas',
   maps: 'Expedição: mapas',
   expeditionLoot: 'Expedição: saque de cada mapa',
+  footprints: 'Expedição: pegadas de Rastro',
   enemies: 'Visagens: vida e recompensas (clareira e expedição)',
   enemyTypes: 'Visagens: cada tipo',
   drops: 'Quedas de Oferendas',
@@ -187,6 +188,38 @@ const BALANCE_FIELDS = {
     step: 0.05,
   },
 
+  clearingTrailMultiplier: {
+    group: GROUP.footprints,
+    label: 'Rastros na clareira e na ausência (0,1 = 10% da chance da zona)',
+    step: 0.05,
+  },
+  footprintSpawnSeconds: {
+    group: GROUP.footprints,
+    label: 'Segundos entre pegadas no mapa',
+    step: 1,
+    min: 1,
+  },
+  footprintMaxOnMap: {
+    group: GROUP.footprints,
+    label: 'Pegadas no chão ao mesmo tempo',
+    step: 1,
+    isInteger: true,
+  },
+  footprintDropChance: {
+    group: GROUP.footprints,
+    label: 'Chance de a visagem derrotada deixar pegada (0 a 1)',
+    step: 0.01,
+  },
+  footprintPickupRange: {
+    group: GROUP.footprints,
+    label: 'Distância para pegar a pegada',
+    step: 0.1,
+  },
+  footprintMinSpawnDistance: {
+    group: GROUP.footprints,
+    label: 'Distância mínima da personagem para a pegada surgir',
+    step: 0.5,
+  },
   enemyContactHpFraction: {
     group: GROUP.sceneEnemies,
     label: 'Encostada no nível de partida (0,03 = 3% da vida máxima)',

@@ -135,6 +135,14 @@ export const BALANCE = {
   enemyWaitSecondsMax: 3, // ...a 3 segundos
   enemyMinSpawnDistance: 6, // visagem nova não nasce mais perto da personagem do que isto
 
+  // Expedições: pegadas de Rastro (expeditionFootprints.ts). A clareira dá poucos Rastros.
+  clearingTrailMultiplier: 0.15, // a chance de Rastro da clareira (e da ausência) vale 15%
+  footprintSpawnSeconds: 20, // uma pegada nova a cada 20 s (menos com mais chance de Rastro)
+  footprintMaxOnMap: 2, // pegadas no chão ao mesmo tempo
+  footprintDropChance: 0.05, // chance de uma visagem derrotada deixar uma pegada onde caiu
+  footprintPickupRange: 0.6, // distância entre os centros para pegar a pegada
+  footprintMinSpawnDistance: 5, // pegada nova surge pelo menos a esta distância da personagem
+
   // Expedições: ondas. Quanto mais tempo, mais visagens, mais rápido e mais fortes.
   waveStartEnemies: 6, // visagens no mapa na hora de partir
   waveMaxEnemiesStart: 8, // teto de visagens ao mesmo tempo no começo...
