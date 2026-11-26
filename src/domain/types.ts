@@ -9,7 +9,7 @@
  *   2. Definições (o formato dos arquivos de src/data), incluindo os amuletos
  *   3. Estado salvo (o que vai para o localStorage)
  *   4. Resultados da simulação (resumos, relatório offline e eventos)
- *   5. Mundo aberto (mapas, cena em tempo real, entradas e eventos do mapa)
+ *   5. Expedições (mapas, bolsa salva, cena em tempo real, entradas e eventos)
  */
 
 // =============================================================================
@@ -279,7 +279,7 @@ export interface GameState {
   autoSalvage: Rarity | null; // desmancha sozinho os amuletos até esta raridade. Null desliga.
   nextAmuletNumber: number; // contador que dá um id único a cada amuleto encontrado
   combat: CombatState;
-  world: WorldPosition; // onde a personagem está no mundo aberto
+  expedition: ExpeditionState | null; // expedição em andamento. Null: todos na clareira.
   lastSaveTimestamp: number; // instante (ms) até onde o estado já foi simulado
   stats: GameStats;
 }
@@ -343,9 +343,12 @@ export type CombatEvent =
 
 // =============================================================================
 // =============================================================================
-// M U N D O   A B E R T O
+// E X P E D I Ç Õ E S
 
-// As coordenadas do mundo são contadas em ladrilhos: x cresce para a direita e y para baixo.
+// A clareira é o combate por estágios, que rende sempre. A expedição é a parte ativa: um
+// encantado sai por um mapa visto de cima, enfrenta ondas de visagens e volta com a bolsa.
+//
+// As coordenadas do mapa são contadas em ladrilhos: x cresce para a direita e y para baixo.
 // O ladrilho (2, 3) ocupa o quadrado de x = 2 a 3 e de y = 3 a 4. O centro dele é (2.5, 3.5).
 
 // Um tipo de ladrilho do mapa. "symbol" é o caractere usado no desenho do mapa em src/data.
@@ -356,89 +359,113 @@ export interface TileDef {
   isSolid: boolean; // true: ninguém passa (árvore, água)
 }
 
-// Passagem de um mapa para outro. A personagem pisa em (x, y) e aparece em (toX, toY).
-export interface WorldPortalDef {
-  x: number; // coluna do ladrilho da passagem
-  y: number; // linha do ladrilho da passagem
-  toMapId: string;
-  toX: number; // coluna de chegada no outro mapa (não pode ser uma passagem)
-  toY: number; // linha de chegada no outro mapa
-}
-
-// Um mapa do mundo aberto
-export interface WorldMapDef {
+// Um mapa de expedição
+export interface ExpeditionMapDef {
   id: string;
   name: string;
   zoneId: string; // zona de onde vêm os Rastros (src/data/zones.ts)
-  level: number; // estágio equivalente: força das visagens e tamanho das recompensas
+  level: number; // nível das visagens no começo. Sobe com o tempo de expedição.
   layout: string[]; // uma linha de texto por linha do mapa, um caractere por ladrilho
   start: { x: number; y: number }; // ladrilho onde a personagem começa
+  exit: { x: number; y: number }; // ladrilho da passagem de volta para a clareira
   enemyIds: string[]; // visagens que aparecem neste mapa
-  maxEnemies: number; // quantas visagens ficam no mapa ao mesmo tempo
-  portals: WorldPortalDef[];
 }
 
-// Posição salva da personagem: em que mapa e em que ponto (em ladrilhos, com fração)
-export interface WorldPosition {
+// Visagens derrotadas de um tipo e de um nível, guardadas na bolsa
+export interface ExpeditionLoot {
+  enemyId: string;
+  level: number;
+  count: number;
+}
+
+// O que da expedição é salvo: aonde foi, quem foi e a bolsa. O resto só vive com o jogo aberto
+export interface ExpeditionState {
   mapId: string;
-  x: number;
-  y: number;
+  encantadoId: string; // quem saiu em expedição (o primeiro da comitiva na hora de partir)
+  loot: ExpeditionLoot[];
 }
 
-// Uma visagem andando pelo mapa. Só existe com o jogo aberto, não é salva.
-export interface WorldEnemy {
+// Como a expedição terminou
+// concluida: aguentou até o fim do tempo (bolsa com bônus); caiu: a vida zerou;
+// voltou: saiu pela passagem ou pelo botão; interrompida: o jogo fechou no meio.
+export type ExpeditionOutcome = 'concluida' | 'caiu' | 'voltou' | 'interrompida';
+
+// Uma visagem no mapa. Só existe com o jogo aberto, não é salva.
+export interface SceneEnemy {
   uid: number; // número único dentro da cena
   enemyId: string;
+  level: number;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
-  targetX: number; // ponto para onde ela está andando
+  damage: number; // dano de cada encostada na personagem
+  hitCooldown: number; // segundos até poder bater de novo
+  targetX: number; // ponto para onde ela passeia quando não está perseguindo
   targetY: number;
-  waitSeconds: number; // tempo parada antes de voltar a andar
+  waitSeconds: number; // tempo parada antes de voltar a passear
 }
 
 // Tudo que está acontecendo no mapa agora. Só existe com o jogo aberto, não é salvo.
-export interface WorldScene {
+export interface ExpeditionScene {
   mapId: string;
+  elapsedSeconds: number; // tempo de expedição até agora
   playerX: number;
   playerY: number;
+  playerHp: number;
+  playerMaxHp: number;
+  hurtSeconds: number; // tempo que a personagem ainda pisca depois de levar um golpe
   attackProgress: number; // de 0 a 1. Em 1, o golpe sai assim que houver visagem por perto.
-  enemies: WorldEnemy[];
-  respawnTimers: number[]; // segundos que faltam para cada visagem derrotada voltar
+  specialCooldown: number; // segundos até o golpe especial ficar pronto
+  enemies: SceneEnemy[];
+  spawnTimer: number; // segundos até a próxima visagem entrar no mapa
   nextEnemyUid: number;
 }
 
-// Direção que a pessoa está apertando. Cada eixo vai de -1 a 1.
-export interface WorldInput {
+// O que a pessoa está fazendo: direção (cada eixo de -1 a 1) e se pediu o golpe especial
+export interface ExpeditionInput {
   moveX: number;
   moveY: number;
+  useSpecial: boolean;
 }
 
-// Quem anda e bate no mapa: o primeiro da comitiva, com os números já calculados
-export interface WorldFighter {
+// Quem anda e bate no mapa, com os números já calculados
+export interface ExpeditionFighter {
   encantadoId: string;
   damage: number; // dano de um golpe, antes do crítico
   attackInterval: number; // segundos entre dois golpes
   critChance: number; // de 0 a 1
+  maxHp: number;
 }
 
-// Uma visagem derrotada no mapa, do jeito que as recompensas precisam saber
-export interface WorldKill {
+// Uma visagem derrotada, do jeito que as recompensas precisam saber
+export interface MapKill {
   enemyId: string;
-  stage: number; // nível do mapa
+  stage: number; // nível da visagem, que faz o papel do estágio nas fórmulas
   zoneId: string;
 }
 
-// Eventos do mapa, para a tela desenhar números e avisos no lugar certo
-export type WorldEvent =
+// Eventos do mapa, para a tela desenhar números e efeitos no lugar certo
+export type SceneEvent =
   | { type: 'hit'; x: number; y: number; damage: number; isCrit: boolean }
   | { type: 'defeat'; x: number; y: number; enemyId: string }
-  | { type: 'mapChanged'; mapId: string };
+  | { type: 'hurt'; x: number; y: number; damage: number }
+  | { type: 'special'; x: number; y: number; radius: number };
 
-// O que um passo do mundo devolve
-export interface WorldStepResult {
-  scene: WorldScene;
-  kills: WorldKill[];
-  events: WorldEvent[];
+// O que um passo da cena devolve. "outcome" vem preenchido quando a expedição acabou.
+export interface SceneStepResult {
+  scene: ExpeditionScene;
+  kills: MapKill[];
+  events: SceneEvent[];
+  outcome: ExpeditionOutcome | null;
+}
+
+// Relatório da volta: como terminou, quanto durou e o que a bolsa rendeu
+export interface ExpeditionReport {
+  outcome: ExpeditionOutcome;
+  mapId: string;
+  seconds: number;
+  kills: number; // visagens na bolsa
+  bonusKills: number; // visagens extras do bônus de quem aguentou até o fim
+  summary: SimulationSummary;
 }

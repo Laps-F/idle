@@ -12,22 +12,20 @@ import {
   AMULET_RARITIES,
   ENCANTADOS,
   ENEMIES,
+  EXPEDITION_MAPS,
   TILES,
   UPGRADES,
-  WORLD_MAPS,
   ZONES,
 } from '../src/data';
 import {
   getTileAt,
-  getWorldMap,
   getZoneForStage,
   hasEncantado,
   hasEnemy,
   hasItem,
-  hasWorldMap,
   hasZone,
 } from '../src/domain/catalog';
-import type { WorldMapDef } from '../src/domain/types';
+import type { ExpeditionMapDef } from '../src/domain/types';
 
 describe('dados do jogo', () => {
   it('não repete ids', () => {
@@ -101,17 +99,17 @@ describe('dados do jogo', () => {
 });
 
 // Diz se o ladrilho existe e dá para pisar
-function isFreeTile(map: WorldMapDef, column: number, row: number): boolean {
+function isFreeTile(map: ExpeditionMapDef, column: number, row: number): boolean {
   const tile = getTileAt(map, column, row);
   return tile !== null && !tile.isSolid;
 }
 
-describe('mapas do mundo aberto', () => {
+describe('mapas de expedição', () => {
   it('não repete ids de mapa nem símbolos de ladrilho', () => {
-    const mapIds = WORLD_MAPS.map((map) => map.id);
+    const mapIds = EXPEDITION_MAPS.map((map) => map.id);
     const symbols = TILES.map((tile) => tile.symbol);
 
-    expect(WORLD_MAPS.length).toBeGreaterThan(0);
+    expect(EXPEDITION_MAPS.length).toBeGreaterThan(0);
     expect(new Set(mapIds).size).toBe(mapIds.length);
     expect(new Set(symbols).size).toBe(symbols.length);
     expect(symbols.every((symbol) => symbol.length === 1)).toBe(true);
@@ -120,7 +118,7 @@ describe('mapas do mundo aberto', () => {
   it('desenha cada mapa como um retângulo, só com ladrilhos conhecidos', () => {
     const knownSymbols = new Set(TILES.map((tile) => tile.symbol));
 
-    for (const map of WORLD_MAPS) {
+    for (const map of EXPEDITION_MAPS) {
       const width = map.layout[0]?.length ?? 0;
       expect(width).toBeGreaterThan(0);
       expect(map.layout.every((row) => row.length === width)).toBe(true);
@@ -130,30 +128,21 @@ describe('mapas do mundo aberto', () => {
     }
   });
 
-  it('aponta para zona e visagens que existem e começa em lugar livre', () => {
-    for (const map of WORLD_MAPS) {
+  it('aponta para zona e visagens que existem', () => {
+    for (const map of EXPEDITION_MAPS) {
       expect(hasZone(map.zoneId)).toBe(true);
       expect(map.enemyIds.length).toBeGreaterThan(0);
       expect(map.enemyIds.every(hasEnemy)).toBe(true);
-      expect(map.maxEnemies).toBeGreaterThan(0);
       expect(map.level).toBeGreaterThanOrEqual(1);
-      expect(isFreeTile(map, map.start.x, map.start.y)).toBe(true);
     }
   });
 
-  it('liga as passagens a lugares livres, fora de outra passagem', () => {
-    for (const map of WORLD_MAPS) {
-      for (const portal of map.portals) {
-        expect(isFreeTile(map, portal.x, portal.y)).toBe(true);
-        expect(hasWorldMap(portal.toMapId)).toBe(true);
-
-        const target = getWorldMap(portal.toMapId);
-        const landsOnPortal = target.portals.some(
-          (other) => other.x === portal.toX && other.y === portal.toY,
-        );
-        expect(isFreeTile(target, portal.toX, portal.toY)).toBe(true);
-        expect(landsOnPortal).toBe(false);
-      }
+  it('começa em lugar livre, com a passagem de volta em outro ladrilho livre', () => {
+    for (const map of EXPEDITION_MAPS) {
+      const startsOnExit = map.start.x === map.exit.x && map.start.y === map.exit.y;
+      expect(isFreeTile(map, map.start.x, map.start.y)).toBe(true);
+      expect(isFreeTile(map, map.exit.x, map.exit.y)).toBe(true);
+      expect(startsOnExit).toBe(false);
     }
   });
 });

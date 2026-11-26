@@ -11,9 +11,10 @@
  * plano), mas isso não atrapalha: o tick mede o tempo real que passou em vez
  * de supor que foram 100 ms. O desenho fica com o React e com CSS.
  *
- * Motor: quem liga o laço diz qual motor ele roda. No mundo aberto o intervalo
- * é bem menor (worldTickIntervalMs), para a personagem andar suave. O desenho
- * do mapa é feito à parte, no canvas, com requestAnimationFrame.
+ * Ritmo: na clareira o laço roda a cada tickIntervalMs (100 ms). Durante uma
+ * expedição ele acelera para expeditionTickIntervalMs (16 ms), para a
+ * personagem andar suave, e volta ao ritmo normal quando a expedição acaba.
+ * O desenho do mapa é feito à parte, no canvas, com requestAnimationFrame.
  *
  * Mapa:
  *   1. Laço do jogo
@@ -22,30 +23,38 @@
 
 import { BALANCE } from '../data/balance';
 import { claimActiveTab } from './tabGuard';
-import type { GameEngine } from './types';
 import { useGameStore } from './useGameStore';
 
 // =============================================================================
 // =============================================================================
 // L A Ç O   D O   J O G O
 
-// Intervalo do laço de cada motor
-const TICK_INTERVAL_MS: Record<GameEngine, number> = {
-  mundo: BALANCE.worldTickIntervalMs,
-  estagios: BALANCE.tickIntervalMs,
-};
+// Liga o laço e devolve a função que desliga. Use dentro de um useEffect.
+export function startGameLoop(): () => void {
+  let intervalId = 0;
+  let intervalMs = 0;
 
-// Liga o laço com o motor pedido e devolve a função que desliga. Use dentro de um useEffect.
-export function startGameLoop(engine: GameEngine = 'estagios'): () => void {
-  useGameStore.getState().setEngine(engine);
+  // Troca o intervalo quando a expedição começa ou acaba
+  const adjustInterval = (): void => {
+    const wantedMs = getTickIntervalMs();
+
+    if (wantedMs !== intervalMs) {
+      window.clearInterval(intervalId);
+      intervalMs = wantedMs;
+      intervalId = window.setInterval(runTick, wantedMs);
+    }
+  };
+
   runTick();
-  const intervalId = window.setInterval(runTick, TICK_INTERVAL_MS[engine]);
+  adjustInterval();
+  const stopWatchingStore = useGameStore.subscribe(adjustInterval);
 
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('pagehide', saveProgress);
   window.addEventListener('beforeunload', saveProgress);
 
   const stopTicking = (): void => {
+    stopWatchingStore();
     window.clearInterval(intervalId);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     window.removeEventListener('pagehide', saveProgress);
@@ -69,6 +78,12 @@ export function startGameLoop(engine: GameEngine = 'estagios'): () => void {
 // =============================================================================
 // =============================================================================
 // P A S S O S   D O   L A Ç O
+
+// Intervalo do laço agora: mais curto durante a expedição
+function getTickIntervalMs(): number {
+  const isOnExpedition = useGameStore.getState().expedition !== null;
+  return isOnExpedition ? BALANCE.expeditionTickIntervalMs : BALANCE.tickIntervalMs;
+}
 
 // Um passo do jogo, medido pelo relógio real
 function runTick(): void {

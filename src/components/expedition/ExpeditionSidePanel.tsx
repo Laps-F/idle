@@ -1,16 +1,17 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/components/world/WorldSidePanel.tsx
- * O que faz: o painel ao lado do mapa. Mostra quem anda (nível e XP), quantas
- * visagens já caíram, como jogar e a legenda das imagens que ainda vão entrar.
- * Só formata o que recebe do seletor.
+ * Arquivo: src/components/expedition/ExpeditionSidePanel.tsx
+ * O que faz: o painel ao lado do mapa durante a expedição. Mostra quem saiu
+ * e quanto já está na bolsa, o botão de voltar agora, os controles e a
+ * legenda das imagens que ainda vão entrar. Só formata o que recebe.
+ * Vida, tempo e golpe especial ficam no próprio mapa (mapRenderer.ts).
  */
 
-import { selectWorldHud } from '../../store/selectors';
+import { selectExpeditionHud } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatNumber } from '../../utils/format';
-import { Meter } from '../ui/Meter';
-import { getPlayerSprite, listTileSprites, PORTAL_SPRITE } from './sprites';
+import { Button } from '../ui/Button';
+import { EXIT_SPRITE, getPlayerSprite, listTileSprites } from './sprites';
 import type { SpriteSlot } from './sprites';
 
 // =============================================================================
@@ -20,35 +21,34 @@ import type { SpriteSlot } from './sprites';
 const SECTION_CLASS = 'space-y-2 border-2 border-tinta bg-jornal p-3';
 const TITLE_CLASS = 'font-display text-lg leading-none';
 
-// Coluna ao lado do mapa, de cima para baixo: personagem, como jogar e legenda
-export function WorldSidePanel() {
+// Coluna ao lado do mapa, de cima para baixo: expedição, como jogar e legenda
+export function ExpeditionSidePanel() {
   return (
     <aside className="space-y-3">
-      <LeadSection />
+      <ExpeditionSection />
       <HowToPlaySection />
       <LegendSection />
     </aside>
   );
 }
 
-// Quem anda pelo mapa, o nível e o caminho até o próximo
-function LeadSection() {
-  const hud = useGameStore(selectWorldHud);
-  const xpFraction = hud.leadXpToNextLevel > 0 ? hud.leadXp / hud.leadXpToNextLevel : 0;
+// Quem saiu, para onde, quanto está na bolsa e o botão de voltar
+function ExpeditionSection() {
+  const hud = useGameStore(selectExpeditionHud);
+  const leaveExpedition = useGameStore((store) => store.leaveExpedition);
+
+  if (hud === null) {
+    return null;
+  }
 
   return (
-    <section className={SECTION_CLASS} aria-label="Personagem">
-      <h2 className={TITLE_CLASS}>{hud.leadName ?? 'Ninguém ainda'}</h2>
-      {hud.leadName !== null && (
-        <>
-          <p className="text-sm">Nível {formatNumber(hud.leadLevel)}</p>
-          <Meter fraction={xpFraction} label="Experiência até o próximo nível" />
-        </>
-      )}
-      <p className="text-sm">
-        {hud.mapName} (nível {hud.mapLevel})
-      </p>
-      <p className="text-sm">Visagens derrotadas: {formatNumber(hud.totalKills)}</p>
+    <section className={SECTION_CLASS} aria-label="Expedição">
+      <h2 className={TITLE_CLASS}>{hud.mapName}</h2>
+      <p className="text-sm">Quem saiu: {hud.leaderName}</p>
+      <p className="text-sm">Visagens na bolsa: {formatNumber(hud.lootCount)}</p>
+      <Button variant="outline" onClick={leaveExpedition}>
+        Voltar para a clareira agora
+      </Button>
     </section>
   );
 }
@@ -60,17 +60,12 @@ function HowToPlaySection() {
       <h2 className={TITLE_CLASS}>Como jogar</h2>
       <ul className="list-disc space-y-1 pl-5 text-sm">
         <li>Ande com as setas ou com W, A, S e D.</li>
-        <li>Chegue perto de uma visagem: o golpe sai sozinho quando a barra amarela enche.</li>
-        <li>O bloco roxo é uma passagem para outro mapa.</li>
-        <li>Com o jogo fechado, a personagem continua lutando no mapa onde ficou.</li>
+        <li>O golpe comum sai sozinho na visagem mais perto, dentro do círculo.</li>
+        <li>Espaço solta o golpe especial em volta de você. Ele precisa recarregar.</li>
+        <li>As visagens perseguem e batem ao encostar. Fuja, elas são mais lentas.</li>
+        <li>O bloco roxo leva de volta para a clareira, com a bolsa inteira.</li>
+        <li>Aguentando até o fim do tempo, a bolsa rende mais.</li>
       </ul>
-      <p className="text-sm">
-        A tela antiga, por estágios, continua em{' '}
-        <a className="underline" href="?classico">
-          ?classico
-        </a>
-        .
-      </p>
     </section>
   );
 }
@@ -79,7 +74,7 @@ function HowToPlaySection() {
 function LegendSection() {
   const slots: { name: string; slot: SpriteSlot }[] = [
     ...listTileSprites().map(({ tileId, slot }) => ({ name: tileId, slot })),
-    { name: 'passagem', slot: PORTAL_SPRITE },
+    { name: 'passagem', slot: EXIT_SPRITE },
     { name: 'personagem', slot: getPlayerSprite(null) },
   ];
 

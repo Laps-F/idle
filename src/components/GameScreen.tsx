@@ -1,10 +1,11 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/GameScreen.tsx
- * O que faz: a tela do jogo, em um painel só. Monta o cabeçalho, a arena no
- * centro e os dois painéis de abas nas laterais, e abre as janelas que
- * dependem do estado: escolha inicial, boas-vindas de volta, cerimônia da
- * Rebrota e aviso de outra aba.
+ * O que faz: a tela da clareira, em um painel só. Monta o cabeçalho, a arena
+ * no centro e os dois painéis de abas nas laterais, e abre as janelas que
+ * dependem do estado: escolha inicial, boas-vindas de volta, volta de
+ * expedição, cerimônia da Rebrota e aviso de outra aba. A partida para uma
+ * expedição fica na aba "Expedições".
  *
  * Este componente lê pouco da store (bioma, fase do dia e três sinais de sim
  * ou não), então quase nunca redesenha. Cada painel cuida da própria leitura.
@@ -27,6 +28,7 @@
  *   │  ├─ AttackBars             barras de ataque (por ref)
  *   │  └─ EventLog               registro compacto
  *   ├─ Tabs "Comitiva"           lateral esquerda
+ *   │  ├─ ExpeditionsPanel       mapas e o botão de partir em expedição
  *   │  ├─ PartyPanel             elenco e sinergias
  *   │  ├─ AlmanacPanel           pactos
  *   │  └─ JuazeiroPanel          Rebrota e juazeiro (aparece no primeiro muro)
@@ -36,7 +38,8 @@
  *   │  ├─ UpgradesPanel          melhorias
  *   │  ├─ StagesPanel            estágios e chefe
  *   │  └─ AmuletsPanel           quem veste, mochila, entalhe e desmanche
- *   └─ janelas: StarterModal, OfflineModal, RebrotaCeremony, OtherTabNotice
+ *   └─ janelas: StarterModal, OfflineModal, ExpeditionReportModal, RebrotaCeremony,
+ *      OtherTabNotice
  *
  * Mapa:
  *   1. Tela
@@ -56,7 +59,9 @@ import {
 } from '../store/selectors';
 import { useGameStore } from '../store/useGameStore';
 import { ArenaPanel } from './arena/ArenaPanel';
+import { ExpeditionsPanel } from './expedition/ExpeditionsPanel';
 import { AppHeader } from './header/AppHeader';
+import { ExpeditionReportModal } from './modals/ExpeditionReportModal';
 import { OfflineModal } from './modals/OfflineModal';
 import { OtherTabNotice } from './modals/OtherTabNotice';
 import { StarterModal } from './modals/StarterModal';
@@ -102,6 +107,7 @@ export default function GameScreen() {
 
       {!hasStarter && !isOpenInAnotherTab && <StarterModal />}
       {hasStarter && !isOpenInAnotherTab && <OfflineModal />}
+      {hasStarter && !isOpenInAnotherTab && <ExpeditionReportModal />}
       {hasStarter && !isOpenInAnotherTab && <RebrotaCeremony />}
       {isOpenInAnotherTab && <OtherTabNotice />}
     </div>
@@ -113,7 +119,8 @@ export default function GameScreen() {
 // =============================================================================
 // P A I N É I S   D E   A B A S
 
-// Lateral esquerda: quem luta, quem ainda pode ser conquistado e o que fica entre edições.
+// Lateral esquerda: expedições, quem luta, quem ainda pode ser conquistado e o que fica
+// entre edições.
 // A aba do juazeiro só entra depois do primeiro muro (selectIsJuazeiroRevealed).
 function PartyTabs() {
   const badges = useGameStore(selectBadges);
@@ -131,6 +138,7 @@ function PartyTabs() {
       label="Comitiva"
       className="lg:order-1"
       tabs={[
+        { id: 'expedicoes', title: 'Expedições', content: <ExpeditionsPanel /> },
         { id: 'comitiva', title: 'Comitiva', content: <PartyPanel /> },
         {
           id: 'almanaque',

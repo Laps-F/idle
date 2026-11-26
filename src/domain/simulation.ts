@@ -6,9 +6,9 @@
  * ausência, porque ela pula de evento em evento (próximo golpe ou fim do
  * tempo do chefe) em vez de andar em passos fixos.
  *
- * O mesmo bloco de recompensas também serve o mundo aberto: rewardKills
- * entrega Patacas, XP, Oferendas, Rastros e amuletos das visagens derrotadas
- * no mapa, sem passar pelo combate de estágios.
+ * O mesmo bloco de recompensas também serve as expedições: rewardKills
+ * entrega Patacas, XP, Oferendas, Rastros e amuletos das visagens da bolsa,
+ * sem passar pelo combate de estágios.
  *
  * Pureza: advanceSimulation, dealDirectDamage e rewardKills são funções puras. Elas não
  * alteram o estado recebido, não leem o relógio e não sorteiam por conta
@@ -23,7 +23,7 @@
  *   4. Tempo: próximo evento e relógios
  *   5. Golpes
  *   6. Derrota de inimigos e chefes
- *   7. Recompensas (também usadas pelo mundo aberto)
+ *   7. Recompensas (também usadas pelas expedições)
  */
 
 import { BALANCE, MS_PER_SECOND } from '../data/balance';
@@ -56,7 +56,7 @@ import type {
   Modifiers,
   SimulationResult,
   SimulationSummary,
-  WorldKill,
+  MapKill,
   ZoneDef,
 } from './types';
 
@@ -205,8 +205,8 @@ export function dealDirectDamage(
 /**
  * Entrega as recompensas de visagens derrotadas fora do combate de estágios.
  *
- * É a ponte entre o mundo aberto e as regras de recompensa: cada derrota no
- * mapa rende Patacas, XP para a comitiva, Oferendas, Rastros da zona do mapa e,
+ * É a ponte entre as expedições e as regras de recompensa: cada visagem da
+ * bolsa rende Patacas, XP para a comitiva, Oferendas, Rastros da zona do mapa e,
  * com sorte, um amuleto, pelas mesmas regras do combate de estágios. A compra
  * automática de melhorias também roda depois de cada derrota.
  *
@@ -215,7 +215,7 @@ export function dealDirectDamage(
  *
  * @param state Estado de partida. Não é alterado.
  * @param kills Visagens derrotadas, na ordem em que caíram.
- * @param options Instante das derrotas (decide dia, noite e lua dos Rastros) e sorteio.
+ * @param options Instante da entrega (decide dia, noite e lua dos Rastros) e sorteio.
  * @returns Estado novo, resumo do que rendeu e os eventos (se pedidos).
  *
  * Casos de borda: lista vazia devolve o mesmo "state" recebido, com o resumo
@@ -223,7 +223,7 @@ export function dealDirectDamage(
  */
 export function rewardKills(
   state: GameState,
-  kills: readonly WorldKill[],
+  kills: readonly MapKill[],
   options: SimulationOptions,
 ): SimulationResult {
   if (kills.length === 0) {

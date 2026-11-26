@@ -656,10 +656,10 @@ describe('Rebrota e salvamento da versão 3', () => {
   });
 });
 
-describe('mundo aberto e salvamento da versão 4', () => {
-  // Estado como a versão 3 gravava: com a Rebrota e sem o mundo aberto
-  const versionThreeState = {
-    version: 3,
+describe('expedições e salvamento da versão 5', () => {
+  // Estado como a versão 4 gravava: com a posição no mundo aberto e sem expedição
+  const versionFourState = {
+    version: 4,
     gold: 321,
     stage: 12,
     maxStage: 12,
@@ -681,6 +681,7 @@ describe('mundo aberto e salvamento da versão 4', () => {
     shavings: 0,
     autoSalvage: null,
     nextAmuletNumber: 1,
+    world: { mapId: 'beira-da-mata', x: 7.5, y: 3.5 },
     lastSaveTimestamp: START,
     stats: {
       totalKills: 120,
@@ -692,77 +693,122 @@ describe('mundo aberto e salvamento da versão 4', () => {
     },
   };
 
-  // Abre o jogo no motor do mundo, com o Saci escolhido
-  async function openWorld(): Promise<StoreModule['useGameStore']> {
+  // Abre o jogo com o Saci escolhido e parte em expedição
+  async function openExpedition(): Promise<StoreModule['useGameStore']> {
     const useGameStore = await openGame();
-    useGameStore.getState().setEngine('mundo');
     useGameStore.getState().chooseStarter('saci');
+    expect(useGameStore.getState().startExpedition('beira-da-mata')).toBe(true);
     return useGameStore;
   }
 
-  it('abre um salvamento da versão 3 no começo do primeiro mapa, sem perder nada', async () => {
-    localStorage.setItem(
-      SAVE_STORAGE_KEY,
-      JSON.stringify({ state: versionThreeState, version: 3 }),
-    );
+  // Roda ticks de 0,1 s, como o laço faz
+  function runTicks(useGameStore: StoreModule['useGameStore'], count: number): void {
+    for (let tick = 0; tick < count; tick += 1) {
+      vi.advanceTimersByTime(100);
+      useGameStore.getState().tick(Date.now());
+    }
+  }
+
+  it('abre um salvamento da versão 4 na clareira, sem perder nada', async () => {
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: versionFourState, version: 4 }));
     const useGameStore = await openGame();
     const state = useGameStore.getState();
 
     expect(state.version).toBe(BALANCE.saveVersion);
-    expect(state.world).toEqual({ mapId: 'beira-da-mata', x: 4.5, y: 10.5 });
+    expect(state.expedition).toBeNull();
+    expect('world' in state).toBe(false);
     expect(state.gold).toBe(321);
     expect(state.stage).toBe(12);
     expect(state.party).toEqual(['iara']);
   });
 
-  it('anda com a personagem no tick e guarda a posição', async () => {
-    const useGameStore = await openWorld();
-    const startX = useGameStore.getState().world.x;
-    const combatBefore = useGameStore.getState().combat;
-
-    useGameStore.getState().setWorldInput({ moveX: 1, moveY: 0 });
-    for (let tick = 0; tick < 10; tick += 1) {
-      vi.advanceTimersByTime(100);
-      useGameStore.getState().tick(Date.now());
-    }
-
+  it('parte com o primeiro da comitiva, com a cena montada e a vida cheia', async () => {
+    const useGameStore = await openExpedition();
     const state = useGameStore.getState();
-    expect(state.worldScene).not.toBeNull();
-    expect(state.world.x).toBeCloseTo(startX + BALANCE.playerSpeed, 6);
-    expect(state.world.x).toBe(state.worldScene?.playerX);
-    // O motor de estágios fica parado enquanto se joga no mapa
-    expect(state.killsInStage).toBe(0);
-    expect(state.combat).toEqual(combatBefore);
+
+    expect(state.expedition).toEqual({ mapId: 'beira-da-mata', encantadoId: 'saci', loot: [] });
+    expect(state.expeditionScene?.playerHp).toBe(BALANCE.playerBaseHp);
+    expect(state.startExpedition('brejo-escuro')).toBe(false);
   });
 
-  it('rende a ausência pela conta do mapa', async () => {
-    const useGameStore = await openWorld();
+  it('anda na expedição e a clareira continua rendendo ao mesmo tempo', async () => {
+    const useGameStore = await openExpedition();
+    const startX = useGameStore.getState().expeditionScene?.playerX ?? 0;
+
+    useGameStore.getState().setMoveInput({ moveX: 1, moveY: 0 });
+    runTicks(useGameStore, 100);
+
+    const state = useGameStore.getState();
+    expect(state.expeditionScene?.playerX).toBeGreaterThan(startX);
+    expect(state.stats.totalKills).toBeGreaterThan(0);
+    expect(state.gold).toBeGreaterThan(0);
+  });
+
+  it('entrega a bolsa ao voltar e abre o relatório', async () => {
+    const useGameStore = await openExpedition();
+    useGameStore.setState({
+      expedition: {
+        mapId: 'beira-da-mata',
+        encantadoId: 'saci',
+        loot: [{ enemyId: 'visagem-da-neblina', level: 1, count: 5 }],
+      },
+    });
+    const goldBefore = useGameStore.getState().gold;
+
+    expect(useGameStore.getState().leaveExpedition()).toBe(true);
+
+    const state = useGameStore.getState();
+    expect(state.expedition).toBeNull();
+    expect(state.expeditionScene).toBeNull();
+    expect(state.expeditionReport?.outcome).toBe('voltou');
+    expect(state.expeditionReport?.kills).toBe(5);
+    expect(state.gold).toBeGreaterThan(goldBefore);
+    expect(state.leaveExpedition()).toBe(false);
+  });
+
+  it('entrega a bolsa como interrompida depois de uma ausência', async () => {
+    const useGameStore = await openExpedition();
     useGameStore.getState().tick(Date.now());
     vi.advanceTimersByTime(ONE_HOUR_MS);
     useGameStore.getState().tick(Date.now());
 
     const state = useGameStore.getState();
+    expect(state.expedition).toBeNull();
+    expect(state.expeditionReport?.outcome).toBe('interrompida');
     expect(state.offlineReport?.summary.kills).toBeGreaterThan(0);
-    expect(state.offlineReport?.summary.stagesAdvanced).toBe(0);
-    expect(state.gold).toBeGreaterThan(0);
-    expect(state.stage).toBe(1);
   });
 
-  it('volta para o começo do mapa ao importar uma posição estragada', async () => {
-    const useGameStore = await openWorld();
-    const broken = { ...versionThreeState, version: 4, world: { mapId: 'nada', x: 3, y: 3 } };
-    const code = btoa(JSON.stringify({ game: 'encantados', version: 4, state: broken }));
+  it('entrega a bolsa ao abrir um salvamento com expedição em andamento', async () => {
+    const saved = {
+      ...versionFourState,
+      version: 5,
+      world: undefined,
+      expedition: {
+        mapId: 'brejo-escuro',
+        encantadoId: 'iara',
+        loot: [
+          { enemyId: 'assombro-do-brejo', level: 4, count: 3 },
+          { enemyId: 'nada', level: 1, count: 2 },
+        ],
+      },
+    };
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: saved, version: 5 }));
+    const useGameStore = await openGame();
 
-    expect(useGameStore.getState().importSave(code)).toEqual({ ok: true });
-    expect(useGameStore.getState().world).toEqual({ mapId: 'beira-da-mata', x: 4.5, y: 10.5 });
-    expect(useGameStore.getState().worldScene).toBeNull();
+    expect(useGameStore.getState().expedition?.loot).toHaveLength(1);
+    runTicks(useGameStore, 1);
+    expect(useGameStore.getState().expedition).toBeNull();
+    expect(useGameStore.getState().expeditionReport?.kills).toBe(3);
   });
 
-  it('só grava a direção quando ela muda', async () => {
-    const useGameStore = await openWorld();
-    useGameStore.getState().setWorldInput({ moveX: 1, moveY: 0 });
-    const first = useGameStore.getState().worldInput;
-    useGameStore.getState().setWorldInput({ moveX: 1, moveY: 0 });
-    expect(useGameStore.getState().worldInput).toBe(first);
+  it('só grava a direção quando muda e só guarda o golpe especial em expedição', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().triggerSpecial();
+    expect(useGameStore.getState().isSpecialPending).toBe(false);
+
+    useGameStore.getState().setMoveInput({ moveX: 1, moveY: 0 });
+    const first = useGameStore.getState().moveInput;
+    useGameStore.getState().setMoveInput({ moveX: 1, moveY: 0 });
+    expect(useGameStore.getState().moveInput).toBe(first);
   });
 });

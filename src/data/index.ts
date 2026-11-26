@@ -16,4 +16,4 @@ export { JUAZEIRO_BRANCHES, JUAZEIRO_NODES } from './juazeiro';
 export { SYNERGIES } from './synergies';
 export { UPGRADES } from './upgrades';
 export { ZONES } from './zones';
-export { TILES, WORLD_MAPS } from './world';
+export { EXPEDITION_MAPS, TILES } from './world';

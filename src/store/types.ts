@@ -13,12 +13,12 @@
 
 import type {
   CombatEvent,
+  ExpeditionReport,
+  ExpeditionScene,
   GameState,
   OfflineReport,
   Rarity,
-  WorldEvent,
-  WorldInput,
-  WorldScene,
+  SceneEvent,
 } from '../domain/types';
 
 // =============================================================================
@@ -39,15 +39,19 @@ export interface SaveReceipt {
 // =============================================================================
 // E S T A D O   D E   S E S S Ã O
 
-// Qual motor o tick roda: o mapa em tempo real ou o combate de estágios (tela clássica)
-export type GameEngine = 'mundo' | 'estagios';
+// Direção que a pessoa aperta na expedição. Cada eixo vai de -1 a 1.
+export interface MoveInput {
+  moveX: number;
+  moveY: number;
+}
 
 // Campos que existem só enquanto o jogo está aberto. Não vão para o localStorage.
 export interface SessionState {
-  engine: GameEngine; // escolhido pela tela que abriu (src/App.tsx)
-  worldScene: WorldScene | null; // o que está no mapa agora. Null: ainda não montado.
-  worldInput: WorldInput; // direção que a pessoa está apertando
-  worldEvents: readonly WorldEvent[]; // golpes e derrotas do último tick, para a tela animar
+  expeditionScene: ExpeditionScene | null; // o que está no mapa agora. Null: sem expedição.
+  moveInput: MoveInput; // direção que a pessoa está apertando
+  isSpecialPending: boolean; // golpe especial pedido, que sai no próximo tick
+  sceneEvents: readonly SceneEvent[]; // golpes e derrotas do último tick, para o mapa animar
+  expeditionReport: ExpeditionReport | null; // saque da última volta, até a pessoa fechar
   offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
   combatEvents: readonly CombatEvent[]; // o que aconteceu no último tick, para a interface animar
   isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
@@ -75,9 +79,12 @@ export interface GameActions {
   dismissOfflineReport: () => void;
   yieldToAnotherTab: () => void;
 
-  // Mundo aberto
-  setEngine: (engine: GameEngine) => void;
-  setWorldInput: (input: WorldInput) => void;
+  // Expedições. startExpedition e leaveExpedition devolvem true quando a ação foi aplicada.
+  startExpedition: (mapId: string) => boolean;
+  leaveExpedition: () => boolean;
+  setMoveInput: (input: MoveInput) => void;
+  triggerSpecial: () => void;
+  dismissExpeditionReport: () => void;
 
   // Jogo. Devolvem true quando a ação foi aplicada.
   chooseStarter: (encantadoId: string) => boolean;

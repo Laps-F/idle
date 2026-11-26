@@ -2,6 +2,82 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: clareira e expedições (caminho C)
+
+O protótipo do mundo aberto virou um passeio: andar e bater sozinho, sem perigo. A decisão foi
+seguir o caminho C do documento "pivo-gameplay-ativa" do projeto: a **clareira** (o combate por
+estágios de antes) é a base idle e rende sempre, e a **expedição** é a parte ativa, que sai da
+clareira. A tela antiga voltou a ser a principal e `?classico` deixou de existir. O salvamento
+subiu para a versão 5.
+
+Regras da expedição:
+
+- Sai o primeiro encantado da comitiva, com vida (100 no nível 1, +10% por nível).
+- As visagens perseguem quem chega a 9 ladrilhos e batem ao encostar (uma vez por segundo
+  cada). Andam mais devagar que a personagem.
+- Ondas: começa com 6 visagens. O teto e o ritmo de chegada sobem a cada minuto, e as visagens
+  novas nascem um nível acima a cada minuto.
+- Golpe comum automático, como antes. Golpe especial na tecla espaço: acerta todas em volta
+  (2,5 ladrilhos) com 4 vezes o dano, e recarrega em 6 segundos.
+- A expedição termina no fim dos 5 minutos (bônus de 50% a mais de visagens na bolsa), quando a
+  vida zera, pela passagem de volta ou pelo botão. A bolsa nunca se perde.
+- A clareira continua rendendo durante a expedição. A expedição não roda com o jogo fechado:
+  uma ausência ou recarga no meio dela entrega a bolsa como "interrompida".
+
+Ritmo medido parado no lugar, sem desviar (o pior jeito de jogar): no nível 1 a personagem cai
+entre 30 segundos e 2 minutos e meio; no nível 10 já aguenta os 5 minutos. Desviando, aguenta
+mais. Não há ausência no mapa: a conta do protótipo anterior (`worldOffline.ts`) saiu.
+
+Domínio:
+
+- `src/domain/expeditionScene.ts` (antes `world.ts`, reescrito): cena com vida, perseguição,
+  encostada, ondas, golpe especial, fim do tempo e passagem de volta.
+- `src/domain/expedition.ts` (novo): quem sai (`getExpeditionFighter`), partir, bolsa e a volta
+  com o bônus (`finishExpedition`, que usa `rewardKills`).
+- `src/domain/worldOffline.ts`: apagado.
+- `src/domain/formulas.ts`: `getEnemyContactDamage` e `getExpeditionMaxHp`.
+- `src/domain/types.ts`: bloco "Expedições". `GameState.world` saiu e entrou
+  `GameState.expedition` (mapa, quem saiu e a bolsa).
+- `src/domain/catalog.ts`: `getExpeditionMap` e `hasExpeditionMap` no lugar das consultas de mapa
+  do mundo aberto. `src/domain/state.ts`: jogo novo sem expedição.
+
+Dados:
+
+- `src/data/world.ts`: `EXPEDITION_MAPS`, com a passagem de volta (`exit`) no lugar das
+  passagens entre mapas.
+- `src/data/balance.ts`: `saveVersion: 5` e os blocos "Expedições" (personagem, visagens, ondas).
+
+Store:
+
+- `src/store/useGameStore.ts`: a clareira roda em todo tick e a expedição anda por cima
+  (`runExpeditionTick`, `endExpedition`). Ações `startExpedition`, `leaveExpedition`,
+  `setMoveInput`, `triggerSpecial` e `dismissExpeditionReport`. Saíram `setEngine` e
+  `setWorldInput`.
+- `src/store/types.ts`: campos de sessão `expeditionScene`, `moveInput`, `isSpecialPending`,
+  `sceneEvents` e `expeditionReport`. Saiu o campo `engine`.
+- `src/store/gameLoop.ts`: o intervalo cai para 16 ms durante a expedição e volta a 100 ms.
+- `src/store/saveManager.ts`: `MIGRATIONS[4]` (versão 4 para 5) e `sanitizeExpedition`.
+- `src/store/selectors.ts`: bloco "Expedições" (aba, painel, janela da volta e `readSceneFrame`).
+
+Tela:
+
+- `src/components/expedition/` (antes `world/`): `ExpeditionsPanel` (aba da clareira),
+  `ExpeditionScreen`, `ExpeditionCanvas`, `mapRenderer.ts` (com vida, tempo, bolsa e golpe
+  especial desenhados por cima do mapa), `ExpeditionSidePanel` e `sprites.ts`.
+- `src/components/modals/ExpeditionReportModal.tsx` (novo): janela da volta.
+- `src/components/hooks/useExpeditionKeyboard.ts` (antes `useWorldKeyboard.ts`): espaço para o
+  golpe especial.
+- `src/components/GameScreen.tsx`: aba "Expedições" na lateral esquerda e a janela da volta.
+- `src/App.tsx`: clareira ou expedição conforme o estado. `?debug` continua.
+
+Testes:
+
+- `tests/expedition.test.ts` (antes `world.test.ts`): cena, perseguição, encostada, queda,
+  golpes, ondas, fim do tempo, partir, bolsa e bônus.
+- `tests/ExpeditionScreen.test.tsx` (antes `WorldScreen.test.tsx`): aba, troca de tela, teclado,
+  voltar e janela da volta.
+- `tests/data.test.ts`, `tests/store.test.ts` e `tests/GameScreen.test.tsx` ajustados.
+
 ## 25/11/2026: protótipo do mundo aberto
 
 Começo da mudança de gênero escolhida no documento "pivo-gameplay-ativa" do projeto: o caminho A,

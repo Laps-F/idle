@@ -16,7 +16,7 @@ Outros documentos:
 
 | Pasta | O que tem | Pode importar de |
 |---|---|---|
-| `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, amuletos, Rebrota, progresso offline, mundo aberto | `data`, `utils` |
+| `src/domain` | Regras de negócio puras: entidades, combate, fórmulas, escalonamento, pactos, amuletos, Rebrota, progresso offline, expedições | `data`, `utils` |
 | `src/store` | Estado global (Zustand): o `tick`, o controle do tempo, o salvamento no `localStorage` e os seletores | `domain`, `data`, `utils`, Zustand |
 | `src/data` | Datasets estáticos e tipados: inimigos, itens, zonas, amuletos, tabelas de itens, constantes | só os tipos de `domain` |
 | `src/components` | Componentes visuais "burros": mostram o que recebem e chamam ações | `store`, `utils`, React, Lucide (ícones) |
@@ -38,7 +38,7 @@ na raiz do projeto.
 - Ação que não é permitida devolve `null`, em vez de lançar erro ou alterar algo.
 - `simulation.ts` trabalha, por dentro, em uma cópia privada do estado (o `draft`). As funções
   internas alteram só essa cópia. Por fora, `advanceSimulation`, `dealDirectDamage` e
-  `rewardKills` são puras. `world.ts` faz o mesmo com a cena do mapa em `advanceWorld`.
+  `rewardKills` são puras. `expeditionScene.ts` faz o mesmo com a cena do mapa em `advanceScene`.
 
 **`src/data` só tem dados.**
 
@@ -65,8 +65,9 @@ na raiz do projeto.
   não passa por estado nem por seletor de React. O componente usa `LiveMeter`, que escuta a
   store por fora e escreve o `transform` direto no elemento. A transição de CSS suaviza o
   movimento. Números flutuantes e o tranco do inimigo também são feitos direto no elemento.
-- **O mapa é desenhado no canvas.** `WorldCanvas.tsx` lê a store com `getState()` a cada quadro
-  do navegador e chama `worldRenderer.ts`. Nada do mapa passa por estado do React.
+- **O mapa da expedição é desenhado no canvas.** `ExpeditionCanvas.tsx` lê a store com
+  `getState()` a cada quadro do navegador e chama `mapRenderer.ts`. Nada do mapa passa por estado
+  do React.
 
 **`src/utils` é puro e não depende de ninguém.**
 
@@ -89,13 +90,15 @@ sorteio, navegador ou console, ou aparecer `any`. Roda junto com `npm test`.
 
 ## 2. O caminho de um tick
 
-O tick roda um motor por vez. Quem escolhe é a tela, em `src/App.tsx`: o mundo aberto (tela
-principal) liga o motor `mundo`. As telas `?classico` e `?debug` ligam o motor `estagios`. O
-motor fica no campo de sessão `engine` (`src/store/types.ts`).
+O jogo tem duas partes que andam no mesmo tick:
 
-### Motor de estágios (tela clássica)
+- **Clareira**: o combate por estágios, que rende sempre, com o jogo aberto ou fechado.
+- **Expedição**: a parte ativa. Só existe enquanto há uma em andamento (campo `expedition` do
+  estado salvo). Anda por cima da clareira, sem parar a clareira.
 
-1. `src/store/gameLoop.ts` chama `tick(Date.now())` a cada 100 ms.
+### Clareira (todo tick)
+
+1. `src/store/gameLoop.ts` chama `tick(Date.now())` a cada 100 ms (16 ms durante a expedição).
 2. `tick`, em `src/store/useGameStore.ts`, mede o tempo desde `lastSaveTimestamp`.
 3. Até 2 minutos: chama `advanceSimulation` (`src/domain/simulation.ts`), que devolve o estado
    novo, o resumo e os eventos.
@@ -106,32 +109,29 @@ motor fica no campo de sessão `engine` (`src/store/types.ts`).
 6. Os seletores de `src/store/selectors.ts` montam as visões. Só o componente cuja visão mudou
    de conteúdo é redesenhado.
 
-Uma ação da pessoa (comprar, trocar a comitiva) passa por `applyInput`, na store: primeiro roda
-um `tick` até o instante do clique, depois chama a regra do domínio (`src/domain/actions.ts`)
-e grava o estado que ela devolveu.
+Uma ação da pessoa (comprar, trocar a comitiva, partir em expedição) passa por `applyInput`, na
+store: primeiro roda um `tick` até o instante do clique, depois chama a regra do domínio e grava
+o estado que ela devolveu.
 
-### Motor do mundo aberto (tela principal)
+### Expedição (por cima da clareira)
 
-1. `src/store/gameLoop.ts` chama `tick(Date.now())` a cada 16 ms (`worldTickIntervalMs`).
-2. O teclado (`src/components/hooks/useWorldKeyboard.ts`) grava a direção apertada em
-   `worldInput`, pela ação `setWorldInput`.
-3. `tick` mede o tempo desde `lastSaveTimestamp`. Até 2 minutos, chama `runWorldTick`:
-   - monta a cena (`createWorldScene`, em `src/domain/world.ts`) se ela ainda não existe, a
-     partir da posição salva em `world`;
-   - calcula quem anda e bate (`getWorldFighter`) e avança a cena (`advanceWorld`), que devolve
-     a cena nova, as visagens derrotadas e os eventos;
-   - entrega as derrotas para `rewardKills` (`src/domain/simulation.ts`): Patacas, XP,
-     Oferendas, Rastros e amuletos pelas regras de sempre;
-   - grava a posição e o tempo de jogo (`recordWorldStep`), a cena em `worldScene` e os eventos
-     em `worldEvents`.
-4. Mais de 2 minutos: chama `applyWorldOfflineProgress` (`src/domain/worldOffline.ts`), que
-   estima as derrotas pelo ritmo do mapa, com o teto e a eficiência da ausência. A cena é
-   descartada e remontada no próximo tick.
-5. `src/components/world/WorldCanvas.tsx` desenha a cena a cada quadro do navegador, lendo
-   `readWorldFrame` e `selectWorldMapView`. Os golpes de `worldEvents` viram números que sobem.
-
-A cena (onde estão as visagens, a barra de ataque) só existe com o jogo aberto. Ao recarregar,
-as visagens nascem de novo. Só o mapa e a posição da personagem são salvos.
+1. A pessoa parte pela aba "Expedições" (`startExpedition`): o estado ganha `expedition` (mapa,
+   quem saiu e a bolsa vazia) e a sessão ganha a cena (`createExpeditionScene`, em
+   `src/domain/expeditionScene.ts`). `src/App.tsx` troca a clareira pela tela da expedição.
+2. O teclado (`src/components/hooks/useExpeditionKeyboard.ts`) grava a direção em `moveInput`
+   (`setMoveInput`) e o pedido de golpe especial em `isSpecialPending` (`triggerSpecial`).
+3. Em cada tick, depois da clareira, `runExpeditionTick`:
+   - calcula quem anda e bate (`getExpeditionFighter`, em `src/domain/expedition.ts`) e avança a
+     cena (`advanceScene`), que devolve a cena nova, as visagens derrotadas, os eventos e, se for
+     o caso, como a expedição terminou;
+   - guarda as derrotas na bolsa (`addKillsToLoot`). A bolsa é salva, a cena não.
+4. A expedição termina no fim do tempo (`concluida`), quando a vida zera (`caiu`), na passagem
+   de volta ou no botão (`voltou`), ou numa ausência ou recarga no meio dela (`interrompida`).
+   `endExpedition` chama `finishExpedition`, que entrega a bolsa pelas regras de `rewardKills`
+   (com bônus só em `concluida`), e guarda o relatório em `expeditionReport`.
+5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
+   lendo `readSceneFrame` e `selectExpeditionMapView`. Os eventos de `sceneEvents` viram
+   números que sobem e o anel do golpe especial.
 
 ## 3. Quero mudar... onde eu mexo?
 
@@ -144,10 +144,11 @@ as visagens nascem de novo. Só o mapa e a posição da personagem são salvos.
 | Intervalo do tick e intervalo de gravação | `src/data/balance.ts` |
 | Tamanho da comitiva | `src/data/balance.ts` |
 | Duração do dia e do ciclo da lua | `src/data/balance.ts` |
-| Velocidade da personagem e das visagens, alcance do golpe, tamanho do corpo | `src/data/balance.ts`, bloco "Mundo aberto" |
-| Tempo de volta das visagens, distância mínima ao nascer, passeio e tempo parada | `src/data/balance.ts`, constantes `enemy...` |
-| Ritmo da ausência no mapa (tempo andando entre visagens, trava de derrotas) | `src/data/balance.ts`, `worldAfkWalkSeconds` e `worldOfflineMaxKills` |
-| Desenho de um mapa, visagens que aparecem, quantas ao mesmo tempo, nível, passagens | `src/data/world.ts`, `WORLD_MAPS` |
+| Tempo da expedição e bônus de quem aguenta até o fim | `src/data/balance.ts`, `expeditionDurationSeconds` e `expeditionCompletionBonus` |
+| Personagem na expedição: velocidade, vida, alcance, golpe especial (raio, força, recarga) | `src/data/balance.ts`, bloco "Expedições: personagem" |
+| Visagens na expedição: perseguição, encostada, dano, passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
+| Ondas: visagens no começo, teto, ritmo de chegada, nível subindo com o tempo | `src/data/balance.ts`, bloco "Expedições: ondas" |
+| Desenho de um mapa, nível inicial, visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
 | Tipos de ladrilho: símbolo no desenho e se dá para passar | `src/data/world.ts`, `TILES` |
 | Ataque, velocidade, origem, raridade, quadra ou pacto de um encantado | `src/data/encantados.ts` |
 | Vida, Patacas, XP ou itens que uma visagem ou chefe deixa cair | `src/data/enemies.ts` |
@@ -190,14 +191,16 @@ as visagens nascem de novo. Só o mapa e a posição da personagem são salvos.
 | O que um pacto exige e o que acontece ao fechar | `src/domain/pact.ts` |
 | Cálculo do progresso offline e junção de relatórios | `src/domain/offline.ts` |
 | Estado de um jogo novo, combate contra visagem ou chefe | `src/domain/state.ts` |
-| Onde um jogo novo começa no mundo aberto | `src/domain/state.ts`, `createStartPosition` |
 | Mapa, ladrilho de uma coluna e linha, tamanho do mapa, zona por id | `src/domain/catalog.ts` |
-| Movimento e colisão da personagem, passagens entre mapas | `src/domain/world.ts`, bloco "Personagem" |
-| Nascimento, passeio e volta das visagens | `src/domain/world.ts`, bloco "Visagens" |
-| Golpe automático: alvo, barra de ataque e crítico | `src/domain/world.ts`, bloco "Ataque automático" |
-| Quem anda e bate no mapa (hoje, o primeiro da comitiva) | `src/domain/world.ts`, `getWorldFighter` |
-| O que uma derrota no mapa rende | `src/domain/simulation.ts`, `rewardKills` (mesmas regras de "Recompensas") |
-| Ganhos do mapa com o jogo fechado | `src/domain/worldOffline.ts` |
+| Dano de uma visagem na expedição e vida da personagem | `src/domain/formulas.ts`, bloco "Expedições" |
+| Movimento e colisão da personagem, passagem de volta | `src/domain/expeditionScene.ts`, bloco "Personagem" |
+| Ondas, passeio, perseguição e encostada das visagens | `src/domain/expeditionScene.ts`, bloco "Visagens" |
+| Golpe automático e golpe especial | `src/domain/expeditionScene.ts`, bloco "Golpes" |
+| Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
+| Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
+| Quando dá para partir | `src/domain/expedition.ts`, `canStartExpedition` e `startExpedition` |
+| Como a bolsa junta as visagens | `src/domain/expedition.ts`, `addKillsToLoot` |
+| O que a bolsa rende na volta e o bônus | `src/domain/expedition.ts`, `finishExpedition` (usa `rewardKills`) |
 
 ### Estado, ações e salvamento (`src/store`)
 
@@ -205,10 +208,11 @@ as visagens nascem de novo. Só o mapa e a posição da personagem são salvos.
 |---|---|
 | Lista de ações da store, campos de sessão, tipos de retorno | `src/store/types.ts` |
 | O que o `tick` faz e quando conta como ausência | `src/store/useGameStore.ts`, bloco "Ações de simulação" |
-| O passo do mundo aberto, a troca de motor e a direção apertada | `src/store/useGameStore.ts`, `runWorldTick`, `setEngine` e `setWorldInput` |
-| Campos de sessão do mundo aberto (motor, cena, direção, eventos) | `src/store/types.ts`, `SessionState` |
-| Desenho do mapa, painel do mapa e leitura de cada quadro | `src/store/selectors.ts`, bloco "Mundo aberto" |
-| Conferência da posição salva no mundo aberto | `src/store/saveManager.ts`, `sanitizeWorld` |
+| Partir, voltar, direção e golpe especial | `src/store/useGameStore.ts`, bloco "Ações de expedição" |
+| O passo da expedição dentro do tick e a entrega da bolsa | `src/store/useGameStore.ts`, `runExpeditionTick` e `endExpedition` |
+| Campos de sessão da expedição (cena, direção, golpe pedido, eventos, relatório) | `src/store/types.ts`, `SessionState` |
+| Aba de expedições, painel, janela da volta e leitura de cada quadro | `src/store/selectors.ts`, bloco "Expedições" |
+| Conferência da expedição salva (mapa, quem saiu, bolsa) | `src/store/saveManager.ts`, `sanitizeExpedition` |
 | Ligação entre uma ação e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de jogo" |
 | Exportar, importar, apagar tudo, gravar agora | `src/store/useGameStore.ts`, bloco "Ações de salvamento" |
 | Ligação entre uma ação de amuleto e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de amuletos" |
@@ -220,7 +224,7 @@ as visagens nascem de novo. Só o mapa e a posição da personagem são salvos.
 | Conferência dos amuletos de um salvamento | `src/store/saveManager.ts`, `sanitizeAmulets` e `sanitizeEquipped` |
 | Conferência do juazeiro de um salvamento | `src/store/saveManager.ts`, `sanitizeJuazeiro` |
 | Conversão de salvamentos de versões antigas | `src/store/saveManager.ts`, `MIGRATIONS` |
-| Quando o laço roda (e o intervalo de cada motor), quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
+| Quando o laço roda (e o intervalo mais curto na expedição), quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
 
 ### Publicação
@@ -234,15 +238,17 @@ as visagens nascem de novo. Só o mapa e a posição da personagem são salvos.
 
 | Quero mudar | Arquivo |
 |---|---|
-| Qual tela abre (mundo aberto, clássica ou painel de debug) e o motor de cada uma | `src/App.tsx` |
-| A disposição da tela do mundo aberto e as janelas dela | `src/components/world/WorldScreen.tsx` |
-| O canvas do mapa e os números que sobem | `src/components/world/WorldCanvas.tsx` |
-| Como o mapa é pintado: câmera, camadas, tamanho do ladrilho e da janela | `src/components/world/worldRenderer.ts` |
-| Arquivo de imagem e cor provisória de cada ladrilho, da personagem e das visagens | `src/components/world/sprites.ts` |
-| Ligar as imagens de verdade ou tirar os nomes escritos nos blocos | `src/components/world/sprites.ts`, `LOAD_SPRITE_IMAGES` e `SHOW_SPRITE_LABELS` |
-| Painel ao lado do mapa: personagem, como jogar, legenda | `src/components/world/WorldSidePanel.tsx` |
-| Teclas que movem a personagem | `src/components/hooks/useWorldKeyboard.ts` |
-| A disposição dos painéis na tela clássica, as abas de cada lateral, as janelas automáticas | `src/components/GameScreen.tsx` |
+| Qual tela abre (clareira, expedição ou painel de debug) | `src/App.tsx` |
+| A disposição dos painéis da clareira, as abas de cada lateral, as janelas automáticas | `src/components/GameScreen.tsx` |
+| Aba "Expedições" da clareira: texto, mapas e botão de partir | `src/components/expedition/ExpeditionsPanel.tsx` |
+| Janela da volta de uma expedição | `src/components/modals/ExpeditionReportModal.tsx` |
+| A disposição da tela da expedição | `src/components/expedition/ExpeditionScreen.tsx` |
+| O canvas da expedição e os efeitos (números, anel do golpe especial) | `src/components/expedition/ExpeditionCanvas.tsx` |
+| Como o mapa é pintado: câmera, camadas, painel de vida e tempo, tamanho do ladrilho | `src/components/expedition/mapRenderer.ts` |
+| Arquivo de imagem e cor provisória de cada ladrilho, da personagem e das visagens | `src/components/expedition/sprites.ts` |
+| Ligar as imagens de verdade ou tirar os nomes escritos nos blocos | `src/components/expedition/sprites.ts`, `LOAD_SPRITE_IMAGES` e `SHOW_SPRITE_LABELS` |
+| Painel ao lado do mapa: bolsa, voltar agora, como jogar, legenda | `src/components/expedition/ExpeditionSidePanel.tsx` |
+| Teclas da expedição (direção e golpe especial) | `src/components/hooks/useExpeditionKeyboard.ts` |
 | Cor do papel de cada bioma, textos de origem, raridade, fase do dia e lua | `src/components/theme.ts` |
 | Carimbo de cada raridade, texto de cada bônus e opções do desmanche automático | `src/components/theme.ts`, bloco "Amuletos" |
 | Cores e fontes do tema, animações (número flutuante, tranco, carimbo, barras) | `src/index.css` |
@@ -337,8 +343,8 @@ Todos os passos são obrigatórios. Pular um deles perde o campo ao salvar ou qu
    da versão anterior e confere que nada se perdeu.
 
 O exemplo pronto é a entrada dos amuletos: `MIGRATIONS[1]`, em `src/store/saveManager.ts`, e o
-bloco "amuletos e migração do salvamento", em `tests/store.test.ts`. O exemplo mais simples é a
-posição no mundo aberto: `MIGRATIONS[3]` e o bloco "mundo aberto e salvamento da versão 4".
+bloco "amuletos e migração do salvamento", em `tests/store.test.ts`. O exemplo mais recente é a
+expedição: `MIGRATIONS[4]` e o bloco "expedições e salvamento da versão 5".
 
 Campo que só existe com o jogo aberto (não é salvo) vai em `SessionState`, em
 `src/store/types.ts`.
@@ -416,38 +422,49 @@ atributo em `src/domain/modifiers.ts`, usá-lo na conta certa do domínio e dar 
 2. Registre em `FIGURES`, com o mesmo id usado em `src/data`. Sem registro, aparece a figura
    genérica.
 
-### Acrescentar um mapa ao mundo aberto
+### Acrescentar um mapa de expedição
 
-1. Desenhe o mapa em `WORLD_MAPS`, em `src/data/world.ts`: uma linha de texto por linha do mapa,
-   todas do mesmo tamanho, com os símbolos de `TILES`. Feche as bordas com árvore ou água.
-2. Preencha `zoneId` (de onde vêm os Rastros), `level` (força das visagens), `start`,
-   `enemyIds` e `maxEnemies`.
-3. Ligue o mapa a outro com uma passagem de cada lado (`portals`). A chegada (`toX`, `toY`)
-   precisa ser um ladrilho livre que não seja outra passagem.
-4. Rode `npm test`. O teste de dados confere o desenho, os ids, o início e as passagens.
+1. Desenhe o mapa em `EXPEDITION_MAPS`, em `src/data/world.ts`: uma linha de texto por linha do
+   mapa, todas do mesmo tamanho, com os símbolos de `TILES`. Feche as bordas com árvore ou água.
+2. Preencha `zoneId` (de onde vêm os Rastros), `level` (nível das visagens no começo), `start`,
+   `exit` (a passagem de volta, perto do início) e `enemyIds`.
+3. Rode `npm test`. O teste de dados confere o desenho, os ids, o início e a passagem. A aba
+   "Expedições" mostra o mapa sozinha.
 
 ### Acrescentar um tipo de ladrilho
 
 1. `src/data/world.ts`: uma entrada em `TILES`, com um símbolo que nenhum outro usa.
-2. `src/components/world/sprites.ts`: a vaga de imagem em `TILE_SPRITES`. Se for chão, inclua o
-   id em `GROUND_TILE_IDS`, para não escrever o nome do arquivo em cada ladrilho.
+2. `src/components/expedition/sprites.ts`: a vaga de imagem em `TILE_SPRITES`. Se for chão,
+   inclua o id em `GROUND_TILE_IDS`, para não escrever o nome do arquivo em cada ladrilho.
 3. `docs/SPRITES.md`: uma linha na lista.
 
 ### Trocar os blocos coloridos por imagens
 
 O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `public/sprites/` e
-`LOAD_SPRITE_IMAGES` ligado em `src/components/world/sprites.ts`.
+`LOAD_SPRITE_IMAGES` ligado em `src/components/expedition/sprites.ts`.
 
-### Acrescentar algo ao passo do mapa (uma regra nova no mundo aberto)
+### Mudar a dificuldade da expedição
 
-1. Se precisa de dado novo na cena, inclua em `WorldScene` ou `WorldEnemy`
-   (`src/domain/types.ts`) e dê o valor inicial em `createWorldScene` (`src/domain/world.ts`).
-   A cena não é salva: não precisa de migração.
-2. Escreva a regra como função interna de `src/domain/world.ts`, alterando só o `draft`, e chame
-   em `runStep`, na ordem certa.
-3. Se a tela precisa ver, acrescente em `WorldFrame` e `readWorldFrame`
-   (`src/store/selectors.ts`) e desenhe em `worldRenderer.ts`.
-4. Teste em `tests/world.test.ts`, com a cena montada à mão e congelada (`createScene`).
+- Morre rápido demais: `enemyDamageBase`, `enemyChaseSpeed` ou `waveMaxEnemiesStart` para baixo,
+  ou `playerBaseHp` para cima.
+- Fácil demais: `waveSpawnSpeedupPerMinute` e `waveMaxEnemiesPerMinute` para cima, ou
+  `waveLevelUpSeconds` para baixo (visagens sobem de nível mais cedo).
+- Golpe especial fraco ou forte: `specialDamageMultiplier`, `specialRadius` e
+  `specialCooldownSeconds`.
+- Bolsa rende pouco ou muito: `expeditionCompletionBonus`, ou o nível inicial (`level`) do mapa.
+- Para medir sem jogar: monte uma cena com `createExpeditionScene` e chame `advanceScene` em
+  passos de 0,1 s, como no histórico da etapa das expedições.
+
+### Acrescentar algo ao passo do mapa (uma regra nova na expedição)
+
+1. Se precisa de dado novo na cena, inclua em `ExpeditionScene` ou `SceneEnemy`
+   (`src/domain/types.ts`) e dê o valor inicial em `createExpeditionScene`
+   (`src/domain/expeditionScene.ts`). A cena não é salva: não precisa de migração.
+2. Escreva a regra como função interna de `src/domain/expeditionScene.ts`, alterando só o
+   `draft`, e chame em `runStep`, na ordem certa.
+3. Se a tela precisa ver, acrescente em `SceneFrame` e `readSceneFrame`
+   (`src/store/selectors.ts`) e desenhe em `mapRenderer.ts`.
+4. Teste em `tests/expedition.test.ts`, com a cena montada à mão e congelada (`createScene`).
 
 ### Acrescentar um sistema novo (o caminho que os amuletos seguiram)
 

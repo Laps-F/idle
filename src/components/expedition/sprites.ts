@@ -1,6 +1,6 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
- * Arquivo: src/components/world/sprites.ts
+ * Arquivo: src/components/expedition/sprites.ts
  * O que faz: diz qual imagem vai em cada coisa do mapa. As imagens ainda não
  * existem: enquanto isso, cada coisa é desenhada como um bloco colorido com o
  * nome do arquivo escrito por cima, para ficar marcado onde cada imagem entra.
@@ -53,8 +53,8 @@ const TILE_SPRITES: Record<string, SpriteSlot> = {
 // Ladrilho sem vaga cadastrada: aparece em rosa forte, para chamar atenção
 const MISSING_TILE_SPRITE: SpriteSlot = { file: 'faltando.png', color: '#ff00aa' };
 
-// A passagem de um mapa para outro
-export const PORTAL_SPRITE: SpriteSlot = { file: 'portal.png', color: '#7a4fa8' };
+// A passagem de volta para a clareira
+export const EXIT_SPRITE: SpriteSlot = { file: 'portal.png', color: '#7a4fa8' };
 
 // Ladrilhos de chão não recebem o nome escrito, para o mapa não virar só texto
 export const GROUND_TILE_IDS: readonly string[] = ['grama', 'trilha'];

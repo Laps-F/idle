@@ -24,7 +24,7 @@ const SECONDS_PER_HOUR = 3600;
 
 export const BALANCE = {
   // Salvamento
-  saveVersion: 4, // 2: amuletos. 3: Rebrota. 4: mundo aberto. (ver MIGRATIONS no saveManager)
+  saveVersion: 5, // 2: amuletos. 3: Rebrota. 4: mundo aberto. 5: expedições. (MIGRATIONS)
   saveIntervalMs: 5 * MS_PER_SECOND, // intervalo mínimo entre gravações no localStorage
 
   // Laço do jogo
@@ -95,20 +95,42 @@ export const BALANCE = {
   dayLengthMs: 24 * SECONDS_PER_MINUTE * MS_PER_SECOND, // 1 dia do jogo = 24 minutos reais
   moonCycleDays: 8, // a lua completa o ciclo em 8 dias do jogo (3h12 reais)
 
-  // Mundo aberto (protótipo). Distâncias em ladrilhos, velocidades em ladrilhos por segundo.
-  worldTickIntervalMs: 16, // no mapa o laço roda ~60 vezes por segundo, para o passo ser suave
-  worldMaxStepSeconds: 0.05, // intervalo maior que isso é dividido em passos menores
+  // Expedições. Distâncias em ladrilhos, velocidades em ladrilhos por segundo.
+  expeditionTickIntervalMs: 16, // na expedição o laço roda ~60 vezes por segundo
+  sceneMaxStepSeconds: 0.05, // intervalo maior que isso é dividido em passos menores
+  expeditionDurationSeconds: 300, // limite de 5 minutos. Quem aguenta até o fim ganha o bônus.
+  expeditionCompletionBonus: 0.5, // fim do tempo: a bolsa rende 50% a mais de visagens
+
+  // Expedições: personagem
   playerSpeed: 4,
   bodyRadius: 0.3, // metade da largura da personagem e das visagens, para a colisão
   attackRange: 1.6, // a personagem bate na visagem mais perto dentro desta distância
-  enemySpeed: 0.8,
+  playerBaseHp: 100, // vida no nível 1
+  playerHpPerLevel: 0.1, // cada nível do encantado soma 10% da vida base
+  hurtFlashSeconds: 0.25, // tempo que a personagem pisca depois de levar um golpe
+  specialRadius: 2.5, // alcance do golpe especial (em volta da personagem)
+  specialDamageMultiplier: 4, // o golpe especial vale 4 golpes comuns
+  specialCooldownSeconds: 6,
+
+  // Expedições: visagens
+  enemyWanderSpeed: 0.8,
+  enemyChaseSpeed: 2.2, // mais devagar que a personagem: dá para fugir
+  enemyAggroRange: 9, // a visagem persegue quem chega mais perto que isto
+  enemyContactRange: 0.6, // distância entre os centros para a visagem encostar
+  enemyHitCooldownSeconds: 1, // cada visagem bate no máximo uma vez por segundo
+  enemyDamageBase: 3, // dano de uma encostada no nível 1
+  enemyDamageGrowth: 1.15, // o dano cresce 15% por nível
   enemyWanderRadius: 2.5, // até onde a visagem passeia a cada vez que anda
   enemyWaitSecondsMin: 1, // tempo parada entre dois passeios: de 1...
   enemyWaitSecondsMax: 3, // ...a 3 segundos
-  enemyRespawnSeconds: 4, // tempo para uma visagem derrotada voltar ao mapa
-  enemyMinSpawnDistance: 4, // visagem nova não nasce mais perto da personagem do que isto
+  enemyMinSpawnDistance: 6, // visagem nova não nasce mais perto da personagem do que isto
 
-  // Mundo aberto: ausência. Rende pelo mesmo teto e eficiência da ausência de cima.
-  worldAfkWalkSeconds: 1.5, // tempo médio andando de uma visagem até a outra
-  worldOfflineMaxKills: 50_000, // trava de segurança para a conta da ausência
+  // Expedições: ondas. Quanto mais tempo, mais visagens, mais rápido e mais fortes.
+  waveStartEnemies: 6, // visagens no mapa na hora de partir
+  waveMaxEnemiesStart: 8, // teto de visagens ao mesmo tempo no começo...
+  waveMaxEnemiesPerMinute: 6, // ...que sobe 6 a cada minuto
+  waveSpawnSecondsStart: 2, // uma visagem nova a cada 2 segundos no começo...
+  waveSpawnSecondsMin: 0.8, // ...até uma a cada 0,8 segundo
+  waveSpawnSpeedupPerMinute: 0.5, // o intervalo cai 0,5 segundo por minuto
+  waveLevelUpSeconds: 60, // a cada minuto, as visagens novas nascem um nível acima
 } as const;

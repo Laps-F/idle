@@ -10,7 +10,8 @@
  *   2. Encantados
  *   3. Melhorias
  *   4. Rebrota
- *   5. Ferramentas
+ *   5. Expedições
+ *   6. Ferramentas
  */
 
 import { BALANCE } from '../data/balance';
@@ -135,6 +136,31 @@ export function getRootsMultiplier(roots: number): number {
 export function getRootsForRebrota(maxStage: number): number {
   const stageRatio = maxStage / BALANCE.rootsStageDivisor;
   return Math.floor(Math.pow(stageRatio, BALANCE.rootsExponent));
+}
+
+
+// =============================================================================
+// =============================================================================
+// E X P E D I Ç Õ E S
+
+/**
+ * Dano de uma encostada de visagem na personagem, durante a expedição.
+ *
+ * Fórmula: enemyDamageBase × enemyDamageGrowth^(nível − 1) × hpMultiplier da visagem.
+ * Visagem com mais vida (hpMultiplier maior) também bate mais forte.
+ *
+ * @param level Nível da visagem, a partir de 1.
+ * @param enemy Definição da visagem.
+ * @returns Dano, arredondado para cima, no mínimo 1.
+ */
+export function getEnemyContactDamage(level: number, enemy: EnemyDef): number {
+  const base = growByStage(BALANCE.enemyDamageBase, BALANCE.enemyDamageGrowth, level);
+  return Math.max(1, Math.ceil(base * enemy.hpMultiplier));
+}
+
+// Vida da personagem na expedição: playerBaseHp × (1 + playerHpPerLevel × (nível − 1))
+export function getExpeditionMaxHp(level: number): number {
+  return Math.round(BALANCE.playerBaseHp * (1 + BALANCE.playerHpPerLevel * (level - 1)));
 }
 
 

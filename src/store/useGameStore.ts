@@ -21,12 +21,13 @@
  * desenho. Toda ação da pessoa primeiro simula o jogo até o instante do clique
  * e só depois é aplicada. Assim uma compra nunca vale para o tempo que já passou.
  *
- * Dois motores: o tick roda o que a tela pediu (campo de sessão "engine").
- * No mundo aberto ("mundo"), cada tick anda com a cena do mapa
- * (src/domain/world.ts) e entrega as derrotas para as recompensas
- * (rewardKills). A ausência usa a conta própria do mapa
- * (src/domain/worldOffline.ts). Na tela clássica ("estagios"), roda o combate
- * de estágios, como antes. Os dois nunca rodam juntos.
+ * Clareira e expedição: o combate por estágios (a clareira) roda em todo
+ * tick, com o jogo aberto ou fechado. Quando há expedição em andamento, o
+ * mesmo tick também anda com a cena do mapa (src/domain/expeditionScene.ts)
+ * e guarda as derrotas na bolsa (src/domain/expedition.ts). A bolsa só vira
+ * Patacas, XP e quedas na volta (finishExpedition). A expedição não roda com
+ * o jogo fechado: uma ausência no meio dela entrega a bolsa como
+ * "interrompida", e a clareira rende a ausência como sempre.
  *
  * É aqui, e não no domínio, que o relógio (Date.now) e o sorteio (Math.random)
  * são lidos. O domínio recebe os dois por parâmetro.
@@ -34,13 +35,14 @@
  * Mapa:
  *   1. Constantes e tipos internos
  *   2. Store
- *   3. Ações de simulação (tick, progresso offline, troca de aba e mundo aberto)
- *   4. Ações de jogo (comitiva, melhorias, pactos, estágios)
- *   5. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
- *   6. Ações da Rebrota (rebrotar, juazeiro, compra automática)
- *   7. Ações de salvamento (gravar, exportar, importar, apagar tudo)
- *   8. Ações de teste (usadas pelo painel de debug)
- *   9. Ferramentas
+ *   3. Ações de simulação (tick, progresso offline e troca de aba)
+ *   4. Ações de expedição (partir, andar, golpe especial, voltar)
+ *   5. Ações de jogo (comitiva, melhorias, pactos, estágios)
+ *   6. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
+ *   7. Ações da Rebrota (rebrotar, juazeiro, compra automática)
+ *   8. Ações de salvamento (gravar, exportar, importar, apagar tudo)
+ *   9. Ações de teste (usadas pelo painel de debug)
+ *  10. Ferramentas
  */
 
 import { create } from 'zustand';
@@ -70,11 +72,16 @@ import { buyJuazeiroNode } from '../domain/juazeiro';
 import { applyOfflineProgress, hasOfflineGains, mergeOfflineReports } from '../domain/offline';
 import { sealPact } from '../domain/pact';
 import { performRebrota, setAutoBuy } from '../domain/rebrota';
-import { advanceSimulation, dealDirectDamage, rewardKills } from '../domain/simulation';
+import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
 import { createInitialState, pickGameState } from '../domain/state';
-import type { CombatEvent, GameState, WorldEvent, WorldInput } from '../domain/types';
-import { advanceWorld, createWorldScene, getWorldFighter, recordWorldStep } from '../domain/world';
-import { applyWorldOfflineProgress } from '../domain/worldOffline';
+import type { CombatEvent, ExpeditionOutcome, GameState, SceneEvent } from '../domain/types';
+import {
+  addKillsToLoot,
+  finishExpedition,
+  getExpeditionFighter,
+  startExpedition,
+} from '../domain/expedition';
+import { advanceScene, createExpeditionScene } from '../domain/expeditionScene';
 import { preserveUnchangedReferences } from '../utils/object';
 import {
   createThrottledStorage,
@@ -83,7 +90,7 @@ import {
   getSavedGameSize,
   SAVE_STORAGE_KEY,
 } from './saveManager';
-import type { GameActions, GameStore, SessionState } from './types';
+import type { GameActions, GameStore, MoveInput, SessionState } from './types';
 
 // =============================================================================
 // =============================================================================
@@ -91,14 +98,15 @@ import type { GameActions, GameStore, SessionState } from './types';
 
 // Lista vazia única: reaproveitar a mesma referência evita redesenhar a interface à toa
 const NO_EVENTS: readonly CombatEvent[] = [];
-const NO_WORLD_EVENTS: readonly WorldEvent[] = [];
-const NO_INPUT: WorldInput = { moveX: 0, moveY: 0 };
+const NO_SCENE_EVENTS: readonly SceneEvent[] = [];
+const NO_INPUT: MoveInput = { moveX: 0, moveY: 0 };
 
 const SESSION_DEFAULTS: SessionState = {
-  engine: 'estagios',
-  worldScene: null,
-  worldInput: NO_INPUT,
-  worldEvents: NO_WORLD_EVENTS,
+  expeditionScene: null,
+  moveInput: NO_INPUT,
+  isSpecialPending: false,
+  sceneEvents: NO_SCENE_EVENTS,
+  expeditionReport: null,
   offlineReport: null,
   combatEvents: NO_EVENTS,
   isOpenInAnotherTab: false,
@@ -130,6 +138,7 @@ export const useGameStore = create<GameStore>()(
       ...createInitialState(Date.now(), Math.random),
       ...SESSION_DEFAULTS,
       ...createSimulationActions(set, get),
+      ...createExpeditionActions(set, get),
       ...createGameplayActions(set, get),
       ...createAmuletActions(set, get),
       ...createRebrotaActions(set, get),
@@ -152,10 +161,7 @@ export const useGameStore = create<GameStore>()(
 // =============================================================================
 // A Ç Õ E S   D E   S I M U L A Ç Ã O
 
-type SimulationActions = Pick<
-  GameActions,
-  'tick' | 'dismissOfflineReport' | 'yieldToAnotherTab' | 'setEngine' | 'setWorldInput'
->;
+type SimulationActions = Pick<GameActions, 'tick' | 'dismissOfflineReport' | 'yieldToAnotherTab'>;
 
 // O tick e o que depende do tempo
 function createSimulationActions(set: SetStore, get: GetStore): SimulationActions {
@@ -181,8 +187,9 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      * - Jogo aberto em outra aba: nada acontece.
      * - Os eventos de combate só são entregues em intervalos de até 1 segundo.
      *   Acima disso a aba estava em segundo plano e não há o que animar.
-     * - Com o motor "mundo", o jogo aberto anda com a cena do mapa e a ausência
-     *   usa a conta do mapa. Os limites de tempo são os mesmos.
+     * - Com expedição em andamento, o jogo aberto também anda com a cena do mapa.
+     *   Uma ausência no meio dela entrega a bolsa ("interrompida") antes de a
+     *   clareira render a ausência.
      */
     tick: (now = Date.now()) => {
       const elapsedSeconds = (now - get().lastSaveTimestamp) / MS_PER_SECOND;
@@ -193,11 +200,11 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
       if (elapsedSeconds < 0) {
         set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
       } else if (elapsedSeconds > BALANCE.offlineThresholdSeconds) {
+        endExpedition(set, get, 'interrompida', get().lastSaveTimestamp);
         runOfflineTick(set, get, now);
-      } else if (elapsedSeconds > 0 && get().engine === 'mundo') {
-        runWorldTick(set, get, now, elapsedSeconds);
       } else if (elapsedSeconds > 0) {
         runOnlineTick(set, get, now, elapsedSeconds);
+        runExpeditionTick(set, get, now, elapsedSeconds);
       }
     },
 
@@ -215,65 +222,9 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      */
     yieldToAnotherTab: () => {
       saveStorage.disable();
-      set({ isOpenInAnotherTab: true, combatEvents: NO_EVENTS, worldEvents: NO_WORLD_EVENTS });
-    },
-
-    /**
-     * Escolhe o motor que o tick roda. Quem chama é o laço do jogo, conforme a tela.
-     *
-     * Caso de borda: a cena do mapa é descartada e remontada no próximo tick, a
-     * partir da posição salva. Trocar para o mesmo motor também remonta.
-     */
-    setEngine: (engine) => set({ engine, worldScene: null, worldEvents: NO_WORLD_EVENTS }),
-
-    // Guarda a direção apertada. Só grava quando muda, para não redesenhar à toa.
-    setWorldInput: (input) => {
-      const current = get().worldInput;
-
-      if (current.moveX !== input.moveX || current.moveY !== input.moveY) {
-        set({ worldInput: { moveX: input.moveX, moveY: input.moveY } });
-      }
+      set({ isOpenInAnotherTab: true, combatEvents: NO_EVENTS, sceneEvents: NO_SCENE_EVENTS });
     },
   };
-}
-
-/**
- * Um passo do mundo aberto com o jogo aberto.
- *
- * Ordem: monta a cena se ainda não existe (a partir da posição salva), anda com
- * ela pelo tempo que passou, entrega as derrotas para as recompensas e grava a
- * posição da personagem no estado salvo.
- *
- * @param set Função de gravação da store.
- * @param get Função de leitura da store.
- * @param now Instante atual em ms. Vira a marca de tempo.
- * @param elapsedSeconds Tempo desde o último tick. Até offlineThresholdSeconds.
- *
- * Caso de borda: como no combate de estágios, os eventos só são entregues em
- * intervalos de até maxSecondsWithEvents. Acima disso a aba estava escondida.
- */
-function runWorldTick(set: SetStore, get: GetStore, now: number, elapsedSeconds: number): void {
-  const current = pickGameState(get());
-  const { mapId, x, y } = current.world;
-  const scene = get().worldScene ?? createWorldScene(mapId, { x, y }, Math.random);
-  const fighter = getWorldFighter(current, now);
-  const step = advanceWorld(scene, fighter, get().worldInput, elapsedSeconds, Math.random);
-  const rewarded = rewardKills(current, step.kills, {
-    startTimestamp: now,
-    random: Math.random,
-  });
-  const next: GameState = {
-    ...recordWorldStep(rewarded.state, step.scene, elapsedSeconds),
-    lastSaveTimestamp: now,
-  };
-  const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
-  const hasEvents = isTabActive && step.events.length > 0;
-
-  commitState(set, current, next, {
-    worldScene: step.scene,
-    worldEvents: hasEvents ? step.events : NO_WORLD_EVENTS,
-    tickCount: get().tickCount + 1,
-  });
 }
 
 // Jogo aberto: simula o intervalo inteiro e entrega os eventos para a interface
@@ -295,18 +246,10 @@ function runOnlineTick(set: SetStore, get: GetStore, now: number, elapsedSeconds
 }
 
 // Volta de uma ausência: simula com teto e eficiência reduzida e guarda o relatório
-// No mundo aberto a conta é a do mapa, e a cena é remontada a partir da posição salva.
 function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
   const current = pickGameState(get());
-  const isWorld = get().engine === 'mundo';
-  const result = isWorld
-    ? applyWorldOfflineProgress(current, now, Math.random)
-    : applyOfflineProgress(current, now, Math.random);
+  const result = applyOfflineProgress(current, now, Math.random);
   const tickCount = get().tickCount + 1;
-
-  if (isWorld) {
-    set({ worldScene: null, worldEvents: NO_WORLD_EVENTS });
-  }
 
   // Ausência sem ganho nenhum não abre o modal de volta
   if (result.report === null || !hasOfflineGains(result.report)) {
@@ -316,6 +259,170 @@ function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
 
   const offlineReport = mergeOfflineReports(get().offlineReport, result.report);
   commitState(set, current, result.state, { offlineReport, combatEvents: NO_EVENTS, tickCount });
+}
+
+
+// =============================================================================
+// =============================================================================
+// A Ç Õ E S   D E   E X P E D I Ç Ã O
+
+type ExpeditionActions = Pick<
+  GameActions,
+  | 'startExpedition'
+  | 'leaveExpedition'
+  | 'setMoveInput'
+  | 'triggerSpecial'
+  | 'dismissExpeditionReport'
+>;
+
+// Partir, andar, golpe especial e voltar. As regras estão em src/domain/expedition.ts.
+function createExpeditionActions(set: SetStore, get: GetStore): ExpeditionActions {
+  return {
+    /**
+     * Parte em expedição com o primeiro encantado da comitiva e monta a cena do mapa.
+     *
+     * @param mapId Mapa da expedição (src/data/world.ts).
+     * @returns true se partiu. False sem comitiva, já em expedição ou com mapa que não existe.
+     */
+    startExpedition: (mapId) =>
+      applyInput(
+        set,
+        get,
+        (state) => startExpedition(state, mapId),
+        (_previous, next) => ({
+          expeditionScene: createExpeditionScene(
+            mapId,
+            getExpeditionFighter(next, Date.now())?.maxHp ?? BALANCE.playerBaseHp,
+            Math.random,
+          ),
+          moveInput: NO_INPUT,
+          isSpecialPending: false,
+          sceneEvents: NO_SCENE_EVENTS,
+          expeditionReport: null,
+        }),
+      ),
+
+    /**
+     * Volta para a clareira agora, sem esperar a passagem. Entrega a bolsa sem bônus.
+     *
+     * @returns true se havia expedição em andamento.
+     */
+    leaveExpedition: () => {
+      if (get().isOpenInAnotherTab || get().expedition === null) {
+        return false;
+      }
+
+      const now = Date.now();
+      get().tick(now);
+      return endExpedition(set, get, 'voltou', now);
+    },
+
+    // Guarda a direção apertada. Só grava quando muda, para não redesenhar à toa.
+    setMoveInput: (input) => {
+      const current = get().moveInput;
+
+      if (current.moveX !== input.moveX || current.moveY !== input.moveY) {
+        set({ moveInput: { moveX: input.moveX, moveY: input.moveY } });
+      }
+    },
+
+    // Pede o golpe especial. Ele sai no próximo tick, se estiver pronto.
+    triggerSpecial: () => {
+      if (get().expedition !== null) {
+        set({ isSpecialPending: true });
+      }
+    },
+
+    dismissExpeditionReport: () => set({ expeditionReport: null }),
+  };
+}
+
+/**
+ * Um passo da expedição, depois do passo da clareira.
+ *
+ * Anda com a cena pelo tempo que passou, guarda as derrotas na bolsa e, se a
+ * expedição acabou (fim do tempo, vida zerada ou passagem de volta), entrega a bolsa.
+ *
+ * @param set Função de gravação da store.
+ * @param get Função de leitura da store.
+ * @param now Instante atual em ms.
+ * @param elapsedSeconds Tempo desde o último tick. Até offlineThresholdSeconds.
+ *
+ * Casos de borda:
+ * - Sem expedição em andamento: não faz nada.
+ * - Expedição salva sem cena (a página foi recarregada no meio dela): entrega a
+ *   bolsa como "interrompida".
+ * - Os eventos só são entregues em intervalos de até maxSecondsWithEvents.
+ */
+function runExpeditionTick(
+  set: SetStore,
+  get: GetStore,
+  now: number,
+  elapsedSeconds: number,
+): void {
+  const scene = get().expeditionScene;
+
+  if (get().expedition === null) {
+    return;
+  }
+  if (scene === null) {
+    endExpedition(set, get, 'interrompida', now);
+    return;
+  }
+
+  const current = pickGameState(get());
+  const input = { ...get().moveInput, useSpecial: get().isSpecialPending };
+  const fighter = getExpeditionFighter(current, now);
+  const step = advanceScene(scene, fighter, input, elapsedSeconds, Math.random);
+  const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
+  const hasEvents = isTabActive && step.events.length > 0;
+
+  commitState(set, current, addKillsToLoot(current, step.kills), {
+    expeditionScene: step.scene,
+    sceneEvents: hasEvents ? step.events : NO_SCENE_EVENTS,
+    isSpecialPending: false,
+  });
+
+  if (step.outcome !== null) {
+    endExpedition(set, get, step.outcome, now);
+  }
+}
+
+/**
+ * Termina a expedição em andamento e entrega a bolsa na clareira.
+ *
+ * @param set Função de gravação da store.
+ * @param get Função de leitura da store.
+ * @param outcome Como terminou. Só "concluida" dá bônus.
+ * @param timestamp Instante da entrega (dia, noite e lua dos Rastros).
+ * @returns true se havia expedição para terminar.
+ */
+function endExpedition(
+  set: SetStore,
+  get: GetStore,
+  outcome: ExpeditionOutcome,
+  timestamp: number,
+): boolean {
+  const current = pickGameState(get());
+
+  if (current.expedition === null) {
+    return false;
+  }
+
+  const seconds = get().expeditionScene?.elapsedSeconds ?? 0;
+  const result = finishExpedition(current, outcome, seconds, {
+    startTimestamp: timestamp,
+    random: Math.random,
+  });
+
+  commitState(set, current, result.state, {
+    expeditionScene: null,
+    moveInput: NO_INPUT,
+    isSpecialPending: false,
+    sceneEvents: NO_SCENE_EVENTS,
+    expeditionReport: result.report,
+  });
+  return true;
 }
 
 
@@ -536,8 +643,9 @@ function replaceGame(set: SetStore, state: GameState): void {
     offlineReport: null,
     combatEvents: NO_EVENTS,
     rebrotaCeremony: null,
-    worldScene: null,
-    worldEvents: NO_WORLD_EVENTS,
+    expeditionScene: null,
+    sceneEvents: NO_SCENE_EVENTS,
+    expeditionReport: null,
   });
   saveStorage.flush();
 }

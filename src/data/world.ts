@@ -1,12 +1,15 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/data/world.ts
- * O que faz: os dados do mundo aberto: os tipos de ladrilho e os mapas.
+ * O que faz: os dados dos mapas de expedição: os tipos de ladrilho e os mapas.
+ * O ritmo das ondas, o tempo da expedição e a força das visagens ficam em
+ * src/data/balance.ts, no bloco "Expedições".
  *
  * Como ler um mapa: cada texto de "layout" é uma linha do mapa e cada
  * caractere é um ladrilho, conforme a legenda de TILES. A coluna conta da
- * esquerda (0) para a direita e a linha conta de cima (0) para baixo. As
- * passagens (portals) ficam por cima do desenho, em ladrilhos que dá para pisar.
+ * esquerda (0) para a direita e a linha conta de cima (0) para baixo. A
+ * passagem de volta para a clareira (exit) fica por cima do desenho, num
+ * ladrilho que dá para pisar.
  *
  * As imagens de cada ladrilho ainda não existem. O nome do arquivo de cada
  * uma fica em src/components/world/sprites.ts.
@@ -16,7 +19,7 @@
  *   2. Mapas
  */
 
-import type { TileDef, WorldMapDef } from '../domain/types';
+import type { ExpeditionMapDef, TileDef } from '../domain/types';
 
 // =============================================================================
 // =============================================================================
@@ -34,8 +37,8 @@ export const TILES: TileDef[] = [
 // =============================================================================
 // M A P A S
 
-// O primeiro mapa da lista é onde todo jogo novo começa
-export const WORLD_MAPS: WorldMapDef[] = [
+// Aparecem na aba "Expedições" da clareira, nesta ordem
+export const EXPEDITION_MAPS: ExpeditionMapDef[] = [
   {
     id: 'beira-da-mata',
     name: 'Beira da Mata',
@@ -64,9 +67,8 @@ export const WORLD_MAPS: WorldMapDef[] = [
       'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
     ],
     start: { x: 4, y: 10 },
+    exit: { x: 1, y: 10 },
     enemyIds: ['visagem-da-neblina', 'vulto-da-capoeira'],
-    maxEnemies: 6,
-    portals: [{ x: 30, y: 10, toMapId: 'brejo-escuro', toX: 2, toY: 10 }],
   },
   {
     id: 'brejo-escuro',
@@ -95,9 +97,8 @@ export const WORLD_MAPS: WorldMapDef[] = [
       'T~~~~...........~~~~~~~..~~~~~~T',
       'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
     ],
-    start: { x: 2, y: 10 },
+    start: { x: 4, y: 10 },
+    exit: { x: 1, y: 10 },
     enemyIds: ['assombro-do-brejo', 'vulto-da-capoeira'],
-    maxEnemies: 8,
-    portals: [{ x: 1, y: 10, toMapId: 'beira-da-mata', toX: 29, toY: 10 }],
   },
 ];

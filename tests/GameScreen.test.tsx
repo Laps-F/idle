@@ -289,6 +289,7 @@ describe('comitiva e Almanaque', () => {
     useGameStore.setState({ trails: { caipora: 3 }, inventory: { 'mel-silvestre': 5 } });
     useGameStore.getState().sealPact('caipora');
     await mount();
+    await click('Comitiva');
 
     await click('Tirar da comitiva');
     expect(useGameStore.getState().party).toEqual(['caipora']);
