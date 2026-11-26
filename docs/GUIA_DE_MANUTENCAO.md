@@ -131,7 +131,12 @@ o estado que ela devolveu.
    (com bônus só em `concluida`), e guarda o relatório em `expeditionReport`.
 5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
    lendo `readSceneFrame` e `selectExpeditionMapView`. Os eventos de `sceneEvents` viram
-   números que sobem e o anel do golpe especial.
+   números que sobem.
+
+Os golpes da expedição são projéteis que voam pelo mapa (`projectiles`, na cena). O comum sai
+sozinho na visagem mais perto e para na primeira que acerta. O especial sai para o lado em que a
+personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao bater em árvore ou
+água, ou depois da distância máxima.
 
 ## 3. Quero mudar... onde eu mexo?
 
@@ -145,7 +150,8 @@ o estado que ela devolveu.
 | Tamanho da comitiva | `src/data/balance.ts` |
 | Duração do dia e do ciclo da lua | `src/data/balance.ts` |
 | Tempo da expedição e bônus de quem aguenta até o fim | `src/data/balance.ts`, `expeditionDurationSeconds` e `expeditionCompletionBonus` |
-| Personagem na expedição: velocidade, vida, alcance, golpe especial (raio, força, recarga) | `src/data/balance.ts`, bloco "Expedições: personagem" |
+| Personagem na expedição: velocidade, vida, alcance, força e recarga do golpe especial | `src/data/balance.ts`, bloco "Expedições: personagem" |
+| Projéteis: velocidade, tamanho e distância máxima (comum e especial) | `src/data/balance.ts`, bloco "Expedições: projéteis" |
 | Visagens na expedição: perseguição, encostada, dano, passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
 | Ondas: visagens no começo, teto, ritmo de chegada, nível subindo com o tempo | `src/data/balance.ts`, bloco "Expedições: ondas" |
 | Desenho de um mapa, nível inicial, visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
@@ -195,7 +201,8 @@ o estado que ela devolveu.
 | Dano de uma visagem na expedição e vida da personagem | `src/domain/formulas.ts`, bloco "Expedições" |
 | Movimento e colisão da personagem, passagem de volta | `src/domain/expeditionScene.ts`, bloco "Personagem" |
 | Ondas, passeio, perseguição e encostada das visagens | `src/domain/expeditionScene.ts`, bloco "Visagens" |
-| Golpe automático e golpe especial | `src/domain/expeditionScene.ts`, bloco "Golpes" |
+| Quando o projétil comum e o especial saem, e para onde | `src/domain/expeditionScene.ts`, bloco "Golpes" |
+| Voo do projétil, acerto, atravessar visagens e fim (parede ou distância) | `src/domain/expeditionScene.ts`, bloco "Projéteis" |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
 | Quando dá para partir | `src/domain/expedition.ts`, `canStartExpedition` e `startExpedition` |
@@ -243,8 +250,8 @@ o estado que ela devolveu.
 | Aba "Expedições" da clareira: texto, mapas e botão de partir | `src/components/expedition/ExpeditionsPanel.tsx` |
 | Janela da volta de uma expedição | `src/components/modals/ExpeditionReportModal.tsx` |
 | A disposição da tela da expedição | `src/components/expedition/ExpeditionScreen.tsx` |
-| O canvas da expedição e os efeitos (números, anel do golpe especial) | `src/components/expedition/ExpeditionCanvas.tsx` |
-| Como o mapa é pintado: câmera, camadas, painel de vida e tempo, tamanho do ladrilho | `src/components/expedition/mapRenderer.ts` |
+| O canvas da expedição e os números que sobem | `src/components/expedition/ExpeditionCanvas.tsx` |
+| Como o mapa é pintado: câmera, camadas (projéteis inclusos), painel de vida e tempo, tamanho do ladrilho | `src/components/expedition/mapRenderer.ts` |
 | Arquivo de imagem e cor provisória de cada ladrilho, da personagem e das visagens | `src/components/expedition/sprites.ts` |
 | Ligar as imagens de verdade ou tirar os nomes escritos nos blocos | `src/components/expedition/sprites.ts`, `LOAD_SPRITE_IMAGES` e `SHOW_SPRITE_LABELS` |
 | Painel ao lado do mapa: bolsa, voltar agora, como jogar, legenda | `src/components/expedition/ExpeditionSidePanel.tsx` |
@@ -449,8 +456,9 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
   ou `playerBaseHp` para cima.
 - Fácil demais: `waveSpawnSpeedupPerMinute` e `waveMaxEnemiesPerMinute` para cima, ou
   `waveLevelUpSeconds` para baixo (visagens sobem de nível mais cedo).
-- Golpe especial fraco ou forte: `specialDamageMultiplier`, `specialRadius` e
-  `specialCooldownSeconds`.
+- Golpe especial fraco ou forte: `specialDamageMultiplier`, `specialCooldownSeconds` e
+  `specialProjectileMaxDistance`.
+- Acertar de longe demais ou de perto demais: `attackRange` e `projectileMaxDistance`.
 - Bolsa rende pouco ou muito: `expeditionCompletionBonus`, ou o nível inicial (`level`) do mapa.
 - Para medir sem jogar: monte uma cena com `createExpeditionScene` e chame `advanceScene` em
   passos de 0,1 s, como no histórico da etapa das expedições.

@@ -7,6 +7,11 @@
  * cuida do golpe automático e do golpe especial, e diz quando a expedição
  * acaba (fim do tempo, vida zerada ou passagem de volta).
  *
+ * Os golpes são projéteis: o comum voa na visagem mais perto e para na
+ * primeira que acerta; o especial voa para o lado em que a personagem anda e
+ * atravessa todas no caminho. Projétil some ao bater em árvore ou água, ou
+ * depois de andar a distância máxima.
+ *
  * Como funciona: a cena (ExpeditionScene) é tudo que está no mapa agora. Ela
  * só existe com o jogo aberto e não é salva. advanceScene recebe a cena, o
  * que a pessoa está fazendo e o tempo que passou, e devolve a cena nova, as
@@ -26,8 +31,9 @@
  *   3. Passo da cena
  *   4. Personagem: movimento e passagem de volta
  *   5. Visagens: ondas, passeio, perseguição e encostada (bloco "Visagens")
- *   6. Golpes: automático e especial
- *   7. Geometria
+ *   6. Golpes: automático e especial (os disparos)
+ *   7. Projéteis: voo, acerto e fim
+ *   8. Geometria
  */
 
 import { BALANCE } from '../data/balance';
@@ -44,6 +50,7 @@ import type {
   MapKill,
   SceneEnemy,
   SceneEvent,
+  SceneProjectile,
   SceneStepResult,
 } from './types';
 
@@ -88,8 +95,8 @@ interface Point {
  * @param mapId Mapa da expedição. Precisa existir em src/data/world.ts.
  * @param maxHp Vida cheia da personagem (ExpeditionFighter.maxHp).
  * @param random Fonte de sorteio para o lugar e o tipo das primeiras visagens.
- * @returns Cena no tempo zero: personagem no início do mapa com a vida cheia, golpe especial
- *          pronto e waveStartEnemies visagens longe dela.
+ * @returns Cena no tempo zero: personagem no início do mapa, olhando para a direita, com a vida
+ *          cheia, golpe especial pronto e waveStartEnemies visagens longe dela.
  * @throws Error se o mapa não existir.
  */
 export function createExpeditionScene(
@@ -110,9 +117,13 @@ export function createExpeditionScene(
       hurtSeconds: 0,
       attackProgress: 0,
       specialCooldown: 0,
+      facingX: 1,
+      facingY: 0,
       enemies: [],
+      projectiles: [],
       spawnTimer: BALANCE.waveSpawnSecondsStart,
       nextEnemyUid: 1,
+      nextProjectileUid: 1,
     },
     null,
     random,
@@ -131,10 +142,10 @@ export function createExpeditionScene(
  * Algoritmo: o intervalo é dividido em passos de no máximo sceneMaxStepSeconds.
  * Em cada passo, na ordem: o tempo corre, a personagem anda (com colisão), a
  * passagem de volta é conferida, as visagens passeiam ou perseguem e batem ao
- * encostar, o golpe especial sai (se pedido e pronto), o golpe automático sai
- * (se a barra encheu e há visagem no alcance), as ondas trazem visagens novas
- * e o fim do tempo é conferido. Quando a expedição acaba, o resto do intervalo
- * é ignorado.
+ * encostar, o projétil especial sai (se pedido e pronto), o projétil comum
+ * sai (se a barra encheu e há visagem no alcance), os projéteis voam e
+ * acertam, as ondas trazem visagens novas e o fim do tempo é conferido.
+ * Quando a expedição acaba, o resto do intervalo é ignorado.
  *
  * Função pura: não altera "scene" nem "input".
  *
@@ -151,7 +162,9 @@ export function createExpeditionScene(
  * - O pedido de golpe especial vale uma vez por chamada. Com o golpe em recarga,
  *   o pedido é ignorado (não fica guardado).
  * - Na diagonal a velocidade é a mesma das quatro direções.
- * - No máximo um golpe automático por passo (até 20 por segundo).
+ * - No máximo um disparo automático por passo (até 20 por segundo).
+ * - O projétil comum mira onde a visagem estava no disparo. Se ela sair do
+ *   caminho, ele segue reto e pode acertar outra ou sumir.
  * - Se a vida zera e o tempo acaba no mesmo passo, vale "caiu".
  */
 export function advanceScene(
@@ -269,6 +282,7 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
 
   fireSpecialIfPending(context);
   updateAttack(context, seconds);
+  updateProjectiles(context, seconds);
   updateWaves(context, seconds);
 
   if (draft.elapsedSeconds >= BALANCE.expeditionDurationSeconds - EPSILON) {
@@ -289,6 +303,11 @@ function movePlayer(context: StepContext, input: ExpeditionInput, seconds: numbe
   const nextX = draft.playerX + direction.x * distance;
   const nextY = draft.playerY + direction.y * distance;
 
+  if (direction.x !== 0 || direction.y !== 0) {
+    const length = Math.hypot(direction.x, direction.y);
+    draft.facingX = direction.x / length;
+    draft.facingY = direction.y / length;
+  }
   if (direction.x !== 0 && isWalkablePosition(map, nextX, draft.playerY)) {
     draft.playerX = nextX;
   }
@@ -527,7 +546,7 @@ function rollWaitSeconds(random: RandomSource): number {
 // =============================================================================
 // G O L P E S :   A U T O M Á T I C O   E   E S P E C I A L
 
-// Enche a barra de ataque e, cheia, bate na visagem mais perto dentro do alcance
+// Enche a barra de ataque e, cheia, atira na visagem mais perto dentro do alcance
 function updateAttack(context: StepContext, seconds: number): void {
   const { draft, fighter } = context;
 
@@ -543,15 +562,24 @@ function updateAttack(context: StepContext, seconds: number): void {
 
   const target = findNearestEnemy(draft, BALANCE.attackRange);
 
-  if (target !== null) {
-    const isCrit = rollChance(fighter.critChance, context.random);
-    const damage = isCrit ? fighter.damage * BALANCE.critMultiplier : fighter.damage;
-    draft.attackProgress = 0;
-    damageEnemy(context, target, damage, isCrit);
+  if (target === null) {
+    return;
   }
+
+  const player = getPlayer(draft);
+  const isCrit = rollChance(fighter.critChance, context.random);
+  draft.attackProgress = 0;
+  launchProjectile(context, {
+    isSpecial: false,
+    direction: { x: target.x - player.x, y: target.y - player.y },
+    speed: BALANCE.projectileSpeed,
+    maxDistance: BALANCE.projectileMaxDistance,
+    damage: isCrit ? fighter.damage * BALANCE.critMultiplier : fighter.damage,
+    isCrit,
+  });
 }
 
-// Golpe especial: acerta todas as visagens em volta. Só sai se pedido, pronto e com quem bata.
+// Projétil especial: sai para o lado em que a personagem olha. Só se pedido e pronto.
 function fireSpecialIfPending(context: StepContext): void {
   const { draft, fighter } = context;
   const isRequested = context.isSpecialPending;
@@ -561,18 +589,15 @@ function fireSpecialIfPending(context: StepContext): void {
     return;
   }
 
-  const player = getPlayer(draft);
-  const damage = fighter.damage * BALANCE.specialDamageMultiplier;
-  const targets = draft.enemies.filter(
-    (enemy) => getDistance(enemy, player) <= BALANCE.specialRadius,
-  );
-
   draft.specialCooldown = BALANCE.specialCooldownSeconds;
-  context.events.push({ type: 'special', x: player.x, y: player.y, radius: BALANCE.specialRadius });
-
-  for (const enemy of targets) {
-    damageEnemy(context, enemy, damage, false);
-  }
+  launchProjectile(context, {
+    isSpecial: true,
+    direction: { x: draft.facingX, y: draft.facingY },
+    speed: BALANCE.specialProjectileSpeed,
+    maxDistance: BALANCE.specialProjectileMaxDistance,
+    damage: fighter.damage * BALANCE.specialDamageMultiplier,
+    isCrit: false,
+  });
 }
 
 // Visagem mais perto da personagem dentro da distância pedida, ou null
@@ -616,6 +641,96 @@ function damageEnemy(
 
 // =============================================================================
 // =============================================================================
+// P R O J É T E I S :   V O O ,   A C E R T O   E   F I M
+
+// O que um disparo precisa dizer
+interface LaunchOptions {
+  isSpecial: boolean;
+  direction: Point; // qualquer tamanho. Direção zero vira "para a direita".
+  speed: number;
+  maxDistance: number;
+  damage: number;
+  isCrit: boolean;
+}
+
+// Põe um projétil no mapa, saindo do centro da personagem
+function launchProjectile(context: StepContext, options: LaunchOptions): void {
+  const { draft } = context;
+  const length = Math.hypot(options.direction.x, options.direction.y);
+  const projectile: SceneProjectile = {
+    uid: draft.nextProjectileUid,
+    isSpecial: options.isSpecial,
+    x: draft.playerX,
+    y: draft.playerY,
+    directionX: length > EPSILON ? options.direction.x / length : 1,
+    directionY: length > EPSILON ? options.direction.y / length : 0,
+    speed: options.speed,
+    remainingDistance: options.maxDistance,
+    damage: options.damage,
+    isCrit: options.isCrit,
+    hitEnemyUids: [],
+  };
+
+  draft.nextProjectileUid += 1;
+  draft.projectiles.push(projectile);
+}
+
+// Cada projétil voa um trecho. Os que acabaram (acerto, parede ou distância) saem do mapa.
+function updateProjectiles(context: StepContext, seconds: number): void {
+  const { draft } = context;
+  draft.projectiles = draft.projectiles.filter((projectile) =>
+    flyProjectile(context, projectile, seconds),
+  );
+}
+
+/**
+ * Faz um projétil voar um trecho e acertar as visagens no caminho.
+ *
+ * O acerto é conferido no segmento inteiro que o projétil percorreu no passo,
+ * e não só no ponto final, para um projétil rápido não atravessar uma visagem
+ * sem tocar nela.
+ *
+ * @param context Contexto do passo. A visagem acertada perde vida aqui.
+ * @param projectile Projétil, alterado no lugar (é do draft).
+ * @param seconds Duração do trecho.
+ * @returns true se o projétil continua no mapa; false se acabou.
+ */
+function flyProjectile(
+  context: StepContext,
+  projectile: SceneProjectile,
+  seconds: number,
+): boolean {
+  const distance = Math.min(projectile.speed * seconds, projectile.remainingDistance);
+  const start = { x: projectile.x, y: projectile.y };
+  const end = {
+    x: start.x + projectile.directionX * distance,
+    y: start.y + projectile.directionY * distance,
+  };
+  const hitRadius = BALANCE.bodyRadius + BALANCE.projectileRadius;
+  const targets = context.draft.enemies
+    .filter((enemy) => !projectile.hitEnemyUids.includes(enemy.uid))
+    .filter((enemy) => getDistanceToSegment(enemy, start, end) <= hitRadius)
+    .sort((first, second) => getDistance(first, start) - getDistance(second, start));
+
+  for (const enemy of targets) {
+    projectile.hitEnemyUids.push(enemy.uid);
+    damageEnemy(context, enemy, projectile.damage, projectile.isCrit);
+
+    if (!projectile.isSpecial) {
+      return false;
+    }
+  }
+
+  projectile.x = end.x;
+  projectile.y = end.y;
+  projectile.remainingDistance -= distance;
+  const isInsideWall = !isWalkablePosition(context.map, end.x, end.y, BALANCE.projectileRadius);
+  return projectile.remainingDistance > EPSILON && !isInsideWall;
+}
+
+
+// =============================================================================
+// =============================================================================
 // G E O M E T R I A
 
 // Posição da personagem como ponto
@@ -631,4 +746,19 @@ function toTileCenter(column: number, row: number): Point {
 // Distância em linha reta entre dois pontos
 function getDistance(first: Point, second: Point): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+// Distância de um ponto até o trecho de reta entre "start" e "end"
+function getDistanceToSegment(point: Point, start: Point, end: Point): number {
+  const segmentX = end.x - start.x;
+  const segmentY = end.y - start.y;
+  const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+  if (lengthSquared <= EPSILON) {
+    return getDistance(point, start);
+  }
+
+  const along = ((point.x - start.x) * segmentX + (point.y - start.y) * segmentY) / lengthSquared;
+  const clamped = Math.max(0, Math.min(1, along));
+  return getDistance(point, { x: start.x + clamped * segmentX, y: start.y + clamped * segmentY });
 }

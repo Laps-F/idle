@@ -2,6 +2,37 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: projéteis na expedição
+
+O golpe especial em área não ficou bom. Os golpes da expedição viraram projéteis, simples e sem
+arte (blocos pequenos, como o resto do mapa):
+
+- **Comum:** sai sozinho quando a barra de ataque enche e há visagem a até 4 ladrilhos (antes
+  1,6). Voa reto na direção em que a visagem estava e para na primeira que acerta.
+- **Especial (espaço):** sai para o lado em que a personagem andou por último, com 4 vezes o
+  dano, e atravessa todas as visagens no caminho. Recarga de 6 segundos, como antes.
+- Os dois somem ao bater em árvore ou água, ou depois da distância máxima (5 e 9 ladrilhos).
+- O acerto é conferido no trecho inteiro que o projétil andou em cada passo, para um projétil
+  rápido não atravessar uma visagem sem tocar nela.
+- Saíram o anel azul do golpe especial e o evento `special`.
+
+Ritmo medido parado no lugar (pior caso): no nível 1 a personagem cai entre 1min30 e 2min30; no
+nível 10 já aguenta os 5 minutos. Com o alcance maior, desviar ficou mais vantajoso.
+
+Arquivos:
+
+- `src/domain/types.ts`: `SceneProjectile`; a cena ganhou `projectiles`, `facingX`, `facingY` e
+  `nextProjectileUid`.
+- `src/domain/expeditionScene.ts`: disparos no bloco "Golpes" e o bloco novo "Projéteis" (voo,
+  acerto, atravessar, fim).
+- `src/data/balance.ts`: `attackRange: 4`, bloco "Expedições: projéteis"; saiu `specialRadius`.
+- `src/store/selectors.ts`: projéteis no `SceneFrame`.
+- `src/components/expedition/mapRenderer.ts`: camada dos projéteis; saiu o anel.
+- `src/components/expedition/sprites.ts`: vagas `projectile.png` e `special-projectile.png`.
+- `src/components/expedition/ExpeditionCanvas.tsx` e `ExpeditionSidePanel.tsx`: textos e
+  legenda.
+- `tests/expedition.test.ts`: bloco "golpes e projéteis".
+
 ## 26/11/2026: clareira e expedições (caminho C)
 
 O protótipo do mundo aberto virou um passeio: andar e bater sozinho, sem perigo. A decisão foi

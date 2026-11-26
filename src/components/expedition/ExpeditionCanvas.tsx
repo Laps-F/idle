@@ -3,9 +3,8 @@
  * Arquivo: src/components/expedition/ExpeditionCanvas.tsx
  * O que faz: o canvas da expedição. A cada quadro do navegador
  * (requestAnimationFrame), lê a store por fora do React e manda desenhar
- * (mapRenderer.ts). Também transforma os eventos do tick em efeitos: número
- * que sobe a cada golpe, número vermelho quando a personagem apanha e o anel
- * do golpe especial.
+ * (mapRenderer.ts). Também transforma os eventos do tick em números que
+ * sobem: o dano de cada acerto e, em vermelho, o dano que a personagem leva.
  *
  * Por que fora do React: a personagem e as visagens mudam de lugar a cada
  * tick, perto de 60 vezes por segundo. Passar isso por estado do React
@@ -98,14 +97,13 @@ export function ExpeditionCanvas() {
 // =============================================================================
 // E F E I T O S
 
-// Evento do tick -> efeito na tela. A derrota não vira efeito (a visagem só some).
+// Evento do tick -> número na tela. A derrota não vira número (a visagem só some).
 function toEffect(event: SceneEventView): MapEffect[] {
   switch (event.type) {
     case 'hit': {
       const damage = formatNumber(event.damage);
       return [
         {
-          kind: 'text',
           x: event.x,
           y: event.y - 0.4,
           text: event.isCrit ? `${damage}!` : damage,
@@ -118,7 +116,6 @@ function toEffect(event: SceneEventView): MapEffect[] {
     case 'hurt':
       return [
         {
-          kind: 'text',
           x: event.x,
           y: event.y - 0.6,
           text: `-${formatNumber(event.damage)}`,
@@ -127,8 +124,6 @@ function toEffect(event: SceneEventView): MapEffect[] {
           ageSeconds: 0,
         },
       ];
-    case 'special':
-      return [{ kind: 'ring', x: event.x, y: event.y, radius: event.radius, ageSeconds: 0 }];
     case 'defeat':
       return [];
   }

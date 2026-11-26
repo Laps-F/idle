@@ -4,7 +4,7 @@
  * O que faz: testa as regras da expedição sem navegador. Na cena: montagem,
  * movimento com colisão, passagem de volta, perseguição, encostada, queda,
  * golpe automático, golpe especial, ondas e fim do tempo. Fora da cena: quem
- * sai, partir, bolsa e a volta com o bônus. O sorteio usa semente e as
+ * sai, partir, bolsa e a volta com o bônus. Os golpes são projéteis. O sorteio usa semente e as
  * entradas são congeladas, para denunciar qualquer alteração indevida.
  */
 
@@ -63,9 +63,13 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
     hurtSeconds: 0,
     attackProgress: 0,
     specialCooldown: 0,
+    facingX: 1,
+    facingY: 0,
     enemies: [],
+    projectiles: [],
     spawnTimer: 999,
     nextEnemyUid: 10,
+    nextProjectileUid: 1,
     ...changes,
   });
 }
@@ -249,40 +253,85 @@ describe('visagens', () => {
   });
 });
 
-describe('golpes', () => {
-  it('o golpe automático derruba a visagem no alcance e conta o nível dela', () => {
-    const enemy = createEnemy(11.5, 11.5, { level: 3, damage: 0 });
-    const scene = createScene({ attackProgress: 1, enemies: [enemy] });
-    const result = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.05, createSeededRandom(1));
+describe('golpes e projéteis', () => {
+  // Visagem resistente, que não bate, para medir quantos projéteis acertam
+  function createTarget(uid: number, x: number, y: number): SceneEnemy {
+    return createEnemy(x, y, { uid, damage: 0, hp: 100, maxHp: 100 });
+  }
 
-    expect(result.scene.enemies).toEqual([]);
-    expect(result.kills).toEqual([
+  const weakFighter = { ...STRONG_FIGHTER, damage: 2 };
+  const specialDamage = 2 * BALANCE.specialDamageMultiplier;
+
+  it('o golpe comum vira um projétil que voa até a visagem e a derruba', () => {
+    // A visagem fica a 3,5 ladrilhos: o projétil leva alguns passos para chegar
+    const enemy = createEnemy(14, 11.5, { level: 3, damage: 0 });
+    const scene = createScene({ attackProgress: 1, enemies: [enemy] });
+    const fired = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.05, createSeededRandom(1));
+    const landed = advanceScene(fired.scene, STRONG_FIGHTER, STOPPED, 0.5, createSeededRandom(1));
+
+    expect(fired.scene.projectiles).toHaveLength(1);
+    expect(fired.scene.projectiles[0]?.directionX).toBe(1);
+    expect(fired.kills).toEqual([]);
+    expect(landed.scene.enemies).toEqual([]);
+    expect(landed.scene.projectiles).toEqual([]);
+    expect(landed.kills).toEqual([
       { enemyId: 'visagem-da-neblina', stage: 3, zoneId: 'mata-atlantica' },
     ]);
-    expect(result.events.map((event) => event.type)).toEqual(['hit', 'defeat']);
+    expect(landed.events.map((event) => event.type)).toEqual(['hit', 'defeat']);
   });
 
-  it('o golpe especial acerta todas em volta e precisa recarregar', () => {
-    const fighter = { ...STRONG_FIGHTER, damage: 2 };
-    const enemies = [
-      createEnemy(12, 11.5, { uid: 1, damage: 0, hp: 100, maxHp: 100 }),
-      createEnemy(10.5, 13.5, { uid: 2, damage: 0, hp: 100, maxHp: 100 }),
-      createEnemy(14.5, 11.5, { uid: 3, damage: 0, hp: 100, maxHp: 100, waitSeconds: 100 }),
-    ];
-    const scene = createScene({ attackProgress: 0, enemies });
-    const special = { ...STOPPED, useSpecial: true };
-    const first = advanceScene(scene, fighter, special, 0.05, createSeededRandom(1));
-    const again = advanceScene(first.scene, fighter, special, 0.05, createSeededRandom(1));
-    const hpOf = (result: typeof first, uid: number): number | undefined =>
-      result.scene.enemies.find((enemy) => enemy.uid === uid)?.hp;
-    const specialDamage = fighter.damage * BALANCE.specialDamageMultiplier;
+  it('não atira em visagem fora do alcance e deixa a barra cheia esperando', () => {
+    const scene = createScene({ attackProgress: 1, enemies: [createTarget(1, 15.5, 11.5)] });
+    const result = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.05, createSeededRandom(1));
 
-    expect(hpOf(first, 1)).toBe(100 - specialDamage);
-    expect(hpOf(first, 2)).toBe(100 - specialDamage);
-    expect(hpOf(first, 3)).toBe(100);
-    expect(first.scene.specialCooldown).toBeCloseTo(BALANCE.specialCooldownSeconds, 6);
-    expect(first.events).toContainEqual({ type: 'special', x: 10.5, y: 11.5, radius: 2.5 });
-    expect(hpOf(again, 1)).toBe(100 - specialDamage);
+    expect(result.scene.projectiles).toEqual([]);
+    expect(result.scene.attackProgress).toBe(1);
+  });
+
+  it('o projétil comum para na primeira visagem que acerta', () => {
+    const enemies = [createTarget(1, 12.5, 11.5), createTarget(2, 13.5, 11.5)];
+    const scene = createScene({ attackProgress: 1, enemies });
+    const result = advanceScene(scene, weakFighter, STOPPED, 0.5, createSeededRandom(1));
+
+    expect(result.scene.enemies.map((enemy) => enemy.hp)).toEqual([98, 100]);
+  });
+
+  it('o especial sai para o lado em que a personagem olha e atravessa as visagens', () => {
+    const enemies = [createTarget(1, 12.5, 11.5), createTarget(2, 13.5, 11.5)];
+    const scene = createScene({ enemies });
+    const special = { ...STOPPED, useSpecial: true };
+    const first = advanceScene(scene, weakFighter, special, 0.5, createSeededRandom(1));
+    const again = advanceScene(first.scene, weakFighter, special, 0.05, createSeededRandom(1));
+
+    expect(first.scene.enemies.map((enemy) => enemy.hp)).toEqual([
+      100 - specialDamage,
+      100 - specialDamage,
+    ]);
+    expect(first.scene.specialCooldown).toBeGreaterThan(0);
+    expect(again.scene.projectiles.filter((projectile) => projectile.isSpecial)).toHaveLength(1);
+  });
+
+  it('o especial segue a última direção em que a personagem andou', () => {
+    const scene = createScene();
+    const up = { moveX: 0, moveY: -1, useSpecial: false };
+    const walked = advanceScene(scene, weakFighter, up, 0.05, createSeededRandom(1));
+    const special = { ...STOPPED, useSpecial: true };
+    const fired = advanceScene(walked.scene, weakFighter, special, 0.05, createSeededRandom(1));
+
+    expect(walked.scene.facingY).toBe(-1);
+    expect(fired.scene.projectiles[0]?.directionY).toBe(-1);
+    expect(fired.scene.projectiles[0]?.directionX).toBeCloseTo(0, 6);
+  });
+
+  it('o projétil some ao bater numa árvore ou ao passar da distância máxima', () => {
+    const special = { ...STOPPED, useSpecial: true };
+    // A linha 0 da Beira da Mata é toda de árvores
+    const wallScene = createScene({ playerX: 1.5, playerY: 1.5, facingX: 0, facingY: -1 });
+    const wall = advanceScene(wallScene, weakFighter, special, 0.2, createSeededRandom(1));
+    const open = advanceScene(createScene(), weakFighter, special, 1, createSeededRandom(1));
+
+    expect(wall.scene.projectiles).toEqual([]);
+    expect(open.scene.projectiles).toEqual([]);
   });
 });
 

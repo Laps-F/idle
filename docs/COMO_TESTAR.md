@@ -86,8 +86,8 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 2 | Clicar em "Partir para Beira da Mata" | A clareira dá lugar ao mapa. Em cima do mapa aparecem a vida, o golpe especial, o tempo que falta (5 minutos) e a bolsa. A personagem é o bloco amarelo, dentro de um círculo claro (o alcance do golpe). |
 | 3 | Apertar as setas ou W, A, S e D | A personagem anda nas quatro direções e na diagonal. Para ao encostar em árvore ou água. A página não rola. |
 | 4 | Chegar perto das visagens (blocos vermelhos) | Elas vêm atrás de você, mais devagar do que você anda. Encostando, batem: sobe um número vermelho, a personagem pisca e a vida cai. |
-| 5 | Deixar uma visagem dentro do círculo | O golpe comum sai sozinho quando a barra amarela embaixo da personagem enche. A visagem derrotada some e a bolsa soma 1. |
-| 6 | Apertar espaço com visagens em volta | Um anel azul cresce em volta da personagem e todas as visagens perto levam dano. A barra do golpe especial esvazia e enche de novo em 6 segundos. |
+| 5 | Deixar uma visagem dentro do círculo | Quando a barra amarela embaixo da personagem enche, sai um quadradinho claro (o projétil) na direção da visagem. Ao acertar, sobe o número do dano. A visagem derrotada some e a bolsa soma 1. |
+| 6 | Andar para um lado e apertar espaço | Sai um quadradinho azul (o projétil especial) para o lado em que você andou por último. Ele atravessa as visagens no caminho e some ao bater em árvore ou água. A barra do golpe especial esvazia e enche de novo em 6 segundos. |
 | 7 | Olhar o cabeçalho durante a expedição | As Patacas continuam subindo: a clareira rende enquanto você está fora. |
 | 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. |
 | 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. |

@@ -417,9 +417,28 @@ export interface ExpeditionScene {
   hurtSeconds: number; // tempo que a personagem ainda pisca depois de levar um golpe
   attackProgress: number; // de 0 a 1. Em 1, o golpe sai assim que houver visagem por perto.
   specialCooldown: number; // segundos até o golpe especial ficar pronto
+  facingX: number; // direção para onde a personagem olha (a última em que andou)
+  facingY: number;
   enemies: SceneEnemy[];
+  projectiles: SceneProjectile[];
   spawnTimer: number; // segundos até a próxima visagem entrar no mapa
   nextEnemyUid: number;
+  nextProjectileUid: number;
+}
+
+// Um projétil voando pelo mapa. Só existe com o jogo aberto, não é salvo.
+export interface SceneProjectile {
+  uid: number;
+  isSpecial: boolean; // o especial atravessa as visagens; o comum para na primeira
+  x: number;
+  y: number;
+  directionX: number; // direção de voo, com tamanho 1
+  directionY: number;
+  speed: number; // ladrilhos por segundo
+  remainingDistance: number; // quanto ainda anda antes de sumir
+  damage: number;
+  isCrit: boolean;
+  hitEnemyUids: number[]; // visagens que este projétil já acertou (para o especial)
 }
 
 // O que a pessoa está fazendo: direção (cada eixo de -1 a 1) e se pediu o golpe especial
@@ -449,8 +468,7 @@ export interface MapKill {
 export type SceneEvent =
   | { type: 'hit'; x: number; y: number; damage: number; isCrit: boolean }
   | { type: 'defeat'; x: number; y: number; enemyId: string }
-  | { type: 'hurt'; x: number; y: number; damage: number }
-  | { type: 'special'; x: number; y: number; radius: number };
+  | { type: 'hurt'; x: number; y: number; damage: number };
 
 // O que um passo da cena devolve. "outcome" vem preenchido quando a expedição acabou.
 export interface SceneStepResult {

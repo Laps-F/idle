@@ -11,7 +11,13 @@ import { selectExpeditionHud } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatNumber } from '../../utils/format';
 import { Button } from '../ui/Button';
-import { EXIT_SPRITE, getPlayerSprite, listTileSprites } from './sprites';
+import {
+  EXIT_SPRITE,
+  getPlayerSprite,
+  listTileSprites,
+  PROJECTILE_SPRITE,
+  SPECIAL_PROJECTILE_SPRITE,
+} from './sprites';
 import type { SpriteSlot } from './sprites';
 
 // =============================================================================
@@ -60,8 +66,11 @@ function HowToPlaySection() {
       <h2 className={TITLE_CLASS}>Como jogar</h2>
       <ul className="list-disc space-y-1 pl-5 text-sm">
         <li>Ande com as setas ou com W, A, S e D.</li>
-        <li>O golpe comum sai sozinho na visagem mais perto, dentro do círculo.</li>
-        <li>Espaço solta o golpe especial em volta de você. Ele precisa recarregar.</li>
+        <li>O projétil comum sai sozinho na visagem mais perto, dentro do círculo.</li>
+        <li>
+          Espaço solta o projétil especial para o lado em que você anda. Ele atravessa as
+          visagens e precisa recarregar.
+        </li>
         <li>As visagens perseguem e batem ao encostar. Fuja, elas são mais lentas.</li>
         <li>O bloco roxo leva de volta para a clareira, com a bolsa inteira.</li>
         <li>Aguentando até o fim do tempo, a bolsa rende mais.</li>
@@ -76,6 +85,8 @@ function LegendSection() {
     ...listTileSprites().map(({ tileId, slot }) => ({ name: tileId, slot })),
     { name: 'passagem', slot: EXIT_SPRITE },
     { name: 'personagem', slot: getPlayerSprite(null) },
+    { name: 'projétil', slot: PROJECTILE_SPRITE },
+    { name: 'projétil especial', slot: SPECIAL_PROJECTILE_SPRITE },
   ];
 
   return (

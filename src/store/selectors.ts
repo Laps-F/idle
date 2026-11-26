@@ -1007,6 +1007,14 @@ export interface SceneEnemyFrame {
   hpFraction: number; // de 0 a 1
 }
 
+// Um projétil no quadro atual
+export interface SceneProjectileFrame {
+  uid: number;
+  isSpecial: boolean;
+  x: number;
+  y: number;
+}
+
 // Tudo que o canvas desenha num quadro. Muda a cada tick, então não passa pelo React.
 export interface SceneFrame {
   mapId: string;
@@ -1022,7 +1030,9 @@ export interface SceneFrame {
   secondsLeft: number; // até o fim do tempo da expedição
   lootCount: number;
   attackRange: number; // em ladrilhos
+  projectileRadius: number; // em ladrilhos
   enemies: SceneEnemyFrame[];
+  projectiles: SceneProjectileFrame[];
 }
 
 // Janela da volta: como terminou e o que a bolsa rendeu
@@ -1040,7 +1050,7 @@ export interface ExpeditionReportView {
   amuletsFound: number;
 }
 
-// Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota, dano, especial)
+// Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota e dano)
 export type SceneEventView = SceneEvent;
 
 // O desenho de cada mapa é montado uma vez só: o mapa não muda durante o jogo
@@ -1075,7 +1085,7 @@ export const selectExpeditionHud = createStableSelector(buildExpeditionHud);
 export const selectExpeditionReport = createStableSelector(buildExpeditionReport);
 
 /**
- * Leitura de cada quadro do canvas: personagem, visagens, vida, tempo e golpes.
+ * Leitura de cada quadro do canvas: personagem, visagens, projéteis, vida e tempo.
  *
  * Não use com useGameStore(...): muda a cada tick e redesenharia o React.
  * O canvas chama esta leitura com useGameStore.getState() a cada quadro.
@@ -1105,6 +1115,8 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
     secondsLeft: Math.max(0, BALANCE.expeditionDurationSeconds - scene.elapsedSeconds),
     lootCount: countLoot(expedition.loot),
     attackRange: BALANCE.attackRange,
+    projectileRadius: BALANCE.projectileRadius,
+    projectiles: scene.projectiles.map(({ uid, isSpecial, x, y }) => ({ uid, isSpecial, x, y })),
     enemies: scene.enemies.map((enemy) => ({
       uid: enemy.uid,
       enemyId: enemy.enemyId,

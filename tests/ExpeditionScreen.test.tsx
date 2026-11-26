@@ -88,7 +88,7 @@ describe('tela da expedição', () => {
     await mount();
     const legend = host.querySelector('[aria-label="Imagens que faltam"]')?.textContent ?? '';
 
-    for (const file of ['tree.png', 'water.png', 'grass.png', 'path.png', 'portal.png']) {
+    for (const file of ['tree.png', 'water.png', 'grass.png', 'portal.png', 'projectile.png']) {
       expect(legend).toContain(file);
     }
   });

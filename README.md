@@ -13,9 +13,9 @@ Estado atual: o jogo tem duas partes.
   Atlântica), cinco encantados, melhorias, pactos, amuletos, Rebrota com o juazeiro, salvamento e
   progresso offline. Ela rende sempre, com o jogo aberto ou fechado.
 - **Expedições** (a parte ativa, em protótipo): da aba "Expedições", um encantado sai por um mapa
-  visto de cima. As visagens perseguem e batem, as ondas ficam mais fortes com o tempo, e você
-  tem um golpe especial na tecla espaço. A bolsa volta inteira, e quem aguenta os 5 minutos ganha
-  um bônus. Dois mapas, sem imagens ainda (cada coisa é um bloco colorido com o nome do arquivo
+  visto de cima. As visagens perseguem e batem, e as ondas ficam mais fortes com o tempo. Os
+  golpes são projéteis: o comum sai sozinho na visagem mais perto, e o especial sai na tecla
+  espaço. A bolsa volta inteira, e quem aguenta os 5 minutos ganha um bônus. Dois mapas, sem imagens ainda (cada coisa é um bloco colorido com o nome do arquivo
   que vai entrar).
 
 O visual segue o folheto de cordel: página de papel pardo, painéis de papel jornal e a arena

@@ -56,6 +56,13 @@ const MISSING_TILE_SPRITE: SpriteSlot = { file: 'faltando.png', color: '#ff00aa'
 // A passagem de volta para a clareira
 export const EXIT_SPRITE: SpriteSlot = { file: 'portal.png', color: '#7a4fa8' };
 
+// Projéteis: o comum e o especial
+export const PROJECTILE_SPRITE: SpriteSlot = { file: 'projectile.png', color: '#f1ead8' };
+export const SPECIAL_PROJECTILE_SPRITE: SpriteSlot = {
+  file: 'special-projectile.png',
+  color: '#8fd3ff',
+};
+
 // Ladrilhos de chão não recebem o nome escrito, para o mapa não virar só texto
 export const GROUND_TILE_IDS: readonly string[] = ['grama', 'trilha'];
 

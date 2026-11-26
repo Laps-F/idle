@@ -104,13 +104,20 @@ export const BALANCE = {
   // Expedições: personagem
   playerSpeed: 4,
   bodyRadius: 0.3, // metade da largura da personagem e das visagens, para a colisão
-  attackRange: 1.6, // a personagem bate na visagem mais perto dentro desta distância
+  attackRange: 4, // a personagem atira na visagem mais perto dentro desta distância
   playerBaseHp: 100, // vida no nível 1
   playerHpPerLevel: 0.1, // cada nível do encantado soma 10% da vida base
   hurtFlashSeconds: 0.25, // tempo que a personagem pisca depois de levar um golpe
-  specialRadius: 2.5, // alcance do golpe especial (em volta da personagem)
-  specialDamageMultiplier: 4, // o golpe especial vale 4 golpes comuns
+  specialDamageMultiplier: 4, // o projétil especial vale 4 golpes comuns
   specialCooldownSeconds: 6,
+
+  // Expedições: projéteis. O comum vai na visagem mais perto e para no primeiro que acerta.
+  // O especial vai para o lado em que a personagem anda e atravessa as visagens.
+  projectileSpeed: 10,
+  projectileRadius: 0.15, // metade da largura do projétil, para acertar a visagem
+  projectileMaxDistance: 5, // o projétil comum some depois de andar isto sem acertar
+  specialProjectileSpeed: 12,
+  specialProjectileMaxDistance: 9,
 
   // Expedições: visagens
   enemyWanderSpeed: 0.8,

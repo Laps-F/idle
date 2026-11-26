@@ -2,11 +2,10 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/expedition/mapRenderer.ts
  * O que faz: desenha um quadro da expedição no canvas: ladrilhos, passagem
- * de volta, visagens, a personagem, o alcance do golpe, os efeitos (números
- * que sobem e o anel do golpe especial) e o painel por cima do mapa (vida,
- * tempo, bolsa e golpe especial). Não decide nada do jogo: só pinta o que
- * recebe (MapView e SceneFrame, de src/store/selectors.ts). Quem chama a cada
- * quadro é ExpeditionCanvas.tsx.
+ * de volta, visagens, projéteis, a personagem, o alcance do golpe, os números
+ * que sobem e o painel por cima do mapa (vida, tempo, bolsa e golpe especial).
+ * Não decide nada do jogo: só pinta o que recebe (MapView e SceneFrame, de
+ * src/store/selectors.ts). Quem chama a cada quadro é ExpeditionCanvas.tsx.
  *
  * Cada coisa é desenhada pela vaga de imagem dela (sprites.ts). Sem imagem,
  * vira um bloco colorido com o nome do arquivo escrito por cima.
@@ -15,8 +14,8 @@
  *   1. Medidas, cores e tipos
  *   2. Quadro completo
  *   3. Câmera
- *   4. Camadas do mapa: chão, passagem, visagens e personagem
- *   5. Efeitos: números que sobem e anel do golpe especial
+ *   4. Camadas do mapa: chão, passagem, visagens, projéteis e personagem
+ *   5. Números que sobem
  *   6. Painel por cima do mapa
  *   7. Peças de desenho e vagas de imagem
  */
@@ -30,7 +29,9 @@ import {
   getTileSprite,
   GROUND_TILE_IDS,
   LOAD_SPRITE_IMAGES,
+  PROJECTILE_SPRITE,
   SHOW_SPRITE_LABELS,
+  SPECIAL_PROJECTILE_SPRITE,
   SPRITE_FOLDER,
 } from './sprites';
 import type { SpriteSlot } from './sprites';
@@ -49,7 +50,7 @@ export const VIEW_HEIGHT_PX = 576;
 // Tamanho do desenho da personagem e das visagens, em ladrilhos (a colisão é menor)
 const FIGURE_SIZE = 0.8;
 
-// Quanto tempo um efeito dura na tela, e quanto um número sobe (em ladrilhos)
+// Quanto tempo um número fica na tela, e quanto ele sobe (em ladrilhos)
 export const EFFECT_SECONDS = 0.8;
 const FLOATING_TEXT_RISE = 1;
 
@@ -66,18 +67,15 @@ const LABEL_FONT = '9px sans-serif';
 const NAME_FONT = 'bold 11px sans-serif';
 const HUD_FONT = 'bold 14px sans-serif';
 
-// Um efeito que nasce num ponto do mapa e some aos poucos
-export type MapEffect =
-  | {
-      kind: 'text';
-      x: number; // em ladrilhos
-      y: number;
-      text: string;
-      color: string;
-      isBig: boolean;
-      ageSeconds: number;
-    }
-  | { kind: 'ring'; x: number; y: number; radius: number; ageSeconds: number };
+// Um número que nasce num ponto do mapa, sobe e some aos poucos
+export interface MapEffect {
+  x: number; // em ladrilhos
+  y: number;
+  text: string;
+  color: string;
+  isBig: boolean;
+  ageSeconds: number;
+}
 
 // Canto de cima e à esquerda da parte do mapa que aparece, em pixels
 interface Camera {
@@ -96,7 +94,7 @@ interface Camera {
  * @param context Contexto 2D do canvas, com VIEW_WIDTH_PX por VIEW_HEIGHT_PX.
  * @param map Desenho do mapa (ladrilhos e passagem de volta).
  * @param frame O que está no mapa agora. Null: só o chão aparece.
- * @param effects Números que sobem e anéis do golpe especial.
+ * @param effects Números que sobem.
  */
 export function drawExpedition(
   context: CanvasRenderingContext2D,
@@ -115,6 +113,7 @@ export function drawExpedition(
   if (isSameMap) {
     drawAttackRange(context, frame, camera);
     drawEnemies(context, frame, camera);
+    drawProjectiles(context, frame, camera);
     drawPlayer(context, frame, camera);
   }
 
@@ -218,6 +217,18 @@ function drawEnemies(context: CanvasRenderingContext2D, frame: SceneFrame, camer
   }
 }
 
+// Projéteis: blocos pequenos, sem nome escrito (não cabe)
+function drawProjectiles(context: CanvasRenderingContext2D, frame: SceneFrame, camera: Camera) {
+  const size = frame.projectileRadius * 2 * TILE_PX;
+
+  for (const projectile of frame.projectiles) {
+    const sprite = projectile.isSpecial ? SPECIAL_PROJECTILE_SPRITE : PROJECTILE_SPRITE;
+    const left = toScreen(projectile.x, camera.left) - size / 2;
+    const top = toScreen(projectile.y, camera.top) - size / 2;
+    drawSlot(context, sprite, left, top, size, false);
+  }
+}
+
 // A personagem (piscando ao levar golpe) e a barra de ataque embaixo dela
 function drawPlayer(context: CanvasRenderingContext2D, frame: SceneFrame, camera: Camera): void {
   const size = FIGURE_SIZE * TILE_PX;
@@ -237,9 +248,9 @@ function drawPlayer(context: CanvasRenderingContext2D, frame: SceneFrame, camera
 
 // =============================================================================
 // =============================================================================
-// E F E I T O S
+// N Ú M E R O S   Q U E   S O B E M
 
-// Números que sobem e anéis que crescem, sumindo aos poucos
+// Cada número sobe e some aos poucos
 function drawEffects(
   context: CanvasRenderingContext2D,
   effects: readonly MapEffect[],
@@ -247,34 +258,14 @@ function drawEffects(
 ): void {
   for (const effect of effects) {
     const progress = Math.min(1, effect.ageSeconds / EFFECT_SECONDS);
+    const x = toScreen(effect.x, camera.left);
+    const y = toScreen(effect.y - progress * FLOATING_TEXT_RISE, camera.top);
+    const font = effect.isBig ? 'bold 20px sans-serif' : 'bold 14px sans-serif';
+
     context.globalAlpha = 1 - progress;
-
-    if (effect.kind === 'ring') {
-      drawRing(context, effect.x, effect.y, effect.radius * (0.4 + 0.6 * progress), camera);
-    } else {
-      const x = toScreen(effect.x, camera.left);
-      const y = toScreen(effect.y - progress * FLOATING_TEXT_RISE, camera.top);
-      const font = effect.isBig ? 'bold 20px sans-serif' : 'bold 14px sans-serif';
-      drawCenteredText(context, effect.text, x, y, font, effect.color);
-    }
-
+    drawCenteredText(context, effect.text, x, y, font, effect.color);
     context.globalAlpha = 1;
   }
-}
-
-// Anel do golpe especial
-function drawRing(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  radius: number,
-  camera: Camera,
-): void {
-  context.strokeStyle = SPECIAL_COLOR;
-  context.lineWidth = 4;
-  context.beginPath();
-  context.arc(toScreen(x, camera.left), toScreen(y, camera.top), radius * TILE_PX, 0, 2 * Math.PI);
-  context.stroke();
 }
 
 // Cor de cada efeito de texto, para quem monta os efeitos (ExpeditionCanvas.tsx)

@@ -17,7 +17,8 @@ Imagem que faltar continua aparecendo como bloco colorido, então dá para entre
 - Ladrilhos: quadrados, desenhados em 48 por 48 pixels na tela (`TILE_PX`, em
   `src/components/expedition/mapRenderer.ts`). Vale desenhar em 48, 96 ou outro múltiplo.
 - Personagem e visagens: quadrados, desenhados em 80% de um ladrilho (`FIGURE_SIZE`).
-- Fundo transparente (PNG) para personagem, visagens e passagem.
+- Projéteis: quadrados pequenos, com 30% de um ladrilho (o dobro de `projectileRadius`).
+- Fundo transparente (PNG) para personagem, visagens, projéteis e passagem.
 
 ## Lista
 
@@ -28,6 +29,8 @@ Imagem que faltar continua aparecendo como bloco colorido, então dá para entre
 | `tree.png` | Árvore (não dá para passar) | verde-escuro |
 | `water.png` | Água (não dá para passar) | azul |
 | `portal.png` | Passagem de volta para a clareira | roxo |
+| `projectile.png` | Projétil comum | claro |
+| `special-projectile.png` | Projétil especial | azul-claro |
 | `saci.png` | Personagem: Saci | amarelo |
 | `curupira.png` | Personagem: Curupira | amarelo |
 | `iara.png` | Personagem: Iara | amarelo |
