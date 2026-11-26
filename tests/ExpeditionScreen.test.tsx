@@ -5,8 +5,9 @@
  * O que faz: testa as telas da expedição num navegador simulado: a aba
  * "Expedições" da clareira, a troca de tela ao partir, o painel ao lado do
  * mapa, o teclado (direção, golpe especial e pausa), a pausa ao trocar de
- * aba ou de janela, o botão de voltar e a janela da volta. O navegador simulado não tem canvas, então o desenho do mapa não
- * é testado aqui (as regras do mapa estão em tests/expedition.test.ts).
+ * aba ou de janela, o botão de voltar e a janela da volta. O navegador
+ * simulado não tem canvas, então o desenho do mapa não é testado aqui (as
+ * regras do mapa estão em tests/expedition.test.ts).
  */
 
 import { act } from 'react';
@@ -108,7 +109,7 @@ describe('tela da expedição', () => {
     expect(useGameStore.getState().moveInput).toEqual({ moveX: 0, moveY: 0 });
   });
 
-  it('pausa ao trocar de janela e continua com uma tecla, sem fazer o que a tecla faria', async () => {
+  it('pausa ao trocar de janela e continua com uma tecla, que não faz mais nada', async () => {
     useGameStore.getState().startExpedition('beira-da-mata');
     await mount();
 

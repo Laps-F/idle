@@ -3,8 +3,9 @@
  * Arquivo: src/store/expeditionSession.ts
  * O que faz: a parte da store que cuida da expedição: as ações de partir,
  * andar, golpe especial, pausar e voltar, o passo do mapa dentro do tick, o que
- * fazer com a expedição numa ausência e a entrega da bolsa na volta. As regras ficam em src/domain/expedition.ts e
- * src/domain/expeditionScene.ts. Aqui só se liga a entrada à regra e se grava.
+ * fazer com a expedição numa ausência e a entrega da bolsa na volta. As regras
+ * ficam em src/domain/expedition.ts e src/domain/expeditionScene.ts. Aqui só se
+ * liga a entrada à regra e se grava.
  *
  * Quem usa: src/store/useGameStore.ts, que junta estas ações às outras e chama
  * runExpeditionTick e holdExpeditionDuringAbsence dentro do tick.
