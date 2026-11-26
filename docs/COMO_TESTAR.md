@@ -91,7 +91,8 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 7 | Olhar o cabeçalho durante a expedição | As Patacas continuam subindo: a clareira rende enquanto você está fora. |
 | 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. Cada encostada tira uma parte maior da vida. |
 | 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força de quem sai. O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
-| 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. |
+| 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. Com umas 15 visagens, as Patacas ficam perto do que a clareira rende em 5 minutos. |
+| 9a | Fazer algumas expedições no Brejo Escuro | De vez em quando a bolsa traz brasa viva, que antes só o Corpo-Seco da clareira deixava. Os amuletos caem com mais frequência que na Beira da Mata. |
 | 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
 | 12 | Recarregar a página no meio de uma expedição | A clareira abre com "Expedição interrompida" e a bolsa entregue. |

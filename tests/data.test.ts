@@ -12,6 +12,7 @@ import {
   AMULET_RARITIES,
   ENCANTADOS,
   ENEMIES,
+  EXPEDITION_LOOT,
   EXPEDITION_MAPS,
   TILES,
   UPGRADES,
@@ -22,6 +23,8 @@ import {
   getZoneForStage,
   hasEncantado,
   hasEnemy,
+  hasExpeditionLoot,
+  hasExpeditionMap,
   hasItem,
   hasZone,
 } from '../src/domain/catalog';
@@ -105,6 +108,29 @@ function isFreeTile(map: ExpeditionMapDef, column: number, row: number): boolean
 }
 
 describe('mapas de expedição', () => {
+  it('cada mapa tem um saque, com Oferendas que existem e números válidos', () => {
+    const lootMapIds = EXPEDITION_LOOT.map((loot) => loot.mapId);
+
+    expect(new Set(lootMapIds).size).toBe(lootMapIds.length);
+    expect(EXPEDITION_MAPS.every((map) => hasExpeditionLoot(map.id))).toBe(true);
+    expect(lootMapIds.every(hasExpeditionMap)).toBe(true);
+
+    for (const loot of EXPEDITION_LOOT) {
+      expect(loot.goldMultiplier).toBeGreaterThan(0);
+      expect(loot.xpMultiplier).toBeGreaterThan(0);
+      expect(loot.amuletChance).toBeGreaterThanOrEqual(0);
+      expect(loot.amuletChance).toBeLessThanOrEqual(1);
+
+      for (const drop of loot.drops) {
+        expect(hasItem(drop.itemId)).toBe(true);
+        expect(drop.chance).toBeGreaterThan(0);
+        expect(drop.chance).toBeLessThanOrEqual(1);
+        expect(drop.min).toBeGreaterThanOrEqual(1);
+        expect(drop.max).toBeGreaterThanOrEqual(drop.min);
+      }
+    }
+  });
+
   it('não repete ids de mapa nem símbolos de ladrilho', () => {
     const mapIds = EXPEDITION_MAPS.map((map) => map.id);
     const symbols = TILES.map((tile) => tile.symbol);

@@ -78,6 +78,7 @@ src/
     expeditionScene.ts expedições em tempo real: movimento, visagens, ondas, golpes e fim
     expeditionProjectiles.ts  voo e acerto dos projéteis da expedição
     expeditionScaling.ts  escala da expedição: nível pelo poder de quem sai, dano da encostada
+    expeditionLoot.ts  saque próprio da expedição: o que cada visagem da bolsa rende
     sceneGeometry.ts   distâncias, colisão e ladrilhos livres do mapa
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
@@ -90,6 +91,7 @@ src/
     amulets.ts         tipos e raridades de amuleto
     juazeiro.ts        galhos e nós do juazeiro
     world.ts           mapas de expedição: tipos de ladrilho e mapas desenhados em texto
+    expeditionLoot.ts  saque de cada mapa: Patacas, XP, Oferendas e chance de amuleto
     index.ts           ponto único de importação dos datasets
   store/               estado global (Zustand), tempo e salvamento
     types.ts           tipagens da store: ações, estado de sessão, retornos
@@ -166,8 +168,8 @@ laço passa a rodar a cada 16 ms para a personagem andar suave.
 
 - As visagens derrotadas no mapa vão para a bolsa (`src/domain/expedition.ts`). A bolsa é salva.
   A cena (onde estão as visagens, a vida) não é.
-- Na volta, a bolsa vira Patacas, XP, Oferendas, Rastros e amuletos por `rewardKills`
-  (`src/domain/rewards.ts`), as mesmas regras da clareira.
+- Na volta, a bolsa vira Patacas, XP, Oferendas, Rastros e amuletos pelo saque próprio de cada
+  mapa (`src/data/expeditionLoot.ts`, entregue por `src/domain/expeditionLoot.ts`).
 - A expedição não roda com o jogo fechado. Ela pausa ao esconder a aba, ao trocar de janela e
   pela tecla P, e só continua quando a pessoa aperta uma tecla ou clica no mapa. Uma recarga no
   meio dela entrega a bolsa como "interrompida". A clareira rende a ausência como sempre.

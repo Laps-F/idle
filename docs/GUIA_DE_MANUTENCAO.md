@@ -38,7 +38,7 @@ na raiz do projeto.
 - Ação que não é permitida devolve `null`, em vez de lançar erro ou alterar algo.
 - `simulation.ts` e `rewards.ts` trabalham, por dentro, em uma cópia privada do estado (o
   `draft`, dentro de `RewardContext`). As funções internas alteram só essa cópia. Por fora,
-  `advanceSimulation`, `dealDirectDamage` e `rewardKills` são puras. `expeditionScene.ts` faz o
+  `advanceSimulation`, `dealDirectDamage` e `rewardExpeditionKills` são puras. `expeditionScene.ts` faz o
   mesmo com a cena do mapa em `advanceScene`, e `expeditionProjectiles.ts` só altera essa cena de
   trabalho.
 
@@ -135,8 +135,9 @@ essas ações às outras e chama o passo dentro do `tick`.
    - guarda as derrotas na bolsa (`addKillsToLoot`). A bolsa é salva, a cena não.
 4. A expedição termina no fim do tempo (`concluida`), quando a vida zera (`caiu`), na passagem
    de volta ou no botão (`voltou`), ou numa recarga no meio dela (`interrompida`).
-   `endExpedition` chama `finishExpedition`, que entrega a bolsa pelas regras de `rewardKills`
-   (`src/domain/rewards.ts`, com bônus só em `concluida`), e guarda o relatório em
+   `endExpedition` chama `finishExpedition`, que entrega a bolsa pelo saque próprio do mapa
+   (`rewardExpeditionKills`, em `src/domain/expeditionLoot.ts`, com a tabela de
+   `src/data/expeditionLoot.ts` e bônus só em `concluida`), e guarda o relatório em
    `expeditionReport`.
 5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
    lendo `readSceneFrame` e `selectExpeditionMapView` (`src/store/expeditionSelectors.ts`). Os eventos de `sceneEvents` viram
@@ -172,6 +173,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Visagens na expedição: perseguição, encostada, dano (fração da vida e crescimento), passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
 | Ondas: visagens no começo, teto, ritmo de chegada, nível subindo com o tempo | `src/data/balance.ts`, bloco "Expedições: ondas" |
 | Desenho de um mapa, bônus de nível (`levelBonus`), visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
+| Saque de um mapa: Patacas e XP por visagem, Oferendas que caem, chance de amuleto | `src/data/expeditionLoot.ts`, `EXPEDITION_LOOT` |
 | Tipos de ladrilho: símbolo no desenho e se dá para passar | `src/data/world.ts`, `TILES` |
 | Ataque, velocidade, origem, raridade, quadra ou pacto de um encantado | `src/data/encantados.ts` |
 | Vida, Patacas, XP ou itens que uma visagem ou chefe deixa cair | `src/data/enemies.ts` |
@@ -228,7 +230,8 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
 | Quando dá para partir | `src/domain/expedition.ts`, `canStartExpedition` e `startExpedition` |
 | Como a bolsa junta as visagens | `src/domain/expedition.ts`, `addKillsToLoot` |
-| O que a bolsa rende na volta e o bônus | `src/domain/expedition.ts`, `finishExpedition` (usa `rewardKills`, de `src/domain/rewards.ts`) |
+| O bônus de quem aguenta até o fim | `src/domain/expedition.ts`, `finishExpedition` |
+| O que cada visagem da bolsa rende (ordem das peças de recompensa) | `src/domain/expeditionLoot.ts`, `rewardExpeditionKills` |
 
 ### Estado, ações e salvamento (`src/store`)
 
@@ -467,8 +470,10 @@ atributo em `src/domain/modifiers.ts`, usá-lo na conta certa do domínio e dar 
    mapa, todas do mesmo tamanho, com os símbolos de `TILES`. Feche as bordas com árvore ou água.
 2. Preencha `zoneId` (de onde vêm os Rastros), `levelBonus` (níveis acima do poder de quem sai:
    0 é o mapa mais fácil), `start`, `exit` (a passagem de volta, perto do início) e `enemyIds`.
-3. Rode `npm test`. O teste de dados confere o desenho, os ids, o início e a passagem. A aba
-   "Expedições" mostra o mapa sozinha.
+3. Dê o saque do mapa em `src/data/expeditionLoot.ts` (multiplicadores de Patacas e XP, chance
+   de amuleto e Oferendas). Sem saque, o teste de dados falha.
+4. Rode `npm test`. O teste de dados confere o desenho, os ids, o início, a passagem e o saque. A
+   aba "Expedições" mostra o mapa sozinha.
 
 ### Acrescentar um tipo de ladrilho
 
@@ -493,7 +498,10 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
 - Golpe especial fraco ou forte: `specialDamageMultiplier`, `specialCooldownSeconds` e
   `specialProjectileMaxDistance`.
 - Acertar de longe demais ou de perto demais: `attackRange` e `projectileMaxDistance`.
-- Bolsa rende pouco ou muito: `expeditionCompletionBonus`, ou o `levelBonus` do mapa.
+- Bolsa rende pouco ou muito: `goldMultiplier`, `xpMultiplier`, `amuletChance` e `drops` do mapa,
+  em `src/data/expeditionLoot.ts`, ou `expeditionCompletionBonus`. O `levelBonus` também muda o
+  saque, porque o nível entra nas fórmulas. A meta medida está no cabeçalho de
+  `src/data/expeditionLoot.ts`.
 - Para testar jogando: botão "Ajustes" no cabeçalho, com todos esses números e o nível de quem
   sai em expedição.
 - Para medir sem jogar: monte uma cena com `createExpeditionScene` e chame `advanceScene` em
@@ -522,7 +530,8 @@ Siga esta ordem. Cada passo só depende dos anteriores.
    constantes em `balance.ts`. Consulta por id em `src/domain/catalog.ts`.
 3. Store: campos em `GameState` (receita "Acrescentar um campo ao estado salvo"), ações em
    `GameActions` ligadas com `applyInput` (`src/store/storeTools.ts`), gatilho dentro de
-   `src/domain/rewards.ts` se o sistema reage a uma derrota, e a visão da tela em
+   `src/domain/rewards.ts` (clareira) ou `src/domain/expeditionLoot.ts` (expedição) se o sistema
+   reage a uma derrota, e a visão da tela em
    `src/store/selectors.ts`.
 4. Tela: componente burro na pasta do assunto e a aba em `GameScreen.tsx`.
 5. Testes: um arquivo de teste do domínio (`tests/amulets.test.ts` é o modelo), casos de

@@ -41,6 +41,7 @@ export interface AmuletDropInput {
   isBoss: boolean;
   dropChanceMultiplier: number; // multiplicador de chance de amuleto (achado e juazeiro)
   amuletNumber: number; // número que vira o id do amuleto, se ele cair
+  baseChance?: number; // chance antes do achado. Ausente: a de BALANCE (chefe ou visagem).
 }
 
 // O que aconteceu com um amuleto que acabou de cair
@@ -61,8 +62,9 @@ const RARITY_ORDER: readonly Rarity[] = AMULET_RARITIES.map((definition) => defi
 /**
  * Decide se um inimigo derrotado deixa cair um amuleto e, se deixar, gera o amuleto.
  *
- * A chance vem de BALANCE (uma para chefe, outra para visagem comum), vezes o
- * multiplicador de chance de achado da comitiva, limitada a 100%.
+ * A chance vem de BALANCE (uma para chefe, outra para visagem comum), ou de
+ * input.baseChance quando vier (o saque da expedição usa a chance do mapa),
+ * vezes o multiplicador de chance de achado da comitiva, limitada a 100%.
  *
  * Função pura e determinística: com a mesma fonte de sorteio, devolve sempre o mesmo.
  *
@@ -72,7 +74,10 @@ const RARITY_ORDER: readonly Rarity[] = AMULET_RARITIES.map((definition) => defi
  * @returns O amuleto gerado, ou null se nada caiu.
  */
 export function rollAmuletDrop(input: AmuletDropInput, random: RandomSource): Amulet | null {
-  const baseChance = input.isBoss ? BALANCE.amuletBossDropChance : BALANCE.amuletCommonDropChance;
+  const defaultChance = input.isBoss
+    ? BALANCE.amuletBossDropChance
+    : BALANCE.amuletCommonDropChance;
+  const baseChance = input.baseChance ?? defaultChance;
   const chance = Math.min(1, baseChance * input.dropChanceMultiplier);
 
   if (random() >= chance) {

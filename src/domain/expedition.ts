@@ -10,8 +10,9 @@
  *     entregam tudo o que foi juntado.
  *   - Quem aguenta até o fim do tempo ganha expeditionCompletionBonus de
  *     visagens extras na bolsa (50% a mais).
- *   - A entrega usa rewardKills (rewards.ts): Patacas, XP para a comitiva,
- *     Oferendas, Rastros e amuletos pelas mesmas regras da clareira.
+ *   - A entrega usa o saque próprio do mapa (rewardExpeditionKills, em
+ *     expeditionLoot.ts): Patacas, XP para a comitiva, Oferendas, Rastros e
+ *     amuletos pela tabela de src/data/expeditionLoot.ts.
  *
  * Funções puras: recebem o estado e devolvem um estado novo. Ação recusada
  * devolve null.
@@ -28,7 +29,7 @@ import { getEncantado, getExpeditionMap, hasExpeditionMap } from './catalog';
 import { getDayPhase } from './clock';
 import { getAttackDamage, getAttackInterval, getExpeditionMaxHp } from './formulas';
 import { getModifiers } from './modifiers';
-import { rewardKills } from './rewards';
+import { rewardExpeditionKills } from './expeditionLoot';
 import type { SimulationOptions } from './rewards';
 import type {
   ExpeditionFighter,
@@ -193,7 +194,8 @@ export function finishExpedition(
     outcome === 'concluida' ? Math.floor(kills.length * BALANCE.expeditionCompletionBonus) : 0;
   const bonusKills = Array.from({ length: bonusCount }, (_, index) => kills[index % kills.length])
     .filter((kill): kill is MapKill => kill !== undefined);
-  const result = rewardKills(state, [...kills, ...bonusKills], options);
+  const allKills = [...kills, ...bonusKills];
+  const result = rewardExpeditionKills(state, expedition.mapId, allKills, options);
 
   return {
     state: { ...result.state, expedition: null },

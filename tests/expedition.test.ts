@@ -12,7 +12,8 @@ import { describe, expect, it } from 'vitest';
 
 import { BALANCE } from '../src/data';
 import { chooseStarter } from '../src/domain/actions';
-import { getEnemy, getExpeditionMap } from '../src/domain/catalog';
+import { getEnemy, getExpeditionLoot, getExpeditionMap } from '../src/domain/catalog';
+import { rewardExpeditionKills } from '../src/domain/expeditionLoot';
 import {
   addKillsToLoot,
   countLoot,
@@ -27,7 +28,12 @@ import {
   getMapStartLevel,
   getWaveLevel,
 } from '../src/domain/expeditionScaling';
-import { getEnemyMaxHp, getExpeditionMaxHp } from '../src/domain/formulas';
+import {
+  getEnemyMaxHp,
+  getExpeditionMaxHp,
+  getGoldReward,
+  getXpReward,
+} from '../src/domain/formulas';
 import { getModifiers } from '../src/domain/modifiers';
 import { isWalkablePosition } from '../src/domain/sceneGeometry';
 import { createInitialState } from '../src/domain/state';
@@ -458,5 +464,68 @@ describe('partir, bolsa e volta', () => {
 
     expect(result.state).toBe(game);
     expect(result.report).toBeNull();
+  });
+});
+
+describe('saque próprio da expedição', () => {
+  const kill = { enemyId: 'vulto-da-capoeira', stage: 12, zoneId: 'mata-atlantica' };
+  // Sorteio que nunca acerta: nada de Oferenda, Rastro nem amuleto, só Patacas e XP
+  const neverLucky = (): number => 0.999999;
+  const alwaysLucky = (): number => 0;
+
+  it('Patacas e XP são a fórmula da clareira no nível da visagem, vezes o mapa', () => {
+    const game = createGame();
+    const modifiers = getModifiers(game, 'dia');
+    const enemy = getEnemy(kill.enemyId);
+
+    for (const mapId of ['beira-da-mata', 'brejo-escuro']) {
+      const loot = getExpeditionLoot(mapId);
+      const options = { startTimestamp: 0, random: neverLucky };
+      const result = rewardExpeditionKills(game, mapId, [kill, kill], options);
+      const gold = getGoldReward(12, enemy, false, modifiers.gold) * loot.goldMultiplier;
+      const xp = getXpReward(12, enemy, false) * loot.xpMultiplier;
+
+      expect(result.summary.gold).toBeCloseTo(2 * gold, 6);
+      expect(result.summary.xp).toBeCloseTo(2 * xp, 6);
+      expect(result.summary.kills).toBe(2);
+      expect(result.state.stats.totalKills).toBe(game.stats.totalKills + 2);
+      expect(result.summary.items).toEqual({});
+      expect(result.summary.amuletsFound).toBe(0);
+    }
+  });
+
+  it('as Oferendas vêm da tabela do mapa, não da tabela da visagem', () => {
+    const game = createGame();
+    const options = { startTimestamp: 0, random: alwaysLucky };
+    const result = rewardExpeditionKills(game, 'brejo-escuro', [kill], options);
+    const expected = Object.fromEntries(
+      getExpeditionLoot('brejo-escuro').drops.map((drop) => [drop.itemId, drop.min]),
+    );
+
+    // O Vulto da Capoeira só deixa cipó na clareira. No Brejo pode deixar até brasa viva.
+    expect(result.summary.items).toEqual(expected);
+    expect(result.summary.items['brasa-viva']).toBe(1);
+    expect(result.summary.amuletsFound).toBe(1);
+  });
+
+  it('o amuleto usa a chance do mapa e a força do nível da visagem', () => {
+    const game = createGame();
+    // Acima da chance de visagem comum da clareira, abaixo da chance do mapa: só o mapa dá amuleto
+    const mapChance = getExpeditionLoot(FIRST_MAP).amuletChance;
+    const between = (BALANCE.amuletCommonDropChance + mapChance) / 2;
+    const random = (): number => between;
+    const result = rewardExpeditionKills(game, FIRST_MAP, [kill], { startTimestamp: 0, random });
+    const amulet = Object.values(result.state.amulets)[0];
+
+    expect(result.summary.amuletsFound).toBe(1);
+    expect(amulet?.foundAtStage).toBe(12);
+  });
+
+  it('bolsa vazia não muda nada e o estado recebido não é alterado', () => {
+    const game = createGame();
+    const options = { startTimestamp: 0, random: alwaysLucky };
+
+    expect(rewardExpeditionKills(game, FIRST_MAP, [], options).state).toBe(game);
+    expect(() => rewardExpeditionKills(game, FIRST_MAP, [kill], options)).not.toThrow();
   });
 });

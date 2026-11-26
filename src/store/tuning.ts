@@ -28,7 +28,15 @@
  *   5. Guardar no localStorage
  */
 
-import { BALANCE, ENCANTADOS, ENEMIES, EXPEDITION_MAPS, UPGRADES, ZONES } from '../data';
+import {
+  BALANCE,
+  ENCANTADOS,
+  ENEMIES,
+  EXPEDITION_LOOT,
+  EXPEDITION_MAPS,
+  UPGRADES,
+  ZONES,
+} from '../data';
 
 // =============================================================================
 // =============================================================================
@@ -89,6 +97,7 @@ const GROUP = {
   sceneEnemies: 'Expedição: visagens',
   waves: 'Expedição: ondas',
   maps: 'Expedição: mapas',
+  expeditionLoot: 'Expedição: saque de cada mapa',
   enemies: 'Visagens: vida e recompensas (clareira e expedição)',
   enemyTypes: 'Visagens: cada tipo',
   drops: 'Quedas de Oferendas',
@@ -446,6 +455,38 @@ const MULTIPLIER_LABELS = {
   xpMultiplier: 'XP (vezes)',
 } as const;
 
+// Saque de cada mapa: multiplicadores, chance de amuleto e chance de cada Oferenda
+function createExpeditionLootFields(): TuningField[] {
+  return EXPEDITION_LOOT.flatMap((loot) => {
+    const source = `src/data/expeditionLoot.ts, ${loot.mapId}`;
+    const numbers = (['goldMultiplier', 'xpMultiplier', 'amuletChance'] as const).map((key) =>
+      createObjectField(loot, key, {
+        id: `loot.${loot.mapId}.${key}`,
+        source: `${source}, ${key}`,
+        group: GROUP.expeditionLoot,
+        label: `${loot.mapId}: ${LOOT_LABELS[key]}`,
+        step: key === 'amuletChance' ? 0.01 : 0.5,
+      }),
+    );
+    const drops = loot.drops.map((drop, index) =>
+      createObjectField(drop, 'chance', {
+        id: `loot.${loot.mapId}.drop${index}.chance`,
+        source: `${source}, drops[${index}].chance`,
+        group: GROUP.expeditionLoot,
+        label: `${loot.mapId}: chance de ${drop.itemId} (0 a 1)`,
+        step: 0.01,
+      }),
+    );
+    return [...numbers, ...drops];
+  });
+}
+
+const LOOT_LABELS = {
+  goldMultiplier: 'Patacas por visagem (vezes a fórmula da clareira)',
+  xpMultiplier: 'XP por visagem (vezes a fórmula da clareira)',
+  amuletChance: 'chance de amuleto por visagem (0 a 1)',
+} as const;
+
 // Ataque base e intervalo de cada encantado
 function createEncantadoFields(): TuningField[] {
   return ENCANTADOS.flatMap((encantado) => {
@@ -530,6 +571,7 @@ function createUpgradeFields(): TuningField[] {
 const FIELDS: TuningField[] = [
   ...createBalanceFields(),
   ...createMapFields(),
+  ...createExpeditionLootFields(),
   ...createEnemyFields(),
   ...createEncantadoFields(),
   ...createZoneFields(),

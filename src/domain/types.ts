@@ -371,6 +371,15 @@ export interface ExpeditionMapDef {
   enemyIds: string[]; // visagens que aparecem neste mapa
 }
 
+// Saque próprio de um mapa de expedição (src/data/expeditionLoot.ts)
+export interface ExpeditionLootDef {
+  mapId: string; // mapa de src/data/world.ts
+  goldMultiplier: number; // vezes as Patacas da fórmula da clareira, no nível da visagem
+  xpMultiplier: number; // vezes o XP da fórmula da clareira, no nível da visagem
+  amuletChance: number; // chance de amuleto por visagem, de 0 a 1
+  drops: DropEntry[]; // Oferendas que qualquer visagem do mapa pode deixar
+}
+
 // Visagens derrotadas de um tipo e de um nível, guardadas na bolsa
 export interface ExpeditionLoot {
   enemyId: string;

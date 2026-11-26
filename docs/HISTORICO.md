@@ -2,6 +2,56 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: saque próprio da expedição (Etapa 3 do Caminho 1)
+
+A bolsa deixou de usar as regras da clareira (`rewardKills`) e passou a ter uma tabela por mapa,
+em `src/data/expeditionLoot.ts`:
+
+| Mapa | Patacas e XP por visagem | Amuleto por visagem | Oferendas |
+|---|---|---|---|
+| Beira da Mata | 4 vezes a fórmula da clareira | 6% | mel 20% (1 a 2), cipó 12% |
+| Brejo Escuro | 5 vezes | 8% | cipó 20% (1 a 2), mel 10%, brasa viva 4% |
+
+- As fórmulas usam o nível da visagem no lugar do estágio, com os multiplicadores de sempre
+  (Bolsa de couro, sinergias, amuletos, Raízes). O multiplicador de cada tipo de visagem também
+  entra.
+- As Oferendas vêm da tabela do mapa, para qualquer visagem. O Brejo Escuro é a primeira fonte
+  de brasa viva fora do Corpo-Seco.
+- O amuleto usa a chance do mapa, com a força do nível da visagem.
+- Os Rastros continuam pelas regras da clareira, na zona do mapa, até a Etapa 4 (pegadas).
+- O bônus de quem aguenta até o fim (50% a mais de visagens) continua igual.
+
+Calibragem (Saci sozinho, cinco sementes, uma expedição comparada com 5 minutos de clareira no
+mesmo momento do jogo):
+
+| Momento | Beira, parado | Beira, desviando | Brejo, parado | Brejo, desviando |
+|---|---|---|---|---|
+| 1 min | 0,4 a 0,7 | 0,3 a 1,0 | 0,1 a 0,5 | 0,4 a 0,9 |
+| 15 min | 0,6 a 0,7 | 0,5 a 1,7 (mediana 1,0) | 0,2 a 0,9 | 0,5 a 1,3 (mediana 0,9) |
+| 60 min | 0,7 a 1,4 | 1,1 a 1,8 (mediana 1,3) | 0,3 a 1,4 | 0,9 a 2,2 (mediana 1,2) |
+
+Os números são Patacas da expedição divididas pelas Patacas da clareira. O XP ficou na mesma
+faixa. A meta (1 a 1,5 vez, para uma expedição boa) bate a partir dos 15 minutos. No primeiro
+minuto rende menos, porque caem poucas visagens. Quem fica parado ganha menos do que quem joga.
+Amuletos: cerca de 1 por expedição na Beira e, em média, de 0,6 a 3 no Brejo, contra 0 a 3 em 5 minutos de
+clareira.
+
+Arquivos:
+
+- `src/data/expeditionLoot.ts` (novo): `EXPEDITION_LOOT`. Exportado em `src/data/index.ts`.
+- `src/domain/expeditionLoot.ts` (novo): `rewardExpeditionKills`.
+- `src/domain/expedition.ts`: `finishExpedition` usa `rewardExpeditionKills`.
+- `src/domain/rewards.ts`: `grantKill` (Patacas, XP e contagem, comum à clareira e à
+  expedição); `rollAmulet` aceita a chance do mapa; `rewardKills` saiu.
+- `src/domain/amulets.ts`: `rollAmuletDrop` aceita `baseChance`.
+- `src/domain/catalog.ts`: `getExpeditionLoot` e `hasExpeditionLoot`.
+- `src/domain/types.ts`: `ExpeditionLootDef`.
+- `src/store/tuning.ts`: grupo "Expedição: saque de cada mapa" no painel "Ajustes".
+- Testes: `tests/expedition.test.ts` (bloco "saque próprio da expedição") e `tests/data.test.ts`
+  (todo mapa tem saque válido).
+- Documentação: guia de manutenção (tabelas e receitas), `docs/COMO_TESTAR.md` (passos 9 e 9a)
+  e `README.md`. Salvamento continua na versão 5.
+
 ## 26/11/2026: escala da expedição pelo poder de quem sai (Etapa 2 do Caminho 1)
 
 Antes, as visagens nasciam no nível fixo do mapa (1 e 4) e batiam um número fixo por nível. Com

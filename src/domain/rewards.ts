@@ -9,8 +9,9 @@
  * números é quem chama:
  *   - src/domain/simulation.ts (clareira): grantKillRewards, com as fórmulas
  *     por estágio de src/domain/formulas.ts.
- *   - src/domain/expedition.ts (volta da expedição): rewardKills, por enquanto
- *     com as mesmas regras da clareira e o nível da visagem no lugar do estágio.
+ *   - src/domain/expeditionLoot.ts (volta da expedição): a tabela de saque de
+ *     cada mapa (src/data/expeditionLoot.ts), com o nível da visagem no lugar
+ *     do estágio.
  *
  * Como funciona: todas as peças trabalham num contexto (RewardContext) com uma
  * cópia privada do estado, o "draft", e o resumo do que já rendeu. Só o draft
@@ -22,13 +23,12 @@
  *   2. Contexto e resultado
  *   3. Recompensa completa de uma derrota
  *   4. Peças de recompensa
- *   5. Entrega da bolsa da expedição
  */
 
 import { randomInteger, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { receiveAmulet, rollAmuletDrop } from './amulets';
-import { getEncantado, getEnemy, getZone } from './catalog';
+import { getEncantado } from './catalog';
 import { getDayPhase, matchesClock } from './clock';
 import { getGoldReward, getXpReward, getXpToNextLevel } from './formulas';
 import { getModifiersByPhase } from './modifiers';
@@ -40,7 +40,6 @@ import type {
   DropEntry,
   EnemyDef,
   GameState,
-  MapKill,
   Modifiers,
   SimulationResult,
   SimulationSummary,
@@ -127,13 +126,7 @@ export function grantKillRewards(
   const gold = getGoldReward(stage, enemy, isBoss, modifiers.gold);
   const xp = getXpReward(stage, enemy, isBoss);
 
-  grantGold(context, gold);
-  context.draft.stats.totalKills += 1;
-  context.summary.xp += xp;
-  context.summary.kills += 1;
-  emit(context, { type: 'kill', enemyId: enemy.id, isBoss, gold, xp });
-
-  grantXpToParty(context, xp);
+  grantKill(context, enemy.id, isBoss, gold, xp);
   rollItemDrops(context, enemy.drops, modifiers);
   rollTrails(context, target.zone, modifiers);
   rollAmulet(context, stage, isBoss, modifiers);
@@ -144,6 +137,31 @@ export function grantKillRewards(
 // =============================================================================
 // =============================================================================
 // P E Ç A S   D E   R E C O M P E N S A
+
+/**
+ * O que toda derrota entrega, venha de onde vier: as Patacas, o XP para a
+ * comitiva (com subida de nível), a contagem de derrotas e o evento "kill".
+ *
+ * @param context Contexto de trabalho. Só o draft e o resumo são alterados.
+ * @param enemyId Quem caiu.
+ * @param isBoss Se era chefe.
+ * @param gold Patacas já calculadas por quem chama (fórmula da clareira ou do mapa).
+ * @param xp XP já calculado por quem chama. Cada encantado da comitiva recebe o valor inteiro.
+ */
+export function grantKill(
+  context: RewardContext,
+  enemyId: string,
+  isBoss: boolean,
+  gold: number,
+  xp: number,
+): void {
+  grantGold(context, gold);
+  context.draft.stats.totalKills += 1;
+  context.summary.xp += xp;
+  context.summary.kills += 1;
+  emit(context, { type: 'kill', enemyId, isBoss, gold, xp });
+  grantXpToParty(context, xp);
+}
 
 // Soma Patacas no saldo, nas estatísticas e no resumo
 export function grantGold(context: RewardContext, gold: number): void {
@@ -237,11 +255,13 @@ export function isTrailStillNeeded(state: GameState, encantadoId: string): boole
 
 // Sorteia a queda de um amuleto e, se cair, guarda na mochila ou desmancha.
 // As regras são de src/domain/amulets.ts. Aqui só se liga a derrota à queda.
+// "baseChance" troca a chance de BALANCE (a expedição usa a chance do mapa).
 export function rollAmulet(
   context: RewardContext,
   stage: number,
   isBoss: boolean,
   modifiers: Modifiers,
+  baseChance?: number,
 ): void {
   const { draft, summary, random } = context;
   const dropInput = {
@@ -249,6 +269,7 @@ export function rollAmulet(
     isBoss,
     dropChanceMultiplier: modifiers.amuletChance,
     amuletNumber: draft.nextAmuletNumber,
+    ...(baseChance === undefined ? {} : { baseChance }),
   };
   const amulet = rollAmuletDrop(dropInput, random);
 
@@ -287,52 +308,4 @@ export function runAutoBuy(context: RewardContext): void {
   // cópia de trabalho, que precisa continuar sendo o mesmo objeto até o fim.
   Object.assign(draft, bought);
   context.modifiersByPhase = getModifiersByPhase(draft);
-}
-
-
-// =============================================================================
-// =============================================================================
-// E N T R E G A   D A   B O L S A   D A   E X P E D I Ç Ã O
-
-/**
- * Entrega as recompensas de visagens derrotadas fora do combate de estágios.
- *
- * É a ponte entre as expedições e as regras de recompensa: cada visagem da
- * bolsa rende Patacas, XP para a comitiva, Oferendas, Rastros da zona do mapa e,
- * com sorte, um amuleto, pelas mesmas regras do combate de estágios. A compra
- * automática de melhorias também roda depois de cada derrota.
- *
- * Função pura: não altera "state". Não mexe no combate de estágios, no estágio
- * atual nem na contagem até o chefe.
- *
- * @param state Estado de partida. Não é alterado.
- * @param kills Visagens derrotadas, na ordem em que caíram.
- * @param options Instante da entrega (decide dia, noite e lua dos Rastros) e sorteio.
- * @returns Estado novo, resumo do que rendeu e os eventos (se pedidos).
- *
- * Casos de borda: lista vazia devolve o mesmo "state" recebido, com o resumo
- * zerado. Todas as derrotas da lista usam o mesmo instante.
- */
-export function rewardKills(
-  state: GameState,
-  kills: readonly MapKill[],
-  options: SimulationOptions,
-): SimulationResult {
-  if (kills.length === 0) {
-    return { state, summary: createEmptySummary(), events: [] };
-  }
-
-  const context = createRewardContext(state, options);
-
-  for (const kill of kills) {
-    const target = {
-      enemy: getEnemy(kill.enemyId),
-      stage: kill.stage,
-      isBoss: false,
-      zone: getZone(kill.zoneId),
-    };
-    grantKillRewards(context, target, getCurrentModifiers(context));
-  }
-
-  return toResult(context);
 }

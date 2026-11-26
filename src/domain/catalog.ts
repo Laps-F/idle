@@ -20,6 +20,7 @@ import {
   ENEMIES,
   ITEMS,
   JUAZEIRO_NODES,
+  EXPEDITION_LOOT,
   EXPEDITION_MAPS,
   TILES,
   UPGRADES,
@@ -30,6 +31,7 @@ import type {
   AmuletRarityDef,
   EncantadoDef,
   EnemyDef,
+  ExpeditionLootDef,
   ExpeditionMapDef,
   ItemDef,
   JuazeiroNodeDef,
@@ -51,6 +53,7 @@ const AMULET_BASES_BY_ID = indexById(AMULET_BASES);
 const JUAZEIRO_NODES_BY_ID = indexById(JUAZEIRO_NODES);
 const ZONES_BY_ID = indexById(ZONES);
 const EXPEDITION_MAPS_BY_ID = indexById(EXPEDITION_MAPS);
+const EXPEDITION_LOOT_BY_MAP = new Map(EXPEDITION_LOOT.map((loot) => [loot.mapId, loot]));
 const TILES_BY_SYMBOL = new Map(TILES.map((tile) => [tile.symbol, tile]));
 
 
@@ -193,6 +196,15 @@ export function getExpeditionMap(id: string): ExpeditionMapDef {
 
 export function hasExpeditionMap(id: string): boolean {
   return EXPEDITION_MAPS_BY_ID.has(id);
+}
+
+// Saque próprio de um mapa de expedição (src/data/expeditionLoot.ts)
+export function getExpeditionLoot(mapId: string): ExpeditionLootDef {
+  return getOrThrow(EXPEDITION_LOOT_BY_MAP, mapId, 'Saque de expedição');
+}
+
+export function hasExpeditionLoot(mapId: string): boolean {
+  return EXPEDITION_LOOT_BY_MAP.has(mapId);
 }
 
 /**
