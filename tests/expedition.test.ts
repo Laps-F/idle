@@ -20,14 +20,10 @@ import {
   getExpeditionFighter,
   startExpedition,
 } from '../src/domain/expedition';
-import {
-  advanceScene,
-  createExpeditionScene,
-  getWaveLevel,
-  isWalkablePosition,
-} from '../src/domain/expeditionScene';
+import { advanceScene, createExpeditionScene, getWaveLevel } from '../src/domain/expeditionScene';
 import { getEnemyContactDamage, getExpeditionMaxHp } from '../src/domain/formulas';
 import { getModifiers } from '../src/domain/modifiers';
+import { isWalkablePosition } from '../src/domain/sceneGeometry';
 import { createInitialState } from '../src/domain/state';
 import type {
   ExpeditionFighter,

@@ -2,6 +2,50 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: arrumação antes de ligar a clareira e a expedição (Etapa 0 do Caminho 1)
+
+Antes de mexer na expedição (pausa, escala, saque próprio, pegadas e preparos), as partes que vão
+mudar saíram dos arquivos grandes. O jogo se comporta igual: com a mesma semente, 30 minutos de
+clareira e uma expedição inteira dão o mesmo resultado, byte a byte, antes e depois. O salvamento
+continua na versão 5.
+
+Domínio:
+
+- `src/domain/rewards.ts` (novo): as peças de recompensa (`grantGold`, `grantXpToParty`,
+  `rollItemDrops`, `grantItem`, `rollTrails`, `grantTrail`, `rollAmulet`, `runAutoBuy`), a
+  recompensa completa de uma derrota (`grantKillRewards`), o contexto de trabalho
+  (`RewardContext`, `createRewardContext`, `toResult`) e `rewardKills`, que saiu de
+  `simulation.ts`. A clareira e a expedição passam a usar as mesmas peças.
+- `src/domain/simulation.ts`: ficou só com o combate da clareira (de 611 para 345 linhas).
+  `SimulationOptions` continua exportado daqui, vindo de `rewards.ts`.
+- `src/domain/sceneGeometry.ts` (novo): `isWalkablePosition`, `listFreeTileCenters`, distâncias e
+  centro de ladrilho, que estavam em `expeditionScene.ts`.
+- `src/domain/expeditionProjectiles.ts` (novo): disparo e voo dos projéteis. Avisa o acerto por uma
+  função (`onHit`), e a cena decide o que acontece com a visagem.
+- `src/domain/expeditionScene.ts`: de 764 para 589 linhas.
+- `src/domain/expedition.ts`: importa `rewardKills` de `rewards.ts`.
+
+Store:
+
+- `src/store/expeditionSession.ts` (novo): as ações de expedição, `runExpeditionTick` e
+  `endExpedition`, que estavam em `useGameStore.ts`.
+- `src/store/storeTools.ts` (novo): `commitState`, `applyInput`, os tipos `SetStore` e `GetStore`
+  e as listas vazias únicas.
+- `src/store/useGameStore.ts`: de 787 para 558 linhas.
+- `src/store/expeditionSelectors.ts` (novo): o bloco "Expedições" de `selectors.ts` (aba, painel,
+  janela da volta, `readSceneFrame`).
+- `src/store/selectorTools.ts` (novo): `createStableSelector`, `toNamedAmounts` e `NamedAmount`.
+- `src/store/selectors.ts`: de 1.295 para cerca de 1.000 linhas. Continua exportando `NamedAmount`.
+
+Tela: os componentes da expedição (`App.tsx`, `ExpeditionCanvas`, `ExpeditionSidePanel`,
+`ExpeditionsPanel`, `mapRenderer.ts` e `ExpeditionReportModal`) passaram a ler de
+`expeditionSelectors.ts`.
+
+Testes: `tests/expedition.test.ts` importa `isWalkablePosition` de `sceneGeometry.ts`. Nenhum teste
+mudou de conteúdo.
+
+Documentação: guia de manutenção (regras, caminho do tick, tabelas e receitas) e `README.md`.
+
 ## 26/11/2026: botão de fechar no painel "Ajustes"
 
 O painel "Ajustes" só fechava pela tecla Esc, e sem botão parecia que não fechava nunca. Entrou

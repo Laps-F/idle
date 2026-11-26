@@ -20,7 +20,7 @@
  *   7. Peças de desenho e vagas de imagem
  */
 
-import type { MapView, SceneFrame } from '../../store/selectors';
+import type { MapView, SceneFrame } from '../../store/expeditionSelectors';
 import { formatDuration, formatNumber } from '../../utils/format';
 import {
   EXIT_SPRITE,

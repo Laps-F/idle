@@ -7,7 +7,7 @@
  * Vida, tempo e golpe especial ficam no próprio mapa (mapRenderer.ts).
  */
 
-import { selectExpeditionHud } from '../../store/selectors';
+import { selectExpeditionHud } from '../../store/expeditionSelectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatNumber } from '../../utils/format';
 import { Button } from '../ui/Button';

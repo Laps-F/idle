@@ -67,6 +67,7 @@ src/
     modifiers.ts       junta melhorias, sinergias, amuletos, Raízes e juazeiro
     state.ts           jogo novo e combate contra visagem ou chefe
     simulation.ts      combate: avança qualquer intervalo de tempo
+    rewards.ts         peças de recompensa (Patacas, XP, Oferendas, Rastros, amuleto)
     actions.ts         regras das ações da pessoa (comitiva, melhorias, chefe, estágio)
     pact.ts            confere e fecha pactos
     amulets.ts         amuletos: queda, atributos, mochila, vestir, desmanche e entalhe
@@ -75,6 +76,8 @@ src/
     offline.ts         ganhos do tempo ausente
     expedition.ts      expedições: quem sai, partir, bolsa e a volta com o bônus
     expeditionScene.ts expedições em tempo real: movimento, visagens, ondas, golpes e fim
+    expeditionProjectiles.ts  voo e acerto dos projéteis da expedição
+    sceneGeometry.ts   distâncias, colisão e ladrilhos livres do mapa
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
     encantados.ts      encantados e seus pactos
@@ -90,7 +93,11 @@ src/
   store/               estado global (Zustand), tempo e salvamento
     types.ts           tipagens da store: ações, estado de sessão, retornos
     useGameStore.ts    a store: tick e ações, que só chamam o domínio
+    expeditionSession.ts  ações da expedição, passo do mapa e entrega da bolsa
+    storeTools.ts      peças comuns da store: gravar o estado novo e aplicar uma entrada
     selectors.ts       dados prontos para a tela, com reaproveitamento de resultado
+    expeditionSelectors.ts  dados prontos da expedição (aba, painel, volta, cada quadro)
+    selectorTools.ts   seletor estável e listas com nome, usados pelos seletores
     eventViews.ts      eventos de combate traduzidos em golpes e linhas de registro
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
     gameLoop.ts        liga o tick (mais rápido na expedição) e grava ao esconder ou fechar a aba
@@ -152,13 +159,14 @@ escondidas. O desenho fica com o React e com CSS.
 ### Clareira e expedição
 
 A clareira (o combate por estágios) roda em todo tick, com o jogo aberto ou fechado. Durante uma
-expedição, o mesmo tick também anda com a cena do mapa (`src/domain/expeditionScene.ts`), e o
+expedição, o mesmo tick também anda com a cena do mapa (`src/store/expeditionSession.ts` chama
+`src/domain/expeditionScene.ts`), e o
 laço passa a rodar a cada 16 ms para a personagem andar suave.
 
 - As visagens derrotadas no mapa vão para a bolsa (`src/domain/expedition.ts`). A bolsa é salva.
   A cena (onde estão as visagens, a vida) não é.
 - Na volta, a bolsa vira Patacas, XP, Oferendas, Rastros e amuletos por `rewardKills`
-  (`src/domain/simulation.ts`), as mesmas regras da clareira.
+  (`src/domain/rewards.ts`), as mesmas regras da clareira.
 - A expedição não roda com o jogo fechado. Uma ausência ou uma recarga no meio dela entrega a
   bolsa como "interrompida", e a clareira rende a ausência como sempre.
 

@@ -18,7 +18,7 @@ import DebugView from './components/DebugView';
 import ExpeditionScreen from './components/expedition/ExpeditionScreen';
 import GameScreen from './components/GameScreen';
 import { startGameLoop } from './store/gameLoop';
-import { selectIsOnExpedition } from './store/selectors';
+import { selectIsOnExpedition } from './store/expeditionSelectors';
 import { useGameStore } from './store/useGameStore';
 
 // =============================================================================

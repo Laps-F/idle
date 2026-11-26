@@ -6,11 +6,10 @@
  * ausência, porque ela pula de evento em evento (próximo golpe ou fim do
  * tempo do chefe) em vez de andar em passos fixos.
  *
- * O mesmo bloco de recompensas também serve as expedições: rewardKills
- * entrega Patacas, XP, Oferendas, Rastros e amuletos das visagens da bolsa,
- * sem passar pelo combate de estágios.
+ * As recompensas de cada derrota (Patacas, XP, Oferendas, Rastros, amuleto e
+ * compra automática) ficam em src/domain/rewards.ts, que a expedição também usa.
  *
- * Pureza: advanceSimulation, dealDirectDamage e rewardKills são funções puras. Elas não
+ * Pureza: advanceSimulation e dealDirectDamage são funções puras. Elas não
  * alteram o estado recebido, não leem o relógio e não sorteiam por conta
  * própria (o sorteio entra por parâmetro). Por dentro, trabalham em uma cópia
  * privada do estado, o "draft". As funções internas deste arquivo alteram só
@@ -19,46 +18,26 @@
  * Mapa:
  *   1. Constantes e tipos
  *   2. Funções públicas (puras)
- *   3. Preparação e resultado
- *   4. Tempo: próximo evento e relógios
- *   5. Golpes
- *   6. Derrota de inimigos e chefes
- *   7. Recompensas (também usadas pelas expedições)
+ *   3. Tempo: próximo evento e relógios
+ *   4. Golpes
+ *   5. Derrota de inimigos e chefes
  */
 
 import { BALANCE, MS_PER_SECOND } from '../data/balance';
-import { randomInteger, rollChance } from '../utils/random';
-import type { RandomSource } from '../utils/random';
-import { receiveAmulet, rollAmuletDrop } from './amulets';
-import { getEncantado, getEnemy, getZone, getZoneForStage } from './catalog';
-import { getDayPhase, matchesClock } from './clock';
-import {
-  getAttackDamage,
-  getAttackInterval,
-  getGoldReward,
-  getXpReward,
-  getXpToNextLevel,
-} from './formulas';
+import { rollChance } from '../utils/random';
+import { getEncantado, getEnemy, getZoneForStage } from './catalog';
+import { getAttackDamage, getAttackInterval } from './formulas';
 import { getBossTimeLimit } from './juazeiro';
-import { getModifiersByPhase } from './modifiers';
-import { autoBuyUpgrades } from './rebrota';
 import {
-  cloneGameState,
-  createBossCombat,
-  createCommonEnemyCombat,
-  createEmptySummary,
-} from './state';
-import type {
-  CombatEvent,
-  DayPhase,
-  EnemyDef,
-  GameState,
-  Modifiers,
-  SimulationResult,
-  SimulationSummary,
-  MapKill,
-  ZoneDef,
-} from './types';
+  createRewardContext,
+  emit,
+  getCurrentModifiers,
+  grantKillRewards,
+  toResult,
+} from './rewards';
+import type { RewardContext, SimulationOptions } from './rewards';
+import { createBossCombat, createCommonEnemyCombat, createEmptySummary } from './state';
+import type { GameState, Modifiers, SimulationResult } from './types';
 
 // =============================================================================
 // =============================================================================
@@ -76,20 +55,8 @@ const MAX_ITERATIONS = 5_000_000;
 // Nome de quem bate nos eventos de golpe que não vêm de um encantado
 export const DIRECT_ATTACKER_ID = 'manual';
 
-export interface SimulationOptions {
-  startTimestamp: number; // instante real (ms) em que o trecho começa
-  random: RandomSource; // fonte dos sorteios (crítico, itens, Rastros, próxima visagem)
-  clockMsPerSecond?: number; // quanto o relógio real anda por segundo simulado. Padrão: 1000.
-  collectEvents?: boolean; // se o resultado deve trazer os eventos. Padrão: false.
-}
-
-// De quem são as recompensas: o inimigo, o estágio (ou nível do mapa) e a zona dos Rastros
-interface RewardTarget {
-  enemy: EnemyDef;
-  stage: number;
-  isBoss: boolean;
-  zone: ZoneDef;
-}
+// As opções de um trecho simulado são as mesmas das recompensas (src/domain/rewards.ts)
+export type { SimulationOptions } from './rewards';
 
 // Um golpe já calculado: quem bateu, quanto tirou e se foi crítico
 interface Hit {
@@ -98,16 +65,9 @@ interface Hit {
   isCrit: boolean;
 }
 
-// Tudo que as funções internas precisam, para não passar sete parâmetros adiante
-interface SimulationContext {
-  draft: GameState; // cópia privada do estado. É a única coisa que as funções internas alteram.
-  summary: SimulationSummary;
-  events: CombatEvent[];
-  collectEvents: boolean;
-  random: RandomSource;
-  modifiersByPhase: Record<DayPhase, Modifiers>;
-  timestamp: number; // instante real correspondente ao ponto atual da simulação
-}
+// O contexto de um trecho simulado é o mesmo das recompensas: a cópia privada do
+// estado (o "draft"), o resumo, os eventos, o sorteio e o instante atual
+type SimulationContext = RewardContext;
 
 
 // =============================================================================
@@ -151,7 +111,7 @@ export function advanceSimulation(
     return { state, summary: createEmptySummary(), events: [] };
   }
 
-  const context = createContext(state, options);
+  const context = createRewardContext(state, options);
   const clockMsPerSecond = options.clockMsPerSecond ?? MS_PER_SECOND;
   let remainingSeconds = seconds;
   let iterations = 0;
@@ -195,89 +155,11 @@ export function dealDirectDamage(
     return { state, summary: createEmptySummary(), events: [] };
   }
 
-  const context = createContext(state, options);
+  const context = createRewardContext(state, options);
   const modifiers = getCurrentModifiers(context);
 
   applyDamage(context, { attackerId: DIRECT_ATTACKER_ID, damage, isCrit: false }, modifiers);
   return toResult(context);
-}
-
-/**
- * Entrega as recompensas de visagens derrotadas fora do combate de estágios.
- *
- * É a ponte entre as expedições e as regras de recompensa: cada visagem da
- * bolsa rende Patacas, XP para a comitiva, Oferendas, Rastros da zona do mapa e,
- * com sorte, um amuleto, pelas mesmas regras do combate de estágios. A compra
- * automática de melhorias também roda depois de cada derrota.
- *
- * Função pura: não altera "state". Não mexe no combate de estágios, no estágio
- * atual nem na contagem até o chefe.
- *
- * @param state Estado de partida. Não é alterado.
- * @param kills Visagens derrotadas, na ordem em que caíram.
- * @param options Instante da entrega (decide dia, noite e lua dos Rastros) e sorteio.
- * @returns Estado novo, resumo do que rendeu e os eventos (se pedidos).
- *
- * Casos de borda: lista vazia devolve o mesmo "state" recebido, com o resumo
- * zerado. Todas as derrotas da lista usam o mesmo instante.
- */
-export function rewardKills(
-  state: GameState,
-  kills: readonly MapKill[],
-  options: SimulationOptions,
-): SimulationResult {
-  if (kills.length === 0) {
-    return { state, summary: createEmptySummary(), events: [] };
-  }
-
-  const context = createContext(state, options);
-
-  for (const kill of kills) {
-    const target = {
-      enemy: getEnemy(kill.enemyId),
-      stage: kill.stage,
-      isBoss: false,
-      zone: getZone(kill.zoneId),
-    };
-    grantKillRewards(context, target, getCurrentModifiers(context));
-  }
-
-  return toResult(context);
-}
-
-
-// =============================================================================
-// =============================================================================
-// P R E P A R A Ç Ã O   E   R E S U L T A D O
-
-// Monta o contexto de um trecho simulado. É aqui que o estado é copiado.
-function createContext(state: GameState, options: SimulationOptions): SimulationContext {
-  return {
-    draft: cloneGameState(state),
-    summary: createEmptySummary(),
-    events: [],
-    collectEvents: options.collectEvents ?? false,
-    random: options.random,
-    modifiersByPhase: getModifiersByPhase(state),
-    timestamp: options.startTimestamp,
-  };
-}
-
-// Entrega a cópia trabalhada como o estado novo
-function toResult(context: SimulationContext): SimulationResult {
-  return { state: context.draft, summary: context.summary, events: context.events };
-}
-
-// Multiplicadores da fase do dia em que a simulação está
-function getCurrentModifiers(context: SimulationContext): Modifiers {
-  return context.modifiersByPhase[getDayPhase(context.timestamp)];
-}
-
-// Guarda o evento, se quem chamou pediu eventos
-function emit(context: SimulationContext, event: CombatEvent): void {
-  if (context.collectEvents) {
-    context.events.push(event);
-  }
 }
 
 
@@ -460,152 +342,4 @@ function resolveBossTimeout(context: SimulationContext): void {
 function spawnCommonEnemy(context: SimulationContext): void {
   const { draft, random } = context;
   draft.combat = createCommonEnemyCombat(draft.stage, draft.combat.attackProgress, random);
-}
-
-
-// =============================================================================
-// =============================================================================
-// R E C O M P E N S A S
-
-// Patacas, XP, Oferendas, Rastros e, com sorte, um amuleto de um inimigo derrotado
-function grantKillRewards(
-  context: SimulationContext,
-  target: RewardTarget,
-  modifiers: Modifiers,
-): void {
-  const { draft, summary } = context;
-  const { enemy, stage, isBoss } = target;
-  const gold = getGoldReward(stage, enemy, isBoss, modifiers.gold);
-  const xp = getXpReward(stage, enemy, isBoss);
-
-  draft.gold += gold;
-  draft.stats.totalGoldEarned += gold;
-  draft.stats.totalKills += 1;
-  summary.gold += gold;
-  summary.xp += xp;
-  summary.kills += 1;
-  emit(context, { type: 'kill', enemyId: enemy.id, isBoss, gold, xp });
-
-  grantXpToParty(context, xp);
-  rollItemDrops(context, enemy, modifiers);
-  rollTrails(context, target.zone, modifiers);
-  rollAmulet(context, target, modifiers);
-  runAutoBuy(context);
-}
-
-// Compra automática de melhorias ("Mão ligeira" do juazeiro), logo depois de cada
-// recompensa. Se comprou algo, os multiplicadores são recalculados na hora.
-function runAutoBuy(context: SimulationContext): void {
-  const { draft } = context;
-  const bought = autoBuyUpgrades(draft);
-
-  if (bought === draft) {
-    return;
-  }
-
-  // autoBuyUpgrades é pura e devolve um estado novo. Os campos são copiados para a
-  // cópia de trabalho, que precisa continuar sendo o mesmo objeto até o fim da simulação.
-  Object.assign(draft, bought);
-  context.modifiersByPhase = getModifiersByPhase(draft);
-}
-
-// Cada encantado da comitiva recebe o XP inteiro e sobe de nível quando junta o bastante
-function grantXpToParty(context: SimulationContext, xp: number): void {
-  const { draft, summary } = context;
-
-  for (const encantadoId of draft.party) {
-    const owned = draft.roster[encantadoId];
-
-    if (owned === undefined) {
-      continue;
-    }
-
-    owned.xp += xp;
-
-    while (owned.xp >= getXpToNextLevel(owned.level)) {
-      owned.xp -= getXpToNextLevel(owned.level);
-      owned.level += 1;
-      summary.levelUps[encantadoId] = (summary.levelUps[encantadoId] ?? 0) + 1;
-      emit(context, { type: 'levelUp', encantadoId, level: owned.level });
-    }
-  }
-}
-
-// Sorteia a queda de um amuleto e, se cair, guarda na mochila ou desmancha.
-// As regras são de src/domain/amulets.ts. Aqui só se liga a derrota à queda.
-function rollAmulet(context: SimulationContext, target: RewardTarget, modifiers: Modifiers): void {
-  const { draft, summary, random } = context;
-  const dropInput = {
-    stage: target.stage,
-    isBoss: target.isBoss,
-    dropChanceMultiplier: modifiers.amuletChance,
-    amuletNumber: draft.nextAmuletNumber,
-  };
-  const amulet = rollAmuletDrop(dropInput, random);
-
-  if (amulet === null) {
-    return;
-  }
-
-  const received = receiveAmulet(draft, amulet);
-  // receiveAmulet é pura e devolve um estado novo. Os campos dele são copiados para a
-  // cópia de trabalho, que precisa continuar sendo o mesmo objeto até o fim da simulação.
-  Object.assign(draft, received.state);
-
-  summary.amuletsFound += 1;
-  summary.amuletsSalvaged += received.wasSalvaged ? 1 : 0;
-  summary.shavings += received.shavings;
-  emit(context, {
-    type: 'amulet',
-    baseId: amulet.baseId,
-    rarity: amulet.rarity,
-    wasSalvaged: received.wasSalvaged,
-    shavings: received.shavings,
-  });
-}
-
-// Sorteia cada Oferenda da tabela do inimigo
-function rollItemDrops(context: SimulationContext, enemy: EnemyDef, modifiers: Modifiers): void {
-  const { draft, summary, random } = context;
-
-  for (const drop of enemy.drops) {
-    const chance = Math.min(1, drop.chance * modifiers.itemChance);
-
-    if (rollChance(chance, random)) {
-      const amount = randomInteger(drop.min, drop.max, random);
-      draft.inventory[drop.itemId] = (draft.inventory[drop.itemId] ?? 0) + amount;
-      summary.items[drop.itemId] = (summary.items[drop.itemId] ?? 0) + amount;
-      emit(context, { type: 'drop', itemId: drop.itemId, amount });
-    }
-  }
-}
-
-// Sorteia Rastros dos encantados da zona que ainda não entraram na comitiva
-function rollTrails(context: SimulationContext, zone: ZoneDef, modifiers: Modifiers): void {
-  const { draft, summary, random, timestamp } = context;
-
-  for (const encounter of zone.encounters) {
-    const { encantadoId } = encounter;
-    const chance = Math.min(1, encounter.trailChance * modifiers.trailChance);
-    const isClockRight = matchesClock(encounter, timestamp);
-    const canFindTrail = isClockRight && isTrailStillNeeded(draft, encantadoId);
-
-    if (canFindTrail && rollChance(chance, random)) {
-      draft.trails[encantadoId] = (draft.trails[encantadoId] ?? 0) + 1;
-      summary.trails[encantadoId] = (summary.trails[encantadoId] ?? 0) + 1;
-      emit(context, { type: 'trail', encantadoId });
-    }
-  }
-}
-
-// Rastro só aparece para quem ainda não tem pacto e ainda não juntou o bastante
-function isTrailStillNeeded(draft: GameState, encantadoId: string): boolean {
-  const pact = getEncantado(encantadoId).pact;
-  const isOwned = encantadoId in draft.roster;
-
-  if (isOwned || pact === null) {
-    return false;
-  }
-
-  return (draft.trails[encantadoId] ?? 0) < pact.trailsNeeded;
 }

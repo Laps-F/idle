@@ -23,8 +23,8 @@
  *
  * Clareira e expedição: o combate por estágios (a clareira) roda em todo
  * tick, com o jogo aberto ou fechado. Quando há expedição em andamento, o
- * mesmo tick também anda com a cena do mapa (src/domain/expeditionScene.ts)
- * e guarda as derrotas na bolsa (src/domain/expedition.ts). A bolsa só vira
+ * mesmo tick também anda com a cena do mapa e guarda as derrotas na bolsa
+ * (src/store/expeditionSession.ts). A bolsa só vira
  * Patacas, XP e quedas na volta (finishExpedition). A expedição não roda com
  * o jogo fechado: uma ausência no meio dela entrega a bolsa como
  * "interrompida", e a clareira rende a ausência como sempre.
@@ -33,16 +33,18 @@
  * são lidos. O domínio recebe os dois por parâmetro.
  *
  * Mapa:
- *   1. Constantes e tipos internos
+ *   1. Constantes
  *   2. Store
  *   3. Ações de simulação (tick, progresso offline e troca de aba)
- *   4. Ações de expedição (partir, andar, golpe especial, voltar)
- *   5. Ações de jogo (comitiva, melhorias, pactos, estágios)
- *   6. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
- *   7. Ações da Rebrota (rebrotar, juazeiro, compra automática)
- *   8. Ações de salvamento (gravar, exportar, importar, apagar tudo)
- *   9. Ações de teste (painel de debug e ajustes de teste)
- *  10. Ferramentas
+ *   4. Ações de jogo (comitiva, melhorias, pactos, estágios)
+ *   5. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
+ *   6. Ações da Rebrota (rebrotar, juazeiro, compra automática)
+ *   7. Ações de salvamento (gravar, exportar, importar, apagar tudo)
+ *   8. Ações de teste (painel de debug e ajustes de teste)
+ *
+ * As ações de expedição e o passo do mapa ficam em src/store/expeditionSession.ts.
+ * As peças comuns (gravar o estado novo, aplicar uma entrada) ficam em
+ * src/store/storeTools.ts.
  */
 
 import { create } from 'zustand';
@@ -74,15 +76,8 @@ import { sealPact } from '../domain/pact';
 import { performRebrota, setAutoBuy } from '../domain/rebrota';
 import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
 import { createInitialState, pickGameState } from '../domain/state';
-import type { CombatEvent, ExpeditionOutcome, GameState, SceneEvent } from '../domain/types';
-import {
-  addKillsToLoot,
-  finishExpedition,
-  getExpeditionFighter,
-  startExpedition,
-} from '../domain/expedition';
-import { advanceScene, createExpeditionScene } from '../domain/expeditionScene';
-import { preserveUnchangedReferences } from '../utils/object';
+import type { CombatEvent, GameState } from '../domain/types';
+import { createExpeditionActions, endExpedition, runExpeditionTick } from './expeditionSession';
 import {
   createThrottledStorage,
   decodeSave,
@@ -91,16 +86,19 @@ import {
   SAVE_STORAGE_KEY,
 } from './saveManager';
 import { loadSavedTuning, resetTuning as resetTuningValues, setTuningValue } from './tuning';
-import type { GameActions, GameStore, MoveInput, SessionState } from './types';
+import {
+  applyInput,
+  commitState,
+  NO_EVENTS,
+  NO_INPUT,
+  NO_SCENE_EVENTS,
+} from './storeTools';
+import type { GetStore, SetStore } from './storeTools';
+import type { GameActions, GameStore, SessionState } from './types';
 
 // =============================================================================
 // =============================================================================
-// C O N S T A N T E S   E   T I P O S   I N T E R N O S
-
-// Lista vazia única: reaproveitar a mesma referência evita redesenhar a interface à toa
-const NO_EVENTS: readonly CombatEvent[] = [];
-const NO_SCENE_EVENTS: readonly SceneEvent[] = [];
-const NO_INPUT: MoveInput = { moveX: 0, moveY: 0 };
+// C O N S T A N T E S
 
 const SESSION_DEFAULTS: SessionState = {
   expeditionScene: null,
@@ -119,15 +117,6 @@ const SESSION_DEFAULTS: SessionState = {
 const OPEN_IN_ANOTHER_TAB_ERROR = 'O jogo está aberto em outra aba. Recarregue esta página.';
 
 const saveStorage = createThrottledStorage(BALANCE.saveIntervalMs);
-
-type SetStore = (partial: Partial<GameStore>) => void;
-type GetStore = () => GameStore;
-
-// Regra do domínio: recebe o estado e devolve o estado novo, ou null se a ação não vale
-type Rule = (state: GameState) => GameState | null;
-
-// Campos de sessão que uma entrada grava junto com o estado novo
-type SessionUpdate = (previous: GameState, next: GameState) => Partial<SessionState>;
 
 
 // =============================================================================
@@ -267,169 +256,6 @@ function runOfflineTick(set: SetStore, get: GetStore, now: number): void {
 }
 
 
-// =============================================================================
-// =============================================================================
-// A Ç Õ E S   D E   E X P E D I Ç Ã O
-
-type ExpeditionActions = Pick<
-  GameActions,
-  | 'startExpedition'
-  | 'leaveExpedition'
-  | 'setMoveInput'
-  | 'triggerSpecial'
-  | 'dismissExpeditionReport'
->;
-
-// Partir, andar, golpe especial e voltar. As regras estão em src/domain/expedition.ts.
-function createExpeditionActions(set: SetStore, get: GetStore): ExpeditionActions {
-  return {
-    /**
-     * Parte em expedição com o primeiro encantado da comitiva e monta a cena do mapa.
-     *
-     * @param mapId Mapa da expedição (src/data/world.ts).
-     * @returns true se partiu. False sem comitiva, já em expedição ou com mapa que não existe.
-     */
-    startExpedition: (mapId) =>
-      applyInput(
-        set,
-        get,
-        (state) => startExpedition(state, mapId),
-        (_previous, next) => ({
-          expeditionScene: createExpeditionScene(
-            mapId,
-            getExpeditionFighter(next, Date.now())?.maxHp ?? BALANCE.playerBaseHp,
-            Math.random,
-          ),
-          moveInput: NO_INPUT,
-          isSpecialPending: false,
-          sceneEvents: NO_SCENE_EVENTS,
-          expeditionReport: null,
-        }),
-      ),
-
-    /**
-     * Volta para a clareira agora, sem esperar a passagem. Entrega a bolsa sem bônus.
-     *
-     * @returns true se havia expedição em andamento.
-     */
-    leaveExpedition: () => {
-      if (get().isOpenInAnotherTab || get().expedition === null) {
-        return false;
-      }
-
-      const now = Date.now();
-      get().tick(now);
-      return endExpedition(set, get, 'voltou', now);
-    },
-
-    // Guarda a direção apertada. Só grava quando muda, para não redesenhar à toa.
-    setMoveInput: (input) => {
-      const current = get().moveInput;
-
-      if (current.moveX !== input.moveX || current.moveY !== input.moveY) {
-        set({ moveInput: { moveX: input.moveX, moveY: input.moveY } });
-      }
-    },
-
-    // Pede o golpe especial. Ele sai no próximo tick, se estiver pronto.
-    triggerSpecial: () => {
-      if (get().expedition !== null) {
-        set({ isSpecialPending: true });
-      }
-    },
-
-    dismissExpeditionReport: () => set({ expeditionReport: null }),
-  };
-}
-
-/**
- * Um passo da expedição, depois do passo da clareira.
- *
- * Anda com a cena pelo tempo que passou, guarda as derrotas na bolsa e, se a
- * expedição acabou (fim do tempo, vida zerada ou passagem de volta), entrega a bolsa.
- *
- * @param set Função de gravação da store.
- * @param get Função de leitura da store.
- * @param now Instante atual em ms.
- * @param elapsedSeconds Tempo desde o último tick. Até offlineThresholdSeconds.
- *
- * Casos de borda:
- * - Sem expedição em andamento: não faz nada.
- * - Expedição salva sem cena (a página foi recarregada no meio dela): entrega a
- *   bolsa como "interrompida".
- * - Os eventos só são entregues em intervalos de até maxSecondsWithEvents.
- */
-function runExpeditionTick(
-  set: SetStore,
-  get: GetStore,
-  now: number,
-  elapsedSeconds: number,
-): void {
-  const scene = get().expeditionScene;
-
-  if (get().expedition === null) {
-    return;
-  }
-  if (scene === null) {
-    endExpedition(set, get, 'interrompida', now);
-    return;
-  }
-
-  const current = pickGameState(get());
-  const input = { ...get().moveInput, useSpecial: get().isSpecialPending };
-  const fighter = getExpeditionFighter(current, now);
-  const step = advanceScene(scene, fighter, input, elapsedSeconds, Math.random);
-  const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
-  const hasEvents = isTabActive && step.events.length > 0;
-
-  commitState(set, current, addKillsToLoot(current, step.kills), {
-    expeditionScene: step.scene,
-    sceneEvents: hasEvents ? step.events : NO_SCENE_EVENTS,
-    isSpecialPending: false,
-  });
-
-  if (step.outcome !== null) {
-    endExpedition(set, get, step.outcome, now);
-  }
-}
-
-/**
- * Termina a expedição em andamento e entrega a bolsa na clareira.
- *
- * @param set Função de gravação da store.
- * @param get Função de leitura da store.
- * @param outcome Como terminou. Só "concluida" dá bônus.
- * @param timestamp Instante da entrega (dia, noite e lua dos Rastros).
- * @returns true se havia expedição para terminar.
- */
-function endExpedition(
-  set: SetStore,
-  get: GetStore,
-  outcome: ExpeditionOutcome,
-  timestamp: number,
-): boolean {
-  const current = pickGameState(get());
-
-  if (current.expedition === null) {
-    return false;
-  }
-
-  const seconds = get().expeditionScene?.elapsedSeconds ?? 0;
-  const result = finishExpedition(current, outcome, seconds, {
-    startTimestamp: timestamp,
-    random: Math.random,
-  });
-
-  commitState(set, current, result.state, {
-    expeditionScene: null,
-    moveInput: NO_INPUT,
-    isSpecialPending: false,
-    sceneEvents: NO_SCENE_EVENTS,
-    expeditionReport: result.report,
-  });
-  return true;
-}
-
 
 // =============================================================================
 // =============================================================================
@@ -462,44 +288,6 @@ function createGameplayActions(set: SetStore, get: GetStore): GameplayActions {
     challengeBoss: () => applyInput(set, get, (state) => challengeBoss(state)),
     goToStage: (stage) => applyInput(set, get, (state) => goToStage(state, stage, Math.random)),
   };
-}
-
-/**
- * Aplica uma entrada da pessoa seguindo a ordem do laço: primeiro atualiza, depois aplica.
- *
- * Antes de aplicar a regra, roda um tick até o instante atual. Sem isso, uma
- * melhoria comprada agora valeria também para o tempo que passou desde o último tick.
- *
- * @param set Função de gravação da store.
- * @param get Função de leitura da store.
- * @param rule Regra do domínio. Recebe o estado atual e devolve o estado novo, ou null.
- * @param sessionUpdate Opcional. Campos de sessão gravados junto com o estado novo
- *                      (por exemplo, a cerimônia da Rebrota).
- * @returns true se a regra devolveu um estado novo e ele foi gravado.
- *
- * Casos de borda: com o jogo aberto em outra aba, nada é aplicado e o retorno é
- * false. Quando a regra devolve null (ação não permitida), o estado não muda.
- */
-function applyInput(
-  set: SetStore,
-  get: GetStore,
-  rule: Rule,
-  sessionUpdate?: SessionUpdate,
-): boolean {
-  if (get().isOpenInAnotherTab) {
-    return false;
-  }
-
-  get().tick(Date.now());
-  const current = pickGameState(get());
-  const next = rule(current);
-
-  if (next === null) {
-    return false;
-  }
-
-  commitState(set, current, next, sessionUpdate?.(current, next));
-  return true;
 }
 
 
@@ -767,21 +555,4 @@ function hitEnemy(state: GameState, hpFraction: number): GameState | null {
   });
 
   return result.state === state ? null : result.state;
-}
-
-
-// =============================================================================
-// =============================================================================
-// F E R R A M E N T A S
-
-// Grava o estado novo na store, em uma gravação só, junto com os campos de sessão.
-// Campo que não mudou de conteúdo mantém a referência antiga, para a interface
-// redesenhar só o que mudou de verdade.
-function commitState(
-  set: SetStore,
-  previous: GameState,
-  next: GameState,
-  session: Partial<SessionState> = {},
-): void {
-  set({ ...preserveUnchangedReferences(previous, next), ...session });
 }

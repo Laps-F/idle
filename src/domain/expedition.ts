@@ -10,7 +10,7 @@
  *     entregam tudo o que foi juntado.
  *   - Quem aguenta até o fim do tempo ganha expeditionCompletionBonus de
  *     visagens extras na bolsa (50% a mais).
- *   - A entrega usa rewardKills (simulation.ts): Patacas, XP para a comitiva,
+ *   - A entrega usa rewardKills (rewards.ts): Patacas, XP para a comitiva,
  *     Oferendas, Rastros e amuletos pelas mesmas regras da clareira.
  *
  * Funções puras: recebem o estado e devolvem um estado novo. Ação recusada
@@ -28,8 +28,8 @@ import { getEncantado, getExpeditionMap, hasExpeditionMap } from './catalog';
 import { getDayPhase } from './clock';
 import { getAttackDamage, getAttackInterval, getExpeditionMaxHp } from './formulas';
 import { getModifiers } from './modifiers';
-import { rewardKills } from './simulation';
-import type { SimulationOptions } from './simulation';
+import { rewardKills } from './rewards';
+import type { SimulationOptions } from './rewards';
 import type {
   ExpeditionFighter,
   ExpeditionLoot,

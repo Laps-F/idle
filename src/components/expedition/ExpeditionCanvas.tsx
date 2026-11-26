@@ -17,8 +17,8 @@
 
 import { useEffect, useRef } from 'react';
 
-import { readSceneFrame, selectExpeditionMapView } from '../../store/selectors';
-import type { SceneEventView } from '../../store/selectors';
+import { readSceneFrame, selectExpeditionMapView } from '../../store/expeditionSelectors';
+import type { SceneEventView } from '../../store/expeditionSelectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatNumber } from '../../utils/format';
 import {

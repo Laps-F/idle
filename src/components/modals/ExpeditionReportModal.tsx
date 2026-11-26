@@ -10,8 +10,9 @@
  *   2. Textos
  */
 
-import { selectExpeditionReport } from '../../store/selectors';
-import type { ExpeditionReportView, NamedAmount } from '../../store/selectors';
+import { selectExpeditionReport } from '../../store/expeditionSelectors';
+import type { ExpeditionReportView } from '../../store/expeditionSelectors';
+import type { NamedAmount } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatDuration, formatNumber } from '../../utils/format';
 import { Button } from '../ui/Button';

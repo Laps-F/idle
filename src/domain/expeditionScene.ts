@@ -25,22 +25,34 @@
  *
  * Coordenadas em ladrilhos (ver o bloco "Expedições" de src/domain/types.ts).
  *
+ * Arquivos vizinhos: o voo e o acerto dos projéteis ficam em
+ * src/domain/expeditionProjectiles.ts, e distâncias, colisão e ladrilhos
+ * livres em src/domain/sceneGeometry.ts.
+ *
  * Mapa:
  *   1. Constantes e tipos
  *   2. Funções públicas
  *   3. Passo da cena
  *   4. Personagem: movimento e passagem de volta
  *   5. Visagens: ondas, passeio, perseguição e encostada (bloco "Visagens")
- *   6. Golpes: automático e especial (os disparos)
- *   7. Projéteis: voo, acerto e fim
- *   8. Geometria
+ *   6. Golpes: automático e especial (os disparos e o dano na visagem)
  */
 
 import { BALANCE } from '../data/balance';
 import { pickRandom, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
-import { getEnemy, getExpeditionMap, getMapSize, getTileAt } from './catalog';
+import { getEnemy, getExpeditionMap } from './catalog';
+import { launchProjectile, updateProjectiles } from './expeditionProjectiles';
 import { getEnemyContactDamage, getEnemyMaxHp } from './formulas';
+import {
+  getDistance,
+  getPlayerPoint,
+  isWalkablePosition,
+  listFreeTileCenters,
+  SCENE_EPSILON,
+  toTileCenter,
+} from './sceneGeometry';
+import type { Point } from './sceneGeometry';
 import type {
   ExpeditionFighter,
   ExpeditionInput,
@@ -50,16 +62,12 @@ import type {
   MapKill,
   SceneEnemy,
   SceneEvent,
-  SceneProjectile,
   SceneStepResult,
 } from './types';
 
 // =============================================================================
 // =============================================================================
 // C O N S T A N T E S   E   T I P O S
-
-// Folga para erro de arredondamento ao comparar tempos, distâncias e progressos
-const EPSILON = 1e-9;
 
 // Quantas vezes a visagem tenta achar um ponto livre para passear antes de ficar parada
 const WANDER_ATTEMPTS = 6;
@@ -76,12 +84,6 @@ interface StepContext {
   events: SceneEvent[];
   outcome: ExpeditionOutcome | null;
   isSpecialPending: boolean; // o pedido de golpe especial vale uma vez por chamada
-}
-
-// Um ponto do mapa, em ladrilhos
-interface Point {
-  x: number;
-  y: number;
 }
 
 
@@ -182,7 +184,7 @@ export function advanceScene(
   context.isSpecialPending = input.useSpecial;
   let remainingSeconds = seconds;
 
-  while (remainingSeconds > EPSILON && context.outcome === null) {
+  while (remainingSeconds > SCENE_EPSILON && context.outcome === null) {
     const stepSeconds = Math.min(remainingSeconds, BALANCE.sceneMaxStepSeconds);
     runStep(context, input, stepSeconds);
     remainingSeconds -= stepSeconds;
@@ -194,41 +196,6 @@ export function advanceScene(
     events: context.events,
     outcome: context.outcome,
   };
-}
-
-/**
- * Diz se um corpo redondo cabe num ponto do mapa sem encostar em árvore ou água.
- *
- * A conta é feita pelo quadrado em volta do corpo: os quatro cantos precisam
- * cair em ladrilhos que dá para pisar.
- *
- * @param map Mapa consultado.
- * @param x Centro do corpo, em ladrilhos.
- * @param y Centro do corpo, em ladrilhos.
- * @param radius Metade da largura do corpo. Padrão: bodyRadius de src/data/balance.ts.
- * @returns true se o ponto está livre. False fora do mapa ou com valor que não é número.
- */
-export function isWalkablePosition(
-  map: ExpeditionMapDef,
-  x: number,
-  y: number,
-  radius: number = BALANCE.bodyRadius,
-): boolean {
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    return false;
-  }
-
-  const corners: Point[] = [
-    { x: x - radius, y: y - radius },
-    { x: x + radius, y: y - radius },
-    { x: x - radius, y: y + radius },
-    { x: x + radius, y: y + radius },
-  ];
-
-  return corners.every((corner) => {
-    const tile = getTileAt(map, Math.floor(corner.x), Math.floor(corner.y));
-    return tile !== null && !tile.isSolid;
-  });
 }
 
 // Nível das visagens que nascem em certo momento: sobe um a cada waveLevelUpSeconds
@@ -282,10 +249,12 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
 
   fireSpecialIfPending(context);
   updateAttack(context, seconds);
-  updateProjectiles(context, seconds);
+  updateProjectiles(draft, context.map, seconds, (enemy, damage, isCrit) =>
+    damageEnemy(context, enemy, damage, isCrit),
+  );
   updateWaves(context, seconds);
 
-  if (draft.elapsedSeconds >= BALANCE.expeditionDurationSeconds - EPSILON) {
+  if (draft.elapsedSeconds >= BALANCE.expeditionDurationSeconds - SCENE_EPSILON) {
     context.outcome = 'concluida';
   }
 }
@@ -395,7 +364,7 @@ function spawnEnemy(context: StepContext): void {
 // Centro de um ladrilho livre, de preferência a enemyMinSpawnDistance da personagem
 function pickSpawnSpot(context: StepContext): Point | null {
   const { draft, map, random } = context;
-  const player = getPlayer(draft);
+  const player = getPlayerPoint(draft);
   const freeSpots = listFreeTileCenters(map);
   const farSpots = freeSpots.filter(
     (spot) => getDistance(spot, player) >= BALANCE.enemyMinSpawnDistance,
@@ -404,28 +373,9 @@ function pickSpawnSpot(context: StepContext): Point | null {
   return options.length > 0 ? pickRandom(options, random) : null;
 }
 
-// Centro de todo ladrilho onde uma visagem pode nascer: livre e fora da passagem de volta
-function listFreeTileCenters(map: ExpeditionMapDef): Point[] {
-  const { width, height } = getMapSize(map);
-  const spots: Point[] = [];
-
-  for (let row = 0; row < height; row += 1) {
-    for (let column = 0; column < width; column += 1) {
-      const center = toTileCenter(column, row);
-      const isExit = column === map.exit.x && row === map.exit.y;
-
-      if (!isExit && isWalkablePosition(map, center.x, center.y)) {
-        spots.push(center);
-      }
-    }
-  }
-
-  return spots;
-}
-
 // Perto da personagem, a visagem persegue e bate. Longe, passeia.
 function updateEnemy(context: StepContext, enemy: SceneEnemy, seconds: number): void {
-  const player = getPlayer(context.draft);
+  const player = getPlayerPoint(context.draft);
   const distance = getDistance(enemy, player);
   enemy.hitCooldown = Math.max(0, enemy.hitCooldown - seconds);
 
@@ -444,13 +394,13 @@ function chasePlayer(
   distance: number,
   seconds: number,
 ): void {
-  const player = getPlayer(context.draft);
+  const player = getPlayerPoint(context.draft);
   const stepLength = Math.min(
     BALANCE.enemyChaseSpeed * seconds,
     Math.max(0, distance - BALANCE.enemyContactRange * 0.8),
   );
 
-  if (stepLength <= 0 || distance <= EPSILON) {
+  if (stepLength <= 0 || distance <= SCENE_EPSILON) {
     return;
   }
 
@@ -468,7 +418,7 @@ function chasePlayer(
 // Encostada na personagem e fora da recarga, a visagem bate
 function touchPlayer(context: StepContext, enemy: SceneEnemy): void {
   const { draft } = context;
-  const distance = getDistance(enemy, getPlayer(draft));
+  const distance = getDistance(enemy, getPlayerPoint(draft));
 
   if (distance > BALANCE.enemyContactRange || enemy.hitCooldown > 0) {
     return;
@@ -556,7 +506,7 @@ function updateAttack(context: StepContext, seconds: number): void {
 
   draft.attackProgress = Math.min(1, draft.attackProgress + seconds / fighter.attackInterval);
 
-  if (draft.attackProgress < 1 - EPSILON) {
+  if (draft.attackProgress < 1 - SCENE_EPSILON) {
     return;
   }
 
@@ -566,10 +516,10 @@ function updateAttack(context: StepContext, seconds: number): void {
     return;
   }
 
-  const player = getPlayer(draft);
+  const player = getPlayerPoint(draft);
   const isCrit = rollChance(fighter.critChance, context.random);
   draft.attackProgress = 0;
-  launchProjectile(context, {
+  launchProjectile(draft, {
     isSpecial: false,
     direction: { x: target.x - player.x, y: target.y - player.y },
     speed: BALANCE.projectileSpeed,
@@ -590,7 +540,7 @@ function fireSpecialIfPending(context: StepContext): void {
   }
 
   draft.specialCooldown = BALANCE.specialCooldownSeconds;
-  launchProjectile(context, {
+  launchProjectile(draft, {
     isSpecial: true,
     direction: { x: draft.facingX, y: draft.facingY },
     speed: BALANCE.specialProjectileSpeed,
@@ -602,7 +552,7 @@ function fireSpecialIfPending(context: StepContext): void {
 
 // Visagem mais perto da personagem dentro da distância pedida, ou null
 function findNearestEnemy(draft: ExpeditionScene, range: number): SceneEnemy | null {
-  const player = getPlayer(draft);
+  const player = getPlayerPoint(draft);
   let nearest: SceneEnemy | null = null;
   let nearestDistance = range;
 
@@ -636,129 +586,4 @@ function damageEnemy(
   draft.enemies = draft.enemies.filter((candidate) => candidate.uid !== enemy.uid);
   context.kills.push({ enemyId: enemy.enemyId, stage: enemy.level, zoneId: map.zoneId });
   context.events.push({ type: 'defeat', x: enemy.x, y: enemy.y, enemyId: enemy.enemyId });
-}
-
-
-// =============================================================================
-// =============================================================================
-// P R O J É T E I S :   V O O ,   A C E R T O   E   F I M
-
-// O que um disparo precisa dizer
-interface LaunchOptions {
-  isSpecial: boolean;
-  direction: Point; // qualquer tamanho. Direção zero vira "para a direita".
-  speed: number;
-  maxDistance: number;
-  damage: number;
-  isCrit: boolean;
-}
-
-// Põe um projétil no mapa, saindo do centro da personagem
-function launchProjectile(context: StepContext, options: LaunchOptions): void {
-  const { draft } = context;
-  const length = Math.hypot(options.direction.x, options.direction.y);
-  const projectile: SceneProjectile = {
-    uid: draft.nextProjectileUid,
-    isSpecial: options.isSpecial,
-    x: draft.playerX,
-    y: draft.playerY,
-    directionX: length > EPSILON ? options.direction.x / length : 1,
-    directionY: length > EPSILON ? options.direction.y / length : 0,
-    speed: options.speed,
-    remainingDistance: options.maxDistance,
-    damage: options.damage,
-    isCrit: options.isCrit,
-    hitEnemyUids: [],
-  };
-
-  draft.nextProjectileUid += 1;
-  draft.projectiles.push(projectile);
-}
-
-// Cada projétil voa um trecho. Os que acabaram (acerto, parede ou distância) saem do mapa.
-function updateProjectiles(context: StepContext, seconds: number): void {
-  const { draft } = context;
-  draft.projectiles = draft.projectiles.filter((projectile) =>
-    flyProjectile(context, projectile, seconds),
-  );
-}
-
-/**
- * Faz um projétil voar um trecho e acertar as visagens no caminho.
- *
- * O acerto é conferido no segmento inteiro que o projétil percorreu no passo,
- * e não só no ponto final, para um projétil rápido não atravessar uma visagem
- * sem tocar nela.
- *
- * @param context Contexto do passo. A visagem acertada perde vida aqui.
- * @param projectile Projétil, alterado no lugar (é do draft).
- * @param seconds Duração do trecho.
- * @returns true se o projétil continua no mapa; false se acabou.
- */
-function flyProjectile(
-  context: StepContext,
-  projectile: SceneProjectile,
-  seconds: number,
-): boolean {
-  const distance = Math.min(projectile.speed * seconds, projectile.remainingDistance);
-  const start = { x: projectile.x, y: projectile.y };
-  const end = {
-    x: start.x + projectile.directionX * distance,
-    y: start.y + projectile.directionY * distance,
-  };
-  const hitRadius = BALANCE.bodyRadius + BALANCE.projectileRadius;
-  const targets = context.draft.enemies
-    .filter((enemy) => !projectile.hitEnemyUids.includes(enemy.uid))
-    .filter((enemy) => getDistanceToSegment(enemy, start, end) <= hitRadius)
-    .sort((first, second) => getDistance(first, start) - getDistance(second, start));
-
-  for (const enemy of targets) {
-    projectile.hitEnemyUids.push(enemy.uid);
-    damageEnemy(context, enemy, projectile.damage, projectile.isCrit);
-
-    if (!projectile.isSpecial) {
-      return false;
-    }
-  }
-
-  projectile.x = end.x;
-  projectile.y = end.y;
-  projectile.remainingDistance -= distance;
-  const isInsideWall = !isWalkablePosition(context.map, end.x, end.y, BALANCE.projectileRadius);
-  return projectile.remainingDistance > EPSILON && !isInsideWall;
-}
-
-
-// =============================================================================
-// =============================================================================
-// G E O M E T R I A
-
-// Posição da personagem como ponto
-function getPlayer(draft: ExpeditionScene): Point {
-  return { x: draft.playerX, y: draft.playerY };
-}
-
-// Centro de um ladrilho
-function toTileCenter(column: number, row: number): Point {
-  return { x: column + 0.5, y: row + 0.5 };
-}
-
-// Distância em linha reta entre dois pontos
-function getDistance(first: Point, second: Point): number {
-  return Math.hypot(first.x - second.x, first.y - second.y);
-}
-
-// Distância de um ponto até o trecho de reta entre "start" e "end"
-function getDistanceToSegment(point: Point, start: Point, end: Point): number {
-  const segmentX = end.x - start.x;
-  const segmentY = end.y - start.y;
-  const lengthSquared = segmentX * segmentX + segmentY * segmentY;
-
-  if (lengthSquared <= EPSILON) {
-    return getDistance(point, start);
-  }
-
-  const along = ((point.x - start.x) * segmentX + (point.y - start.y) * segmentY) / lengthSquared;
-  const clamped = Math.max(0, Math.min(1, along));
-  return getDistance(point, { x: start.x + clamped * segmentX, y: start.y + clamped * segmentY });
 }

@@ -32,16 +32,17 @@
  *   9. Construção: juazeiro e Rebrota
  *  10. Construção: ausência e escolha inicial
  *  11. Construção: visões do painel de debug
- *  12. Expedições: visões, seletores e a leitura de cada quadro do mapa
- *  13. Ajustes de teste
- *  14. Ferramentas
+ *  12. Ajustes de teste
+ *
+ * Os seletores da expedição ficam em src/store/expeditionSelectors.ts. As
+ * ferramentas compartilhadas (seletor estável, listas com nome) ficam em
+ * src/store/selectorTools.ts.
  */
 
 import {
   AMULET_RARITIES,
   BALANCE,
   ENCANTADOS,
-  EXPEDITION_MAPS,
   ITEMS,
   JUAZEIRO_BRANCHES,
   JUAZEIRO_NODES,
@@ -49,7 +50,6 @@ import {
   UPGRADES,
 } from '../data';
 import { canChallengeBoss } from '../domain/actions';
-import { countLoot, getExpeditionFighter } from '../domain/expedition';
 import {
   canCarve,
   getBagAmulets,
@@ -64,9 +64,6 @@ import {
   getEncantado,
   getEnemy,
   getItem,
-  getExpeditionMap,
-  getMapSize,
-  getTileAt,
   getZoneForStage,
 } from '../domain/catalog';
 import { getClockInfo, getDayPhase } from '../domain/clock';
@@ -106,11 +103,10 @@ import type {
   ModifierStat,
   MoonPhase,
   Origin,
-  ExpeditionOutcome,
   Rarity,
-  SceneEvent,
 } from '../domain/types';
-import { isDeepEqual } from '../utils/object';
+import { createStableSelector, toNamedAmounts } from './selectorTools';
+import type { NamedAmount } from './selectorTools';
 import type { GameSnapshot, RebrotaCeremony } from './types';
 import { countTuningChanges, describeTuningChanges, listTuningFields } from './tuning';
 import type { TuningFieldView } from './tuning';
@@ -119,12 +115,7 @@ import type { TuningFieldView } from './tuning';
 // =============================================================================
 // T I P O S   D A S   V I S Õ E S
 
-// Um nome com uma quantidade, como "Mel silvestre: 3"
-export interface NamedAmount {
-  id: string;
-  name: string;
-  amount: number;
-}
+export type { NamedAmount } from './selectorTools';
 
 // Cabeçalho: os recursos que a pessoa junta
 export interface HeaderView {
@@ -961,247 +952,6 @@ function buildPartyView(snapshot: GameSnapshot): PartyView {
 }
 
 
-// =============================================================================
-// =============================================================================
-// E X P E D I Ç Õ E S
-
-// O desenho de um mapa: um id de ladrilho por coluna, uma lista por linha
-export interface MapView {
-  id: string;
-  name: string;
-  width: number; // em ladrilhos
-  height: number;
-  tiles: string[][]; // tiles[linha][coluna] = id do ladrilho (src/data/world.ts)
-  exit: { x: number; y: number }; // ladrilho da passagem de volta para a clareira
-}
-
-// Um mapa na aba "Expedições" da clareira
-export interface ExpeditionOptionView {
-  id: string;
-  name: string;
-  level: number;
-  enemyNames: string[];
-}
-
-// Aba "Expedições": quem sairia, com quanta vida, e os mapas
-export interface ExpeditionListView {
-  leaderName: string | null; // null sem comitiva
-  leaderMaxHp: number;
-  durationSeconds: number;
-  completionBonus: number; // de 0 a 1
-  options: ExpeditionOptionView[];
-}
-
-// Painel ao lado do mapa durante a expedição
-export interface ExpeditionHudView {
-  mapName: string;
-  leaderName: string;
-  lootCount: number; // visagens na bolsa
-}
-
-// Uma visagem no quadro atual
-export interface SceneEnemyFrame {
-  uid: number;
-  enemyId: string;
-  name: string;
-  level: number;
-  x: number;
-  y: number;
-  hpFraction: number; // de 0 a 1
-}
-
-// Um projétil no quadro atual
-export interface SceneProjectileFrame {
-  uid: number;
-  isSpecial: boolean;
-  x: number;
-  y: number;
-}
-
-// Tudo que o canvas desenha num quadro. Muda a cada tick, então não passa pelo React.
-export interface SceneFrame {
-  mapId: string;
-  leaderId: string;
-  playerX: number;
-  playerY: number;
-  hpFraction: number; // de 0 a 1
-  hp: number;
-  maxHp: number;
-  isHurt: boolean; // levou golpe agora há pouco: a personagem pisca
-  attackProgress: number; // de 0 a 1
-  specialReadiness: number; // de 0 (acabou de usar) a 1 (pronto)
-  secondsLeft: number; // até o fim do tempo da expedição
-  lootCount: number;
-  attackRange: number; // em ladrilhos
-  projectileRadius: number; // em ladrilhos
-  enemies: SceneEnemyFrame[];
-  projectiles: SceneProjectileFrame[];
-}
-
-// Janela da volta: como terminou e o que a bolsa rendeu
-export interface ExpeditionReportView {
-  outcome: ExpeditionOutcome;
-  mapName: string;
-  seconds: number;
-  kills: number;
-  bonusKills: number;
-  gold: number;
-  xp: number;
-  items: NamedAmount[];
-  trails: NamedAmount[];
-  levelUps: NamedAmount[];
-  amuletsFound: number;
-}
-
-// Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota e dano)
-export type SceneEventView = SceneEvent;
-
-// O desenho de cada mapa é montado uma vez só: o mapa não muda durante o jogo
-const mapViewCache = new Map<string, MapView>();
-
-// Mapa da expedição em andamento, ou null na clareira
-export function selectExpeditionMapView(snapshot: GameSnapshot): MapView | null {
-  const mapId = snapshot.expeditionScene?.mapId ?? snapshot.expedition?.mapId;
-
-  if (mapId === undefined) {
-    return null;
-  }
-
-  const cached = mapViewCache.get(mapId);
-
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const view = buildMapView(mapId);
-  mapViewCache.set(mapId, view);
-  return view;
-}
-
-// Há expedição em andamento (a tela da expedição fica por cima da clareira)
-export function selectIsOnExpedition(snapshot: GameSnapshot): boolean {
-  return snapshot.expedition !== null;
-}
-
-export const selectExpeditionList = createStableSelector(buildExpeditionList);
-export const selectExpeditionHud = createStableSelector(buildExpeditionHud);
-export const selectExpeditionReport = createStableSelector(buildExpeditionReport);
-
-/**
- * Leitura de cada quadro do canvas: personagem, visagens, projéteis, vida e tempo.
- *
- * Não use com useGameStore(...): muda a cada tick e redesenharia o React.
- * O canvas chama esta leitura com useGameStore.getState() a cada quadro.
- *
- * @param snapshot Retrato da store.
- * @returns O quadro, ou null sem expedição em andamento.
- */
-export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
-  const scene = snapshot.expeditionScene;
-  const expedition = snapshot.expedition;
-
-  if (scene === null || expedition === null) {
-    return null;
-  }
-
-  return {
-    mapId: scene.mapId,
-    leaderId: expedition.encantadoId,
-    playerX: scene.playerX,
-    playerY: scene.playerY,
-    hpFraction: scene.playerMaxHp > 0 ? scene.playerHp / scene.playerMaxHp : 0,
-    hp: scene.playerHp,
-    maxHp: scene.playerMaxHp,
-    isHurt: scene.hurtSeconds > 0,
-    attackProgress: scene.attackProgress,
-    specialReadiness: 1 - scene.specialCooldown / BALANCE.specialCooldownSeconds,
-    secondsLeft: Math.max(0, BALANCE.expeditionDurationSeconds - scene.elapsedSeconds),
-    lootCount: countLoot(expedition.loot),
-    attackRange: BALANCE.attackRange,
-    projectileRadius: BALANCE.projectileRadius,
-    projectiles: scene.projectiles.map(({ uid, isSpecial, x, y }) => ({ uid, isSpecial, x, y })),
-    enemies: scene.enemies.map((enemy) => ({
-      uid: enemy.uid,
-      enemyId: enemy.enemyId,
-      name: getEnemy(enemy.enemyId).name,
-      level: enemy.level,
-      x: enemy.x,
-      y: enemy.y,
-      hpFraction: enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0,
-    })),
-  };
-}
-
-// Desenho de um mapa a partir de src/data/world.ts
-function buildMapView(mapId: string): MapView {
-  const map = getExpeditionMap(mapId);
-  const { width, height } = getMapSize(map);
-  const tiles = Array.from({ length: height }, (_, row) =>
-    Array.from({ length: width }, (_, column) => getTileAt(map, column, row)?.id ?? 'desconhecido'),
-  );
-
-  return { id: map.id, name: map.name, width, height, tiles, exit: map.exit };
-}
-
-// Aba "Expedições": mapas e quem sairia agora
-function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
-  const fighter = getExpeditionFighter(snapshot, snapshot.lastSaveTimestamp);
-
-  return {
-    leaderName: fighter === null ? null : getEncantado(fighter.encantadoId).name,
-    leaderMaxHp: fighter?.maxHp ?? 0,
-    durationSeconds: BALANCE.expeditionDurationSeconds,
-    completionBonus: BALANCE.expeditionCompletionBonus,
-    options: EXPEDITION_MAPS.map((map) => ({
-      id: map.id,
-      name: map.name,
-      level: map.level,
-      enemyNames: map.enemyIds.map((enemyId) => getEnemy(enemyId).name),
-    })),
-  };
-}
-
-// Painel ao lado do mapa: onde, quem e quanto já está na bolsa
-function buildExpeditionHud(snapshot: GameSnapshot): ExpeditionHudView | null {
-  const { expedition } = snapshot;
-
-  if (expedition === null) {
-    return null;
-  }
-
-  return {
-    mapName: getExpeditionMap(expedition.mapId).name,
-    leaderName: getEncantado(expedition.encantadoId).name,
-    lootCount: countLoot(expedition.loot),
-  };
-}
-
-// Janela da volta, com nomes no lugar dos ids
-function buildExpeditionReport(snapshot: GameSnapshot): ExpeditionReportView | null {
-  const report = snapshot.expeditionReport;
-
-  if (report === null) {
-    return null;
-  }
-
-  const { summary } = report;
-  const encantadoName = (id: string): string => getEncantado(id).name;
-
-  return {
-    outcome: report.outcome,
-    mapName: getExpeditionMap(report.mapId).name,
-    seconds: report.seconds,
-    kills: report.kills,
-    bonusKills: report.bonusKills,
-    gold: summary.gold,
-    xp: summary.xp,
-    items: toNamedAmounts(summary.items, (id) => getItem(id).name),
-    trails: toNamedAmounts(summary.trails, encantadoName),
-    levelUps: toNamedAmounts(summary.levelUps, encantadoName),
-    amuletsFound: summary.amuletsFound,
-  };
-}
-
 
 // =============================================================================
 // =============================================================================
@@ -1249,47 +999,3 @@ function buildTuningView(snapshot: GameSnapshot): TuningView {
   };
 }
 
-
-// =============================================================================
-// =============================================================================
-// F E R R A M E N T A S
-
-/**
- * Transforma um construtor de visão em um seletor que reaproveita o resultado.
- *
- * O React exige que um seletor devolva a mesma referência enquanto nada mudou.
- * Um seletor que monta um objeto novo a cada chamada faria o componente
- * redesenhar em todo tick, ou entrar em laço infinito. Este seletor compara o
- * resultado novo com o anterior por conteúdo e, se forem iguais, devolve o
- * anterior.
- *
- * @param build Função pura que monta a visão a partir do retrato da store.
- * @returns Seletor para usar em useGameStore(seletor).
- *
- * Caso de borda: o resultado guardado é um só por seletor. Serve porque o jogo
- * tem uma store só. Com mais de uma store, cada uma precisaria do próprio seletor.
- */
-function createStableSelector<View>(
-  build: (snapshot: GameSnapshot) => View,
-): (snapshot: GameSnapshot) => View {
-  let cached: { view: View } | null = null;
-
-  return (snapshot) => {
-    const view = build(snapshot);
-
-    if (cached !== null && isDeepEqual(cached.view, view)) {
-      return cached.view;
-    }
-
-    cached = { view };
-    return view;
-  };
-}
-
-// Contador { id: quantidade } -> lista com o nome de cada id
-function toNamedAmounts(
-  counters: Record<string, number>,
-  getName: (id: string) => string,
-): NamedAmount[] {
-  return Object.entries(counters).map(([id, amount]) => ({ id, name: getName(id), amount }));
-}

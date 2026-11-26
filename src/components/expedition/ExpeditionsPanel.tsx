@@ -6,7 +6,7 @@
  * botão de partir. Só formata o que recebe do seletor.
  */
 
-import { selectExpeditionList } from '../../store/selectors';
+import { selectExpeditionList } from '../../store/expeditionSelectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatDuration, formatNumber, formatPercent } from '../../utils/format';
 import { Button } from '../ui/Button';

@@ -36,9 +36,11 @@ na raiz do projeto.
   fonte de sorteio entram por parâmetro.
 - Não importa React nem Zustand.
 - Ação que não é permitida devolve `null`, em vez de lançar erro ou alterar algo.
-- `simulation.ts` trabalha, por dentro, em uma cópia privada do estado (o `draft`). As funções
-  internas alteram só essa cópia. Por fora, `advanceSimulation`, `dealDirectDamage` e
-  `rewardKills` são puras. `expeditionScene.ts` faz o mesmo com a cena do mapa em `advanceScene`.
+- `simulation.ts` e `rewards.ts` trabalham, por dentro, em uma cópia privada do estado (o
+  `draft`, dentro de `RewardContext`). As funções internas alteram só essa cópia. Por fora,
+  `advanceSimulation`, `dealDirectDamage` e `rewardKills` são puras. `expeditionScene.ts` faz o
+  mesmo com a cena do mapa em `advanceScene`, e `expeditionProjectiles.ts` só altera essa cena de
+  trabalho.
 
 **`src/data` só tem dados.**
 
@@ -57,8 +59,9 @@ na raiz do projeto.
 
 **`src/components` é burro.**
 
-- Lê a store por seletores de `src/store/selectors.ts`, que já entregam os dados prontos
-  (nomes resolvidos, custos calculados). Chama ações da store.
+- Lê a store por seletores de `src/store/selectors.ts` (e `src/store/expeditionSelectors.ts`,
+  para a expedição), que já entregam os dados prontos (nomes resolvidos, custos calculados).
+  Chama ações da store.
 - Não importa `domain` nem `data` e não faz conta de jogo. Só formata texto com `src/utils`.
 - **Seletores granulares.** Nunca `useGameStore()` sem seletor. Cada componente lê só o que
   mostra: um valor simples (`useGameStore((store) => store.buyUpgrade)`) ou uma visão de
@@ -117,6 +120,9 @@ o estado que ela devolveu.
 
 ### Expedição (por cima da clareira)
 
+As ações e o passo do mapa ficam em `src/store/expeditionSession.ts`. `useGameStore.ts` só junta
+essas ações às outras e chama o passo dentro do `tick`.
+
 1. A pessoa parte pela aba "Expedições" (`startExpedition`): o estado ganha `expedition` (mapa,
    quem saiu e a bolsa vazia) e a sessão ganha a cena (`createExpeditionScene`, em
    `src/domain/expeditionScene.ts`). `src/App.tsx` troca a clareira pela tela da expedição.
@@ -130,9 +136,10 @@ o estado que ela devolveu.
 4. A expedição termina no fim do tempo (`concluida`), quando a vida zera (`caiu`), na passagem
    de volta ou no botão (`voltou`), ou numa ausência ou recarga no meio dela (`interrompida`).
    `endExpedition` chama `finishExpedition`, que entrega a bolsa pelas regras de `rewardKills`
-   (com bônus só em `concluida`), e guarda o relatório em `expeditionReport`.
+   (`src/domain/rewards.ts`, com bônus só em `concluida`), e guarda o relatório em
+   `expeditionReport`.
 5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
-   lendo `readSceneFrame` e `selectExpeditionMapView`. Os eventos de `sceneEvents` viram
+   lendo `readSceneFrame` e `selectExpeditionMapView` (`src/store/expeditionSelectors.ts`). Os eventos de `sceneEvents` viram
    números que sobem.
 
 Os golpes da expedição são projéteis que voam pelo mapa (`projectiles`, na cena). O comum sai
@@ -181,18 +188,19 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Consulta de um dado por id, zona de um estágio | `src/domain/catalog.ts` |
 | Uma fórmula (vida, Patacas, XP, dano, custo, Raízes) | `src/domain/formulas.ts` |
 | Ordem dos golpes, derrota, chamada do chefe, fim do tempo do chefe | `src/domain/simulation.ts` |
-| O que um inimigo derrotado entrega (Patacas, XP, itens, Rastros) | `src/domain/simulation.ts`, bloco "Recompensas" |
+| O que um inimigo derrotado entrega (Patacas, XP, itens, Rastros) | `src/domain/rewards.ts`, `grantKillRewards` |
+| Uma peça de recompensa sozinha (Patacas, XP e nível, Oferenda, Rastro, amuleto) | `src/domain/rewards.ts`, bloco "Peças de recompensa" |
 | Dano direto fora do ritmo dos ataques (clique, teste) | `src/domain/simulation.ts`, `dealDirectDamage` |
 | Regras das ações da pessoa: comitiva, compra de melhoria, chefe, troca de estágio | `src/domain/actions.ts` |
 | Como melhorias, sinergias, amuletos e Raízes se combinam | `src/domain/modifiers.ts` |
 | Sorteio da queda e geração dos atributos de um amuleto | `src/domain/amulets.ts`, bloco "Queda" |
 | O que acontece com o amuleto que cai (mochila cheia, desmanche automático) | `src/domain/amulets.ts`, `receiveAmulet` |
 | Regras de vestir, tirar, desmanchar e entalhar | `src/domain/amulets.ts` |
-| Em que momento do combate o amuleto cai | `src/domain/simulation.ts`, `rollAmulet` |
+| Em que momento do combate o amuleto cai | `src/domain/rewards.ts`, `rollAmulet` (chamado por `grantKillRewards`) |
 | Quanto a Rebrota rende, quando libera, quando o juazeiro aparece | `src/domain/rebrota.ts`, blocos 1 e 2 |
 | O que fica e o que volta ao começo na Rebrota, atalho e bolsa herdada | `src/domain/rebrota.ts`, `performRebrota` |
 | Compra automática de melhorias (como escolhe o que comprar) | `src/domain/rebrota.ts`, `autoBuyUpgrades` |
-| Em que momento a compra automática roda | `src/domain/simulation.ts`, `runAutoBuy` |
+| Em que momento a compra automática roda | `src/domain/rewards.ts`, `runAutoBuy` |
 | Custo dos nós, Raízes livres e compra de um nó | `src/domain/juazeiro.ts`, blocos 1 e 2 |
 | Como o juazeiro muda tempo do chefe, mochila e ausência | `src/domain/juazeiro.ts`, bloco "Regras que dependem do juazeiro" |
 | Dia, noite e fases da lua | `src/domain/clock.ts` |
@@ -204,12 +212,14 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Movimento e colisão da personagem, passagem de volta | `src/domain/expeditionScene.ts`, bloco "Personagem" |
 | Ondas, passeio, perseguição e encostada das visagens | `src/domain/expeditionScene.ts`, bloco "Visagens" |
 | Quando o projétil comum e o especial saem, e para onde | `src/domain/expeditionScene.ts`, bloco "Golpes" |
-| Voo do projétil, acerto, atravessar visagens e fim (parede ou distância) | `src/domain/expeditionScene.ts`, bloco "Projéteis" |
+| O que acontece com a visagem acertada (dano, derrota, bolsa) | `src/domain/expeditionScene.ts`, `damageEnemy` |
+| Voo do projétil, acerto, atravessar visagens e fim (parede ou distância) | `src/domain/expeditionProjectiles.ts` |
+| Colisão com árvore e água, distâncias, ladrilhos livres para nascer | `src/domain/sceneGeometry.ts` |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
 | Quando dá para partir | `src/domain/expedition.ts`, `canStartExpedition` e `startExpedition` |
 | Como a bolsa junta as visagens | `src/domain/expedition.ts`, `addKillsToLoot` |
-| O que a bolsa rende na volta e o bônus | `src/domain/expedition.ts`, `finishExpedition` (usa `rewardKills`) |
+| O que a bolsa rende na volta e o bônus | `src/domain/expedition.ts`, `finishExpedition` (usa `rewardKills`, de `src/domain/rewards.ts`) |
 
 ### Estado, ações e salvamento (`src/store`)
 
@@ -217,17 +227,19 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 |---|---|
 | Lista de ações da store, campos de sessão, tipos de retorno | `src/store/types.ts` |
 | O que o `tick` faz e quando conta como ausência | `src/store/useGameStore.ts`, bloco "Ações de simulação" |
-| Partir, voltar, direção e golpe especial | `src/store/useGameStore.ts`, bloco "Ações de expedição" |
-| O passo da expedição dentro do tick e a entrega da bolsa | `src/store/useGameStore.ts`, `runExpeditionTick` e `endExpedition` |
+| Partir, voltar, direção e golpe especial | `src/store/expeditionSession.ts`, bloco "Ações de expedição" |
+| O passo da expedição dentro do tick e a entrega da bolsa | `src/store/expeditionSession.ts`, `runExpeditionTick` e `endExpedition` |
+| Gravar o estado novo, aplicar uma entrada da pessoa, listas vazias únicas | `src/store/storeTools.ts` |
 | Campos de sessão da expedição (cena, direção, golpe pedido, eventos, relatório) | `src/store/types.ts`, `SessionState` |
-| Aba de expedições, painel, janela da volta e leitura de cada quadro | `src/store/selectors.ts`, bloco "Expedições" |
+| Aba de expedições, painel, janela da volta e leitura de cada quadro | `src/store/expeditionSelectors.ts` |
+| Seletor que reaproveita o resultado, listas com nome | `src/store/selectorTools.ts` |
 | Conferência da expedição salva (mapa, quem saiu, bolsa) | `src/store/saveManager.ts`, `sanitizeExpedition` |
 | Ligação entre uma ação e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de jogo" |
 | Exportar, importar, apagar tudo, gravar agora | `src/store/useGameStore.ts`, bloco "Ações de salvamento" |
 | Ligação entre uma ação de amuleto e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de amuletos" |
 | Rebrotar, comprar nó, compra automática e a cerimônia | `src/store/useGameStore.ts`, bloco "Ações da Rebrota" |
 | Atalhos de teste do painel de debug | `src/store/useGameStore.ts`, bloco "Ações de teste" |
-| Os dados prontos que um componente recebe | `src/store/selectors.ts` |
+| Os dados prontos que um componente recebe | `src/store/selectors.ts` (expedição: `src/store/expeditionSelectors.ts`) |
 | Chave do `localStorage`, formato do código exportado, mensagens de erro | `src/store/saveManager.ts` |
 | Conferência de um salvamento lido ou importado | `src/store/saveManager.ts`, bloco "Conferência do salvamento" |
 | Conferência dos amuletos de um salvamento | `src/store/saveManager.ts`, `sanitizeAmulets` e `sanitizeEquipped` |
@@ -295,7 +307,8 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Painel de debug: métricas, botões, seções | `src/components/DebugView.tsx` |
 | Painel "Ajustes": busca, grupos, campos, atalhos e o botão do cabeçalho | `src/components/debug/TuningPanel.tsx` |
 
-Os dados que cada componente recebe vêm de `src/store/selectors.ts`. Os eventos de combate
+Os dados que cada componente recebe vêm de `src/store/selectors.ts` e, na expedição, de
+`src/store/expeditionSelectors.ts`. Os eventos de combate
 viram golpes e linhas de registro em `src/store/eventViews.ts`.
 
 ### Ferramentas (`src/utils`)
@@ -338,7 +351,8 @@ viram golpes e linhas de registro em `src/store/eventViews.ts`.
    montar o estado novo. Nunca altere o estado recebido.
 2. Documente com JSDoc, incluindo os casos em que devolve `null`.
 3. Declare a ação em `GameActions`, em `src/store/types.ts`.
-4. Ligue a ação em `src/store/useGameStore.ts`, usando `applyInput`.
+4. Ligue a ação em `src/store/useGameStore.ts` (ou `src/store/expeditionSession.ts`, se for da
+   expedição), usando `applyInput`.
 5. Teste a regra em `tests/domain.test.ts` com o estado congelado (`deepFreeze`).
 
 ### Acrescentar um campo ao estado salvo
@@ -363,8 +377,9 @@ Campo que só existe com o jogo aberto (não é salvo) vai em `SessionState`, em
 
 ### Mostrar um dado novo na tela
 
-1. Acrescente o campo na visão certa de `src/store/selectors.ts` (ou crie uma visão nova com
-   `createStableSelector`). É aqui que entram as consultas a `data` e as contas do `domain`.
+1. Acrescente o campo na visão certa de `src/store/selectors.ts` ou, se for da expedição, de
+   `src/store/expeditionSelectors.ts` (ou crie uma visão nova com `createStableSelector`, de
+   `src/store/selectorTools.ts`). É aqui que entram as consultas a `data` e as contas do `domain`.
 2. No componente, leia com `useGameStore(seletor)` e só formate o valor.
 
 ### Acrescentar um painel ou uma aba à tela
@@ -475,10 +490,12 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
 1. Se precisa de dado novo na cena, inclua em `ExpeditionScene` ou `SceneEnemy`
    (`src/domain/types.ts`) e dê o valor inicial em `createExpeditionScene`
    (`src/domain/expeditionScene.ts`). A cena não é salva: não precisa de migração.
-2. Escreva a regra como função interna de `src/domain/expeditionScene.ts`, alterando só o
-   `draft`, e chame em `runStep`, na ordem certa.
+2. Escreva a regra alterando só o `draft` e chame em `runStep`
+   (`src/domain/expeditionScene.ts`), na ordem certa. Regra que cresce (mais de umas poucas
+   funções) vai num arquivo próprio em `src/domain`, como `expeditionProjectiles.ts`, e não
+   dentro de `expeditionScene.ts`. Use a geometria de `sceneGeometry.ts`.
 3. Se a tela precisa ver, acrescente em `SceneFrame` e `readSceneFrame`
-   (`src/store/selectors.ts`) e desenhe em `mapRenderer.ts`.
+   (`src/store/expeditionSelectors.ts`) e desenhe em `mapRenderer.ts`.
 4. Teste em `tests/expedition.test.ts`, com a cena montada à mão e congelada (`createScene`).
 
 ### Acrescentar um sistema novo (o caminho que os amuletos seguiram)
@@ -490,16 +507,17 @@ Siga esta ordem. Cada passo só depende dos anteriores.
 2. Dados: tabelas em um arquivo novo de `src/data`, exportadas por `src/data/index.ts`, e as
    constantes em `balance.ts`. Consulta por id em `src/domain/catalog.ts`.
 3. Store: campos em `GameState` (receita "Acrescentar um campo ao estado salvo"), ações em
-   `GameActions` ligadas com `applyInput`, gatilho dentro de `src/domain/simulation.ts` se o
-   sistema reage ao combate, e a visão da tela em `src/store/selectors.ts`.
+   `GameActions` ligadas com `applyInput` (`src/store/storeTools.ts`), gatilho dentro de
+   `src/domain/rewards.ts` se o sistema reage a uma derrota, e a visão da tela em
+   `src/store/selectors.ts`.
 4. Tela: componente burro na pasta do assunto e a aba em `GameScreen.tsx`.
 5. Testes: um arquivo de teste do domínio (`tests/amulets.test.ts` é o modelo), casos de
    salvamento em `tests/store.test.ts` e casos de tela em `tests/GameScreen.test.tsx`.
 
 ### Acrescentar um tipo de linha ao registro
 
-1. O evento nasce em `src/domain/simulation.ts` e o tipo dele fica em `CombatEvent`
-   (`src/domain/types.ts`).
+1. O evento nasce em `src/domain/simulation.ts` ou `src/domain/rewards.ts`, e o tipo dele fica
+   em `CombatEvent` (`src/domain/types.ts`).
 2. Traduza o evento em `src/store/eventViews.ts`: tipo novo em `LogEntryKind` e um caso em
    `toLogEntry`. O TypeScript acusa se faltar.
 3. Dê a frase e o ícone em `src/components/arena/EventLog.tsx`.
