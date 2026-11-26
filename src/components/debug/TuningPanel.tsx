@@ -7,7 +7,8 @@
  * (nível de quem sai em expedição e Patacas) e a lista das mudanças para
  * copiar e tornar permanente no código.
  *
- * O botão "Ajustes" fica no cabeçalho da clareira e da expedição. Para tirar
+ * O botão "Ajustes" fica no cabeçalho da clareira e da expedição. A janela
+ * fecha pelo botão "Fechar" ou pela tecla Esc. Para tirar
  * o botão do jogo, troque SHOW_TUNING_BUTTON para false.
  *
  * Mapa:
@@ -96,6 +97,9 @@ export function TuningPanel({ onClose }: TuningPanelProps) {
         <Button disabled={view.changeCount === 0} onClick={() => resetTuning(null)}>
           Desfazer tudo ({view.changeCount})
         </Button>
+        <Button variant="solid" onClick={onClose}>
+          Fechar
+        </Button>
       </div>
 
       <div className="mt-3 max-h-[55vh] space-y-2 overflow-y-auto pr-1">
@@ -106,6 +110,12 @@ export function TuningPanel({ onClose }: TuningPanelProps) {
       </div>
 
       {view.changeCount > 0 && <ChangesSection text={view.changesText} />}
+
+      <div className="mt-4 flex justify-end">
+        <Button variant="solid" onClick={onClose}>
+          Fechar
+        </Button>
+      </div>
     </Modal>
   );
 }

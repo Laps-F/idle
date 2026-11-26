@@ -105,6 +105,7 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 16 | Recarregar a página | O botão continua "Ajustes (1)": a mudança ficou guardada no navegador. |
 | 17 | Abrir "Ajustes" durante uma expedição e mudar "Dano base no nível 1" das visagens | As visagens que nascem dali em diante batem com o dano novo. As setas e o W, A, S e D não movem a personagem enquanto você escreve no campo. |
 | 18 | Clicar em "Desfazer tudo" | Todos os números voltam ao código e o botão volta a "Ajustes". |
+| 19 | Clicar em "Fechar" (ou apertar Esc) | A janela fecha. |
 
 ## 6. Roteiro da clareira (combate por estágios)
 

@@ -2,6 +2,14 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: botão de fechar no painel "Ajustes"
+
+O painel "Ajustes" só fechava pela tecla Esc, e sem botão parecia que não fechava nunca. Entrou
+o botão "Fechar" ao lado de "Desfazer tudo" e outro no fim da janela.
+
+- `src/components/debug/TuningPanel.tsx`: os dois botões.
+- `tests/TuningPanel.test.tsx`: caso "fecha pelo botão Fechar".
+
 ## 26/11/2026: painel de ajustes de teste
 
 Para testar a dificuldade sem mexer no código, entrou o painel "Ajustes", no cabeçalho da

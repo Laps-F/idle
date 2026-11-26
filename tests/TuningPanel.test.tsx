@@ -4,7 +4,7 @@
  * Arquivo: tests/TuningPanel.test.tsx
  * O que faz: testa o painel "Ajustes" num navegador simulado: abrir pelo
  * botão do cabeçalho, buscar, mudar um número, ver a contagem no botão, o
- * atalho de nível e o "Desfazer tudo".
+ * atalho de nível, o "Desfazer tudo" e o botão de fechar.
  */
 
 import { act } from 'react';
@@ -87,6 +87,14 @@ describe('painel Ajustes', () => {
     await click('Desfazer tudo');
     expect(BALANCE.enemyBaseHp).toBe(original);
     expect(findButton('Ajustes').textContent?.trim()).toBe('Ajustes');
+  });
+
+  it('fecha pelo botão "Fechar"', async () => {
+    await click('Ajustes');
+    expect(document.querySelector('[role=dialog]')).not.toBeNull();
+
+    await click('Fechar');
+    expect(document.querySelector('[role=dialog]')).toBeNull();
   });
 
   it('a busca deixa só os ajustes com o termo', async () => {
