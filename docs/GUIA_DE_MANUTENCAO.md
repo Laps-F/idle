@@ -175,6 +175,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Ondas: visagens no começo, teto, ritmo de chegada, nível subindo com o tempo | `src/data/balance.ts`, bloco "Expedições: ondas" |
 | Desenho de um mapa, bônus de nível (`levelBonus`), visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
 | Saque de um mapa: Patacas e XP por visagem, Oferendas que caem, chance de amuleto | `src/data/expeditionLoot.ts`, `EXPEDITION_LOOT` |
+| Preparos antes de partir: nome, texto, custo em Oferendas e o que mudam | `src/data/expeditionPreparations.ts`, `EXPEDITION_PREPARATIONS` |
 | Tipos de ladrilho: símbolo no desenho e se dá para passar | `src/data/world.ts`, `TILES` |
 | Ataque, velocidade, origem, raridade, quadra ou pacto de um encantado | `src/data/encantados.ts` |
 | Vida, Patacas, XP ou itens que uma visagem ou chefe deixa cair | `src/data/enemies.ts` |
@@ -229,7 +230,9 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Colisão com árvore e água, distâncias, ladrilhos livres para nascer | `src/domain/sceneGeometry.ts` |
 | Pegadas de Rastro: quando surgem, onde, de quem, como são pegas, pegada da visagem derrotada | `src/domain/expeditionFootprints.ts` |
 | De quem as pegadas podem ser num mapa e quantas faltam (zona, hora, pacto, bolsa) | `src/domain/expedition.ts`, `getTrailTargets` |
-| O que a cena recebe para começar (mapa, quem sai, pegadas, chance de Rastro) | `src/domain/expedition.ts`, `getSceneSetup` |
+| O que a cena recebe para começar (mapa, quem sai, pegadas, chance de Rastro, modificadores) | `src/domain/expedition.ts`, `getSceneSetup` |
+| Modificadores da partida (preparo hoje; bênçãos e esquiva depois), pagar e conferir o preparo | `src/domain/expeditionModifiers.ts` |
+| Partir com preparo (paga as Oferendas) | `src/domain/expedition.ts`, `startExpedition` |
 | Entrega dos Rastros da bolsa na volta (sem passar do pacto) | `src/domain/expeditionLoot.ts`, `rewardExpeditionBag` |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
@@ -468,6 +471,21 @@ atributo em `src/domain/modifiers.ts`, usá-lo na conta certa do domínio e dar 
    `currentColor` e os cortes usam os estilos `CUT` e `CUT_FILL`.
 2. Registre em `FIGURES`, com o mesmo id usado em `src/data`. Sem registro, aparece a figura
    genérica.
+
+### Acrescentar um preparo de expedição
+
+1. Acrescente uma entrada em `src/data/expeditionPreparations.ts`: `id`, `name`, `description`,
+   `cost` (Oferendas de `src/data/items.ts`) e `modifiers` (só o que muda; o resto vale 1).
+2. Os efeitos possíveis são os campos de `RunModifiers` (`src/domain/types.ts`). A aba
+   "Expedições" e o painel "Ajustes" mostram o preparo sozinhos.
+3. Rode `npm test`. O teste de dados confere ids, Oferendas e efeitos.
+
+### Acrescentar algo que muda uma partida (bênção, esquiva)
+
+1. Ponha o efeito novo como campo de `RunModifiers` (`src/domain/types.ts`) e em
+   `NEUTRAL_RUN_MODIFIERS` (`src/domain/expeditionModifiers.ts`), valendo 1.
+2. Em `getRunModifiers`, multiplique os valores da nova fonte por cima do preparo.
+3. Na cena, leia `draft.modifiers.<campo>` onde o número é usado, nunca o preparo direto.
 
 ### Acrescentar um mapa de expedição
 

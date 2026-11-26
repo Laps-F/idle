@@ -54,6 +54,7 @@ function ExpeditionSection() {
       <p className="text-sm">Quem saiu: {hud.leaderName}</p>
       <p className="text-sm">Visagens na bolsa: {formatNumber(hud.lootCount)}</p>
       <p className="text-sm">Rastros na bolsa: {formatNumber(hud.trailCount)}</p>
+      <p className="text-sm">Preparo: {hud.preparationName ?? 'nenhum'}</p>
       <Button variant="outline" onClick={leaveExpedition}>
         Voltar para a clareira agora
       </Button>

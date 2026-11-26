@@ -82,7 +82,7 @@ export interface GameActions {
   yieldToAnotherTab: () => void;
 
   // Expedições. startExpedition e leaveExpedition devolvem true quando a ação foi aplicada.
-  startExpedition: (mapId: string) => boolean;
+  startExpedition: (mapId: string, preparationId?: string | null) => boolean;
   leaveExpedition: () => boolean;
   setMoveInput: (input: MoveInput) => void;
   triggerSpecial: () => void;

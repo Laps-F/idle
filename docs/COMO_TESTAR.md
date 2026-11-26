@@ -95,6 +95,11 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 9b | Na aba "Expedições", ler a linha "Pegadas" de cada mapa | De dia aparece "Caipora (faltam 3)". À noite aparece também o Boitatá. Depois de fechar os dois pactos, "nenhum encantado precisa de Rastro agora". |
 | 9c | Partir e esperar uns 10 segundos | Surge um bloco laranja pequeno escrito "Pegada: Caipora", longe da personagem. A cada uns 20 segundos surge outra, no máximo 2 no chão. Às vezes uma visagem derrotada deixa uma pegada onde caiu. |
 | 9d | Passar por cima da pegada | Sobe "+1 Rastro", a pegada some e "Rastros" no painel de cima e em "Rastros na bolsa" sobe 1. Na volta, a janela mostra os Rastros e o Almanaque soma, sem passar do que o pacto pede. |
+| 9e | Na aba "Expedições", olhar "Preparo (opcional)" sem Oferendas | Os três preparos aparecem apagados, com o custo e quanto você tem ("Custa 3 Mel silvestre (você tem 0)"). |
+| 9f | Juntar 3 de mel silvestre, clicar em "Favo no toco" e partir | O botão de partir passa a dizer "Partir para ... com Favo no toco". Ao partir, o mel cai 3, chegam mais visagens e mais depressa, e o painel ao lado do mapa mostra "Preparo: Favo no toco". A janela da volta também mostra o preparo. |
+| 9g | Partir com "Trilha de cipó" (3 de cipó) | As pegadas surgem duas vezes mais rápido (a primeira uns 5 segundos depois de partir). |
+| 9h | Partir com "Brasa no bornal" (1 brasa viva, do Corpo-Seco ou do Brejo Escuro) | O golpe especial tira o dobro e a barra dele enche em 4 segundos, em vez de 6. |
+| 9i | Escolher um preparo e clicar nele de novo | A escolha é desfeita e partir não gasta nada. |
 | 9a | Fazer algumas expedições no Brejo Escuro | De vez em quando a bolsa traz brasa viva, que antes só o Corpo-Seco da clareira deixava. Os amuletos caem com mais frequência que na Beira da Mata. |
 | 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |

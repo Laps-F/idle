@@ -33,6 +33,7 @@ import { getDayPhase, matchesClock } from './clock';
 import { getAttackDamage, getAttackInterval, getExpeditionMaxHp } from './formulas';
 import { getModifiers } from './modifiers';
 import { rewardExpeditionBag } from './expeditionLoot';
+import { getRunModifiers, payPreparation } from './expeditionModifiers';
 import { isTrailStillNeeded } from './rewards';
 import type { SimulationOptions } from './rewards';
 import type {
@@ -96,23 +97,37 @@ export function canStartExpedition(state: GameState, mapId: string): boolean {
 }
 
 /**
- * Parte em expedição com o primeiro encantado da comitiva.
+ * Parte em expedição com o primeiro encantado da comitiva e, se pedido, um preparo.
  *
  * A clareira continua rendendo enquanto isso: nada do combate por estágios muda.
+ * O preparo é pago na hora, com Oferendas (src/domain/expeditionModifiers.ts).
  *
  * @param state Estado do jogo. Não é alterado.
  * @param mapId Mapa da expedição.
- * @returns Estado com a expedição em andamento e a bolsa vazia, ou null se não der para
- *          partir (sem comitiva, já em expedição ou mapa que não existe).
+ * @param preparationId Preparo de src/data/expeditionPreparations.ts, ou null para nenhum.
+ * @returns Estado com a expedição em andamento, a bolsa vazia e as Oferendas do preparo
+ *          descontadas, ou null se não der para partir (sem comitiva, já em expedição, mapa
+ *          que não existe, preparo que não existe ou Oferendas de menos).
  */
-export function startExpedition(state: GameState, mapId: string): GameState | null {
+export function startExpedition(
+  state: GameState,
+  mapId: string,
+  preparationId: string | null = null,
+): GameState | null {
   const encantadoId = state.party[0];
 
   if (!canStartExpedition(state, mapId) || encantadoId === undefined) {
     return null;
   }
 
-  return { ...state, expedition: { mapId, encantadoId, loot: [], trails: {} } };
+  const paid = preparationId === null ? state : payPreparation(state, preparationId);
+
+  if (paid === null) {
+    return null;
+  }
+
+  const expedition = { mapId, encantadoId, loot: [], trails: {}, preparationId };
+  return { ...paid, expedition };
 }
 
 
@@ -122,8 +137,8 @@ export function startExpedition(state: GameState, mapId: string): GameState | nu
  * @param state Estado com a expedição já em andamento (depois de startExpedition).
  * @param timestamp Instante da partida em ms. Decide sinergias de dia ou de noite e de
  *                  quem as pegadas podem ser (o Boitatá só à noite).
- * @returns Mapa, quem sai, de quem são as pegadas e a chance de Rastro de quem sai.
- *          Null sem expedição em andamento.
+ * @returns Mapa, quem sai, de quem são as pegadas, a chance de Rastro de quem sai e o que
+ *          o preparo muda na partida. Null sem expedição em andamento.
  */
 export function getSceneSetup(state: GameState, timestamp: number): SceneSetup | null {
   const { expedition } = state;
@@ -137,6 +152,7 @@ export function getSceneSetup(state: GameState, timestamp: number): SceneSetup |
     fighter: getExpeditionFighter(state, timestamp),
     trailTargets: getTrailTargets(state, expedition.mapId, timestamp),
     trailChance: getModifiers(state, getDayPhase(timestamp)).trailChance,
+    modifiers: getRunModifiers(expedition.preparationId),
   };
 }
 
@@ -302,6 +318,7 @@ export function finishExpedition(
       seconds,
       kills: kills.length,
       bonusKills: bonusKills.length,
+      preparationId: expedition.preparationId,
       summary: result.summary,
     },
   };

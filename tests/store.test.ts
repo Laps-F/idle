@@ -731,10 +731,25 @@ describe('expedições e salvamento da versão 5', () => {
       encantadoId: 'saci',
       loot: [],
       trails: {},
+      preparationId: null,
     });
     expect(state.expeditionScene?.trailTargets).toEqual([{ encantadoId: 'caipora', remaining: 3 }]);
     expect(state.expeditionScene?.playerHp).toBe(BALANCE.playerBaseHp);
     expect(state.startExpedition('brejo-escuro')).toBe(false);
+  });
+
+  it('parte com um preparo: paga as Oferendas e a cena já começa com o efeito', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    useGameStore.setState({ inventory: { 'cipo-trancado': 4 } });
+
+    expect(useGameStore.getState().startExpedition('beira-da-mata', 'favo-no-toco')).toBe(false);
+    expect(useGameStore.getState().startExpedition('beira-da-mata', 'trilha-de-cipo')).toBe(true);
+
+    const state = useGameStore.getState();
+    expect(state.inventory['cipo-trancado']).toBe(1);
+    expect(state.expedition?.preparationId).toBe('trilha-de-cipo');
+    expect(state.expeditionScene?.modifiers.footprintRate).toBe(2);
   });
 
   it('anda na expedição e a clareira continua rendendo ao mesmo tempo', async () => {
@@ -758,6 +773,7 @@ describe('expedições e salvamento da versão 5', () => {
         encantadoId: 'saci',
         loot: [{ enemyId: 'visagem-da-neblina', level: 1, count: 5 }],
         trails: {},
+        preparationId: null,
       },
     });
     const goldBefore = useGameStore.getState().gold;
@@ -857,8 +873,10 @@ describe('expedições e salvamento da versão 5', () => {
     const useGameStore = await openGame();
 
     expect(useGameStore.getState().expedition?.loot).toHaveLength(1);
-    // Salvamento da versão 5 de antes das pegadas: sem "trails", abre com a bolsa sem Rastros
+    // Salvamento da versão 5 de antes das pegadas e dos preparos: sem "trails" nem
+    // "preparationId", abre com a bolsa sem Rastros e sem preparo
     expect(useGameStore.getState().expedition?.trails).toEqual({});
+    expect(useGameStore.getState().expedition?.preparationId).toBeNull();
     runTicks(useGameStore, 1);
     expect(useGameStore.getState().expedition).toBeNull();
     expect(useGameStore.getState().expeditionReport?.kills).toBe(3);
@@ -874,6 +892,7 @@ describe('expedições e salvamento da versão 5', () => {
         encantadoId: 'iara',
         loot: [],
         trails: { caipora: 2, nada: 4, boitata: -1 },
+        preparationId: 'preparo-que-nao-existe',
       },
     };
     localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: saved, version: 5 }));
@@ -882,6 +901,7 @@ describe('expedições e salvamento da versão 5', () => {
 
     // Encantado que não existe sai. Número negativo vira zero, como nos outros contadores.
     expect(useGameStore.getState().expedition?.trails).toEqual({ caipora: 2, boitata: 0 });
+    expect(useGameStore.getState().expedition?.preparationId).toBeNull();
     runTicks(useGameStore, 1);
     expect(useGameStore.getState().expeditionReport?.outcome).toBe('interrompida');
     expect(useGameStore.getState().trails.caipora).toBe(Math.min(3, trailsBefore + 2));

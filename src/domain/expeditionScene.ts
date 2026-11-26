@@ -122,7 +122,7 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
   const map = getExpeditionMap(mapId);
   const start = toTileCenter(map.start.x, map.start.y);
   const maxHp = fighter?.maxHp ?? BALANCE.playerBaseHp;
-  const footprintInterval = getFootprintInterval(setup.trailChance);
+  const footprintInterval = getFootprintInterval(setup.trailChance * setup.modifiers.footprintRate);
   const context = createContext(
     {
       mapId,
@@ -147,6 +147,7 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
       footprintTimer: footprintInterval / 2,
       footprintIntervalSeconds: footprintInterval,
       nextFootprintUid: 1,
+      modifiers: { ...setup.modifiers },
     },
     null,
     random,
@@ -289,7 +290,7 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
 function movePlayer(context: StepContext, input: ExpeditionInput, seconds: number): void {
   const { draft, map } = context;
   const direction = normalizeInput(input);
-  const distance = BALANCE.playerSpeed * seconds;
+  const distance = BALANCE.playerSpeed * draft.modifiers.playerSpeed * seconds;
   const nextX = draft.playerX + direction.x * distance;
   const nextY = draft.playerY + direction.y * distance;
 
@@ -335,7 +336,9 @@ function updateWaves(context: StepContext, seconds: number): void {
   const { draft } = context;
   const minutes = draft.elapsedSeconds / SECONDS_PER_MINUTE;
   const extraEnemies = Math.floor(minutes * BALANCE.waveMaxEnemiesPerMinute);
-  const maxEnemies = BALANCE.waveMaxEnemiesStart + extraEnemies;
+  const maxEnemies = Math.round(
+    (BALANCE.waveMaxEnemiesStart + extraEnemies) * draft.modifiers.maxEnemies,
+  );
 
   draft.spawnTimer = Math.max(0, draft.spawnTimer - seconds);
 
@@ -344,10 +347,11 @@ function updateWaves(context: StepContext, seconds: number): void {
   }
 
   spawnEnemy(context);
-  draft.spawnTimer = Math.max(
+  const interval = Math.max(
     BALANCE.waveSpawnSecondsMin,
     BALANCE.waveSpawnSecondsStart - minutes * BALANCE.waveSpawnSpeedupPerMinute,
   );
+  draft.spawnTimer = interval / draft.modifiers.spawnRate;
 }
 
 // Põe uma visagem sorteada num lugar livre, longe da personagem. Sem lugar livre, não põe.
@@ -445,15 +449,11 @@ function touchPlayer(context: StepContext, enemy: SceneEnemy): void {
     return;
   }
 
-  draft.playerHp = Math.max(0, draft.playerHp - enemy.damage);
+  const damage = Math.max(1, Math.ceil(enemy.damage * draft.modifiers.damageTaken));
+  draft.playerHp = Math.max(0, draft.playerHp - damage);
   draft.hurtSeconds = BALANCE.hurtFlashSeconds;
   enemy.hitCooldown = BALANCE.enemyHitCooldownSeconds;
-  context.events.push({
-    type: 'hurt',
-    x: draft.playerX,
-    y: draft.playerY,
-    damage: enemy.damage,
-  });
+  context.events.push({ type: 'hurt', x: draft.playerX, y: draft.playerY, damage });
 }
 
 // A visagem espera parada ou anda até o ponto escolhido. Ao chegar, escolhe outro.
@@ -560,13 +560,13 @@ function fireSpecialIfPending(context: StepContext): void {
     return;
   }
 
-  draft.specialCooldown = BALANCE.specialCooldownSeconds;
+  draft.specialCooldown = BALANCE.specialCooldownSeconds * draft.modifiers.specialCooldown;
   launchProjectile(draft, {
     isSpecial: true,
     direction: { x: draft.facingX, y: draft.facingY },
     speed: BALANCE.specialProjectileSpeed,
     maxDistance: BALANCE.specialProjectileMaxDistance,
-    damage: fighter.damage * BALANCE.specialDamageMultiplier,
+    damage: fighter.damage * BALANCE.specialDamageMultiplier * draft.modifiers.specialDamage,
     isCrit: false,
   });
 }

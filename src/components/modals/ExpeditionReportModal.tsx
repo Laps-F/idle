@@ -94,6 +94,10 @@ function getGains(report: ExpeditionReportView): Gain[] {
     { label: 'Visagens na bolsa', value: formatNumber(report.kills) },
   ];
 
+  if (report.preparationName !== null) {
+    gains.unshift({ label: 'Preparo', value: report.preparationName });
+  }
+
   if (report.bonusKills > 0) {
     gains.push({ label: 'Visagens de bônus', value: `+${formatNumber(report.bonusKills)}` });
   }

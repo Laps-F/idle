@@ -17,11 +17,12 @@
  *   3. Construção das visões
  */
 
-import { BALANCE, EXPEDITION_MAPS } from '../data';
+import { BALANCE, EXPEDITION_MAPS, EXPEDITION_PREPARATIONS } from '../data';
 import {
   getEncantado,
   getEnemy,
   getExpeditionMap,
+  getExpeditionPreparation,
   getItem,
   getMapSize,
   getTileAt,
@@ -32,8 +33,9 @@ import {
   getExpeditionFighter,
   getTrailTargets,
 } from '../domain/expedition';
+import { canAffordPreparation } from '../domain/expeditionModifiers';
 import { getFighterBaseLevel, getMapStartLevel } from '../domain/expeditionScaling';
-import type { ExpeditionOutcome, SceneEvent } from '../domain/types';
+import type { ExpeditionOutcome, ExpeditionScene, SceneEvent } from '../domain/types';
 import { createStableSelector, toNamedAmounts } from './selectorTools';
 import type { NamedAmount } from './selectorTools';
 import type { GameSnapshot } from './types';
@@ -62,12 +64,23 @@ export interface ExpeditionOptionView {
 }
 
 // Aba "Expedições": quem sairia, com quanta vida, e os mapas (com as pegadas que podem surgir)
+// Um preparo que dá para escolher antes de partir
+export interface ExpeditionPreparationView {
+  id: string;
+  name: string;
+  description: string;
+  cost: NamedAmount[]; // Oferendas que o preparo gasta
+  have: NamedAmount[]; // quanto de cada uma está guardado, na mesma ordem
+  canAfford: boolean;
+}
+
 export interface ExpeditionListView {
   leaderName: string | null; // null sem comitiva
   leaderMaxHp: number;
   durationSeconds: number;
   completionBonus: number; // de 0 a 1
   options: ExpeditionOptionView[];
+  preparations: ExpeditionPreparationView[];
 }
 
 // Painel ao lado do mapa durante a expedição
@@ -76,6 +89,7 @@ export interface ExpeditionHudView {
   leaderName: string;
   lootCount: number; // visagens na bolsa
   trailCount: number; // Rastros das pegadas na bolsa
+  preparationName: string | null; // preparo desta expedição, ou null
 }
 
 // Uma visagem no quadro atual
@@ -141,6 +155,7 @@ export interface ExpeditionReportView {
   trails: NamedAmount[];
   levelUps: NamedAmount[];
   amuletsFound: number;
+  preparationName: string | null; // preparo usado, ou null
 }
 
 // Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota e dano)
@@ -214,7 +229,7 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
     maxHp: scene.playerMaxHp,
     isHurt: scene.hurtSeconds > 0,
     attackProgress: scene.attackProgress,
-    specialReadiness: 1 - scene.specialCooldown / BALANCE.specialCooldownSeconds,
+    specialReadiness: 1 - scene.specialCooldown / getSpecialCooldown(scene),
     secondsLeft: Math.max(0, BALANCE.expeditionDurationSeconds - scene.elapsedSeconds),
     lootCount: countLoot(expedition.loot),
     trailCount: countTrails(expedition.trails),
@@ -279,6 +294,7 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
         }),
       ),
     })),
+    preparations: buildPreparations(snapshot),
   };
 }
 
@@ -295,6 +311,7 @@ function buildExpeditionHud(snapshot: GameSnapshot): ExpeditionHudView | null {
     leaderName: getEncantado(expedition.encantadoId).name,
     lootCount: countLoot(expedition.loot),
     trailCount: countTrails(expedition.trails),
+    preparationName: getPreparationName(expedition.preparationId),
   };
 }
 
@@ -321,5 +338,33 @@ function buildExpeditionReport(snapshot: GameSnapshot): ExpeditionReportView | n
     trails: toNamedAmounts(summary.trails, encantadoName),
     levelUps: toNamedAmounts(summary.levelUps, encantadoName),
     amuletsFound: summary.amuletsFound,
+    preparationName: getPreparationName(report.preparationId),
   };
+}
+
+// Recarga inteira do golpe especial nesta partida (o preparo pode encurtar)
+function getSpecialCooldown(scene: ExpeditionScene): number {
+  return BALANCE.specialCooldownSeconds * scene.modifiers.specialCooldown;
+}
+
+// Nome do preparo, ou null sem preparo
+function getPreparationName(preparationId: string | null): string | null {
+  return preparationId === null ? null : getExpeditionPreparation(preparationId).name;
+}
+
+// Cada preparo com o custo, o que está guardado e se dá para pagar
+function buildPreparations(snapshot: GameSnapshot): ExpeditionPreparationView[] {
+  return EXPEDITION_PREPARATIONS.map((preparation) => {
+    const itemIds = Object.keys(preparation.cost);
+    const toAmounts = (counters: Record<string, number>): NamedAmount[] =>
+      itemIds.map((id) => ({ id, name: getItem(id).name, amount: counters[id] ?? 0 }));
+    return {
+      id: preparation.id,
+      name: preparation.name,
+      description: preparation.description,
+      cost: toAmounts(preparation.cost),
+      have: toAmounts(snapshot.inventory),
+      canAfford: canAffordPreparation(snapshot, preparation.id),
+    };
+  });
 }

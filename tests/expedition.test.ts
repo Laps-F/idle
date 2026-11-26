@@ -15,6 +15,11 @@ import { chooseStarter } from '../src/domain/actions';
 import { getEnemy, getExpeditionLoot, getExpeditionMap } from '../src/domain/catalog';
 import { rewardExpeditionBag } from '../src/domain/expeditionLoot';
 import {
+  canAffordPreparation,
+  getRunModifiers,
+  NEUTRAL_RUN_MODIFIERS,
+} from '../src/domain/expeditionModifiers';
+import {
   addKillsToLoot,
   addTrailsToLoot,
   countLoot,
@@ -75,6 +80,7 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
     footprintTimer: 999,
     footprintIntervalSeconds: 20,
     nextFootprintUid: 1,
+    modifiers: { ...NEUTRAL_RUN_MODIFIERS },
     elapsedSeconds: 0,
     playerX: 10.5,
     playerY: 11.5,
@@ -96,7 +102,13 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
 
 // O que a cena precisa para começar, no primeiro mapa e sem pegadas
 function setupFor(fighter: SceneSetup['fighter'], targets: TrailTarget[] = []): SceneSetup {
-  return { mapId: FIRST_MAP, fighter, trailTargets: targets, trailChance: 1 };
+  return {
+    mapId: FIRST_MAP,
+    fighter,
+    trailTargets: targets,
+    trailChance: 1,
+    modifiers: { ...NEUTRAL_RUN_MODIFIERS },
+  };
 }
 
 // Visagem parada num ponto
@@ -151,6 +163,7 @@ function createGameOnExpedition(): GameState {
         { enemyId: 'vulto-da-capoeira', level: 2, count: 2 },
       ],
       trails: {},
+      preparationId: null,
     },
   });
 }
@@ -431,6 +444,7 @@ describe('partir, bolsa e volta', () => {
       encantadoId: 'saci',
       loot: [],
       trails: {},
+      preparationId: null,
     });
     expect(started === null ? null : startExpedition(started, FIRST_MAP)).toBeNull();
   });
@@ -647,7 +661,13 @@ describe('pegadas de Rastro', () => {
     const night = BALANCE.dayLengthMs * 0.75;
     const withBag = {
       ...game,
-      expedition: { mapId: FIRST_MAP, encantadoId: 'saci', loot: [], trails: { caipora: 1 } },
+      expedition: {
+        mapId: FIRST_MAP,
+        encantadoId: 'saci',
+        loot: [],
+        trails: { caipora: 1 },
+        preparationId: null,
+      },
     };
     const withPact = { ...game, trails: { caipora: 3 } };
 
@@ -684,5 +704,106 @@ describe('pegadas de Rastro', () => {
 
     expect(result.state.trails.caipora).toBe(2);
     expect(result.summary.kills).toBe(0);
+  });
+});
+
+describe('preparos com Oferendas', () => {
+  const withOfferings = (inventory: Record<string, number>): GameState => ({
+    ...createGame(),
+    inventory,
+  });
+
+  it('a partida sem preparo é neutra, e cada preparo muda só o que diz', () => {
+    expect(getRunModifiers(null)).toEqual(NEUTRAL_RUN_MODIFIERS);
+    expect(getRunModifiers('nada')).toEqual(NEUTRAL_RUN_MODIFIERS);
+    expect(getRunModifiers('brasa-no-bornal')).toEqual({
+      ...NEUTRAL_RUN_MODIFIERS,
+      specialDamage: 2,
+      specialCooldown: 2 / 3,
+    });
+    expect(getRunModifiers('favo-no-toco')).toEqual({
+      ...NEUTRAL_RUN_MODIFIERS,
+      spawnRate: 1.5,
+      maxEnemies: 1.5,
+    });
+  });
+
+  it('partir com preparo paga as Oferendas e guarda o preparo na expedição', () => {
+    const game = withOfferings({ 'mel-silvestre': 5 });
+    const started = startExpedition(game, FIRST_MAP, 'favo-no-toco');
+
+    expect(started?.inventory['mel-silvestre']).toBe(2);
+    expect(started?.expedition?.preparationId).toBe('favo-no-toco');
+    expect(game.inventory['mel-silvestre']).toBe(5);
+    expect(startExpedition(game, FIRST_MAP)?.inventory['mel-silvestre']).toBe(5);
+  });
+
+  it('sem Oferendas bastantes ou com preparo que não existe, não parte', () => {
+    const game = withOfferings({ 'mel-silvestre': 2 });
+
+    expect(canAffordPreparation(game, 'favo-no-toco')).toBe(false);
+    expect(startExpedition(game, FIRST_MAP, 'favo-no-toco')).toBeNull();
+    expect(startExpedition(game, FIRST_MAP, 'nada')).toBeNull();
+    expect(canAffordPreparation(withOfferings({ 'brasa-viva': 1 }), 'brasa-no-bornal')).toBe(true);
+  });
+
+  it('a volta conta qual preparo foi usado', () => {
+    const game = withOfferings({ 'brasa-viva': 1 });
+    const started = startExpedition(game, FIRST_MAP, 'brasa-no-bornal');
+    const result = started === null ? null : finishExpedition(started, 'voltou', 10, {
+      startTimestamp: 0,
+      random: createSeededRandom(1),
+    });
+
+    expect(result?.report?.preparationId).toBe('brasa-no-bornal');
+  });
+
+  it('a cena usa os modificadores: velocidade, dano recebido e teto de visagens', () => {
+    const fast = createScene({ modifiers: { ...NEUTRAL_RUN_MODIFIERS, playerSpeed: 2 } });
+    const right = { moveX: 1, moveY: 0, useSpecial: false };
+    const moved = advanceScene(fast, null, right, 0.5, createSeededRandom(1));
+    const fragile = createScene({
+      modifiers: { ...NEUTRAL_RUN_MODIFIERS, damageTaken: 2 },
+      enemies: [createEnemy(10.9, 11.5, { damage: 7 })],
+    });
+    const hurt = advanceScene(fragile, null, STOPPED, 0.05, createSeededRandom(1));
+    const crowded = createScene({
+      modifiers: getRunModifiers('favo-no-toco'),
+      spawnTimer: 0,
+      enemies: Array.from({ length: BALANCE.waveMaxEnemiesStart }, (_, index) =>
+        createEnemy(20.5, 5.5, { uid: index + 1 }),
+      ),
+    });
+    const spawned = advanceScene(crowded, null, STOPPED, 0.05, createSeededRandom(1));
+
+    expect(moved.scene.playerX).toBeCloseTo(10.5 + BALANCE.playerSpeed, POSITION_DIGITS);
+    expect(hurt.scene.playerHp).toBe(fragile.playerHp - 14);
+    // Com o favo, o teto passa do normal: a visagem nova entra mesmo com o mapa "cheio"
+    expect(spawned.scene.enemies).toHaveLength(BALANCE.waveMaxEnemiesStart + 1);
+    // O intervalo do começo encurta um pouco com o tempo do passo, por isso a precisão menor
+    expect(spawned.scene.spawnTimer).toBeCloseTo(BALANCE.waveSpawnSecondsStart / 1.5, 2);
+  });
+
+  it('a brasa dobra o dano do especial e encurta a recarga', () => {
+    const target = createEnemy(12.5, 11.5, { damage: 0, hp: 1000, maxHp: 1000 });
+    const scene = createScene({ modifiers: getRunModifiers('brasa-no-bornal'), enemies: [target] });
+    const fighter = { ...STRONG_FIGHTER, damage: 2 };
+    const special = { ...STOPPED, useSpecial: true };
+    const result = advanceScene(scene, fighter, special, 0.5, createSeededRandom(1));
+
+    expect(result.scene.enemies[0]?.hp).toBe(1000 - 2 * BALANCE.specialDamageMultiplier * 2);
+    // O especial sai no primeiro pedaço do passo e a recarga já anda no resto dele
+    const shortCooldown = (BALANCE.specialCooldownSeconds * 2) / 3;
+    expect(result.scene.specialCooldown).toBeLessThanOrEqual(shortCooldown);
+    expect(result.scene.specialCooldown).toBeGreaterThan(shortCooldown - 0.5);
+  });
+
+  it('a trilha de cipó faz as pegadas surgirem duas vezes mais rápido', () => {
+    const setup = { ...setupFor(null), modifiers: getRunModifiers('trilha-de-cipo') };
+    const scene = createExpeditionScene(setup, createSeededRandom(1));
+
+    expect(scene.footprintIntervalSeconds).toBe(BALANCE.footprintSpawnSeconds / 2);
+    expect(scene.modifiers).toEqual(getRunModifiers('trilha-de-cipo'));
+    expect(scene.modifiers).not.toBe(setup.modifiers);
   });
 });

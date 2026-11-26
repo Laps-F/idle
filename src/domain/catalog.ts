@@ -22,6 +22,7 @@ import {
   JUAZEIRO_NODES,
   EXPEDITION_LOOT,
   EXPEDITION_MAPS,
+  EXPEDITION_PREPARATIONS,
   TILES,
   UPGRADES,
   ZONES,
@@ -33,6 +34,7 @@ import type {
   EnemyDef,
   ExpeditionLootDef,
   ExpeditionMapDef,
+  ExpeditionPreparationDef,
   ItemDef,
   JuazeiroNodeDef,
   Rarity,
@@ -53,6 +55,7 @@ const AMULET_BASES_BY_ID = indexById(AMULET_BASES);
 const JUAZEIRO_NODES_BY_ID = indexById(JUAZEIRO_NODES);
 const ZONES_BY_ID = indexById(ZONES);
 const EXPEDITION_MAPS_BY_ID = indexById(EXPEDITION_MAPS);
+const EXPEDITION_PREPARATIONS_BY_ID = indexById(EXPEDITION_PREPARATIONS);
 const EXPEDITION_LOOT_BY_MAP = new Map(EXPEDITION_LOOT.map((loot) => [loot.mapId, loot]));
 const TILES_BY_SYMBOL = new Map(TILES.map((tile) => [tile.symbol, tile]));
 
@@ -205,6 +208,15 @@ export function getExpeditionLoot(mapId: string): ExpeditionLootDef {
 
 export function hasExpeditionLoot(mapId: string): boolean {
   return EXPEDITION_LOOT_BY_MAP.has(mapId);
+}
+
+// Preparo de expedição pago com Oferendas (src/data/expeditionPreparations.ts)
+export function getExpeditionPreparation(id: string): ExpeditionPreparationDef {
+  return getOrThrow(EXPEDITION_PREPARATIONS_BY_ID, id, 'Preparo de expedição');
+}
+
+export function hasExpeditionPreparation(id: string): boolean {
+  return EXPEDITION_PREPARATIONS_BY_ID.has(id);
 }
 
 /**

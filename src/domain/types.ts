@@ -393,6 +393,31 @@ export interface ExpeditionState {
   encantadoId: string; // quem saiu em expedição (o primeiro da comitiva na hora de partir)
   loot: ExpeditionLoot[];
   trails: Record<string, number>; // Rastros das pegadas pegas, por encantado, entregues na volta
+  preparationId: string | null; // preparo pago ao partir (src/data/expeditionPreparations.ts)
+}
+
+/*
+ * O que muda numa partida de expedição: preparos hoje, bênçãos e esquiva
+ * depois. Todos são multiplicadores; 1 é o normal. Quem monta é
+ * src/domain/expeditionModifiers.ts, e quem aplica é a cena.
+ */
+export interface RunModifiers {
+  playerSpeed: number; // velocidade da personagem
+  specialDamage: number; // dano do golpe especial
+  specialCooldown: number; // recarga do golpe especial (menor é mais rápido)
+  spawnRate: number; // ritmo das visagens novas (maior é mais rápido)
+  maxEnemies: number; // teto de visagens no mapa
+  footprintRate: number; // ritmo das pegadas (maior é mais rápido)
+  damageTaken: number; // dano de cada encostada
+}
+
+// Um preparo pago com Oferendas antes de partir (src/data/expeditionPreparations.ts)
+export interface ExpeditionPreparationDef {
+  id: string;
+  name: string;
+  description: string;
+  cost: Record<string, number>; // Oferendas gastas ao partir
+  modifiers: Partial<RunModifiers>; // só o que muda; o resto vale 1
 }
 
 // Um encantado cujas pegadas podem aparecer no mapa, e quantas ainda faltam para o pacto
@@ -415,6 +440,7 @@ export interface SceneSetup {
   fighter: Pick<ExpeditionFighter, 'maxHp' | 'damage'> | null; // null: vida base e nível 1
   trailTargets: TrailTarget[]; // de quem as pegadas podem ser. Vazio: nenhuma pegada.
   trailChance: number; // multiplicador de chance de Rastro de quem sai (1: normal)
+  modifiers: RunModifiers; // preparo (e, depois, bênçãos) desta partida
 }
 
 // Como a expedição terminou
@@ -462,6 +488,7 @@ export interface ExpeditionScene {
   footprintTimer: number; // segundos até a próxima pegada surgir
   footprintIntervalSeconds: number; // intervalo entre pegadas, já com a chance de Rastro
   nextFootprintUid: number;
+  modifiers: RunModifiers; // o que muda nesta partida (preparo). Fixo do começo ao fim.
 }
 
 // Um projétil voando pelo mapa. Só existe com o jogo aberto, não é salvo.
@@ -525,5 +552,6 @@ export interface ExpeditionReport {
   seconds: number;
   kills: number; // visagens na bolsa
   bonusKills: number; // visagens extras do bônus de quem aguentou até o fim
+  preparationId: string | null; // preparo usado nesta expedição
   summary: SimulationSummary;
 }

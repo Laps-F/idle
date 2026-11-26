@@ -14,6 +14,7 @@ import {
   ENEMIES,
   EXPEDITION_LOOT,
   EXPEDITION_MAPS,
+  EXPEDITION_PREPARATIONS,
   TILES,
   UPGRADES,
   ZONES,
@@ -28,6 +29,7 @@ import {
   hasItem,
   hasZone,
 } from '../src/domain/catalog';
+import { NEUTRAL_RUN_MODIFIERS } from '../src/domain/expeditionModifiers';
 import type { ExpeditionMapDef } from '../src/domain/types';
 
 describe('dados do jogo', () => {
@@ -106,6 +108,31 @@ function isFreeTile(map: ExpeditionMapDef, column: number, row: number): boolean
   const tile = getTileAt(map, column, row);
   return tile !== null && !tile.isSolid;
 }
+
+describe('preparos de expedição', () => {
+  const modifierKeys = Object.keys(NEUTRAL_RUN_MODIFIERS);
+
+  it('ids únicos, custo em Oferendas que existem e efeitos conhecidos e positivos', () => {
+    const ids = EXPEDITION_PREPARATIONS.map((preparation) => preparation.id);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    for (const preparation of EXPEDITION_PREPARATIONS) {
+      expect(preparation.name.length).toBeGreaterThan(0);
+      expect(preparation.description.length).toBeGreaterThan(0);
+      expect(Object.keys(preparation.cost).length).toBeGreaterThan(0);
+      expect(Object.keys(preparation.modifiers).length).toBeGreaterThan(0);
+
+      for (const [itemId, amount] of Object.entries(preparation.cost)) {
+        expect(hasItem(itemId)).toBe(true);
+        expect(Number.isInteger(amount) && amount >= 1).toBe(true);
+      }
+      for (const [key, value] of Object.entries(preparation.modifiers)) {
+        expect(modifierKeys).toContain(key);
+        expect(value).toBeGreaterThan(0);
+      }
+    }
+  });
+});
 
 describe('mapas de expedição', () => {
   it('cada mapa tem um saque, com Oferendas que existem e números válidos', () => {

@@ -80,6 +80,7 @@ src/
     expeditionScaling.ts  escala da expedição: nível pelo poder de quem sai, dano da encostada
     expeditionLoot.ts  saque próprio da expedição: o que cada visagem da bolsa rende
     expeditionFootprints.ts  pegadas de Rastro no mapa: surgir e pegar
+    expeditionModifiers.ts  o que muda numa partida (preparos) e o pagamento do preparo
     sceneGeometry.ts   distâncias, colisão e ladrilhos livres do mapa
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)
@@ -93,6 +94,7 @@ src/
     juazeiro.ts        galhos e nós do juazeiro
     world.ts           mapas de expedição: tipos de ladrilho e mapas desenhados em texto
     expeditionLoot.ts  saque de cada mapa: Patacas, XP, Oferendas e chance de amuleto
+    expeditionPreparations.ts  preparos pagos com Oferendas antes de partir
     index.ts           ponto único de importação dos datasets
   store/               estado global (Zustand), tempo e salvamento
     types.ts           tipagens da store: ações, estado de sessão, retornos
@@ -172,6 +174,9 @@ laço passa a rodar a cada 16 ms para a personagem andar suave.
 - Pegadas de Rastro surgem no chão (`src/domain/expeditionFootprints.ts`). Passar por cima guarda
   um Rastro na bolsa. A expedição é a fonte principal de Rastros: a clareira dá só 15% do que
   dava (`clearingTrailMultiplier`).
+- Antes de partir, dá para pagar um preparo com Oferendas (`src/data/expeditionPreparations.ts`):
+  mais visagens, mais pegadas ou um golpe especial mais forte. O que muda na partida passa por um
+  objeto só, `RunModifiers` (`src/domain/expeditionModifiers.ts`).
 - Na volta, a bolsa vira Patacas, XP, Oferendas, Rastros e amuletos pelo saque próprio de cada
   mapa (`src/data/expeditionLoot.ts`, entregue por `src/domain/expeditionLoot.ts`).
 - A expedição não roda com o jogo fechado. Ela pausa ao esconder a aba, ao trocar de janela e
@@ -308,9 +313,9 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSki
 
 ## Próximas etapas
 
-1. Caminho 1 (ligar a clareira e a expedição): pausa, escala, saque próprio e pegadas prontos.
-   Falta o preparo com Oferendas antes de partir.
-2. Jogar a expedição e decidir se o combate é divertido. Balancear as ondas.
+1. Caminho 1 (ligar a clareira e a expedição): pronto. Pausa, escala, saque próprio, pegadas e
+   preparos com Oferendas.
+2. Jogar a expedição e decidir se o combate é divertido. Balancear as ondas e os preparos.
 3. Esquiva, bênçãos e um golpe especial diferente para cada encantado.
 4. Repensar a Rebrota com a clareira e as expedições.
 5. Imagens no lugar dos blocos coloridos (docs/SPRITES.md) e controle na tela para celular.

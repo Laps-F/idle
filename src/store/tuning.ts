@@ -34,9 +34,11 @@ import {
   ENEMIES,
   EXPEDITION_LOOT,
   EXPEDITION_MAPS,
+  EXPEDITION_PREPARATIONS,
   UPGRADES,
   ZONES,
 } from '../data';
+import type { RunModifiers } from '../domain/types';
 
 // =============================================================================
 // =============================================================================
@@ -99,6 +101,7 @@ const GROUP = {
   maps: 'Expedição: mapas',
   expeditionLoot: 'Expedição: saque de cada mapa',
   footprints: 'Expedição: pegadas de Rastro',
+  preparations: 'Expedição: preparos com Oferendas',
   enemies: 'Visagens: vida e recompensas (clareira e expedição)',
   enemyTypes: 'Visagens: cada tipo',
   drops: 'Quedas de Oferendas',
@@ -514,6 +517,36 @@ function createExpeditionLootFields(): TuningField[] {
   });
 }
 
+// Custo e efeito de cada preparo (só os efeitos que o preparo já tem)
+function createPreparationFields(): TuningField[] {
+  return EXPEDITION_PREPARATIONS.flatMap((preparation) => {
+    const source = `src/data/expeditionPreparations.ts, ${preparation.id}`;
+    const costs = Object.keys(preparation.cost).map((itemId) =>
+      createObjectField(preparation.cost, itemId, {
+        id: `preparation.${preparation.id}.cost.${itemId}`,
+        source: `${source}, cost.${itemId}`,
+        group: GROUP.preparations,
+        label: `${preparation.name}: custo em ${itemId}`,
+        step: 1,
+        min: 1,
+        isInteger: true,
+      }),
+    );
+    const effectKeys = Object.keys(preparation.modifiers) as (keyof RunModifiers)[];
+    const effects = effectKeys.map((key) =>
+      createObjectField(preparation.modifiers, key, {
+        id: `preparation.${preparation.id}.modifiers.${key}`,
+        source: `${source}, modifiers.${key}`,
+        group: GROUP.preparations,
+        label: `${preparation.name}: ${key} (vezes o normal)`,
+        step: 0.1,
+        min: 0.1,
+      }),
+    );
+    return [...costs, ...effects];
+  });
+}
+
 const LOOT_LABELS = {
   goldMultiplier: 'Patacas por visagem (vezes a fórmula da clareira)',
   xpMultiplier: 'XP por visagem (vezes a fórmula da clareira)',
@@ -605,6 +638,7 @@ const FIELDS: TuningField[] = [
   ...createBalanceFields(),
   ...createMapFields(),
   ...createExpeditionLootFields(),
+  ...createPreparationFields(),
   ...createEnemyFields(),
   ...createEncantadoFields(),
   ...createZoneFields(),

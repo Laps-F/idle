@@ -2,6 +2,61 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: preparos com Oferendas e modificadores da partida (Etapa 5 do Caminho 1)
+
+Primeiro uso das Oferendas depois dos pactos: antes de partir, a pessoa pode pagar um preparo.
+
+| Preparo | Custo | Efeito na partida |
+|---|---|---|
+| Favo no toco | 3 mel silvestre | visagens chegam 1,5 vez mais rápido e o teto sobe 1,5 vez |
+| Trilha de cipó | 3 cipó trançado | pegadas surgem duas vezes mais rápido |
+| Brasa no bornal | 1 brasa viva | golpe especial com o dobro de dano e recarga de 4 s (era 6) |
+
+- Um preparo por expedição, opcional, pago ao partir. Não volta, nem se a expedição acabar cedo.
+- Sem Oferendas bastantes, o preparo fica apagado na aba "Expedições", com o custo e quanto se
+  tem. Escolher de novo desfaz a escolha.
+- O preparo aparece no painel ao lado do mapa e na janela da volta.
+- **Estrutura para a esquiva e as bênçãos:** tudo o que muda uma partida passa por um objeto só,
+  `RunModifiers` (velocidade, dano e recarga do especial, ritmo e teto de visagens, ritmo das
+  pegadas, dano recebido). `getRunModifiers` monta o objeto (hoje só do preparo) e a cena lê
+  `draft.modifiers`, nunca o preparo direto. As bênçãos vão multiplicar por cima do mesmo objeto.
+- O salvamento continua na versão 5. A expedição salva sem `preparationId`, ou com um preparo que
+  não existe mais, abre sem preparo (o custo já tinha sido pago).
+
+Medição: o robô das outras etapas cai em pouco mais de 1 minuto, e com 8 sementes a variação dele
+é maior que o efeito dos preparos. Os testes confirmam que cada preparo faz o que promete, mas o
+equilíbrio entre eles (por exemplo, se o Favo no toco compensa o perigo a mais) precisa de jogo
+de verdade.
+
+Arquivos:
+
+- `src/data/expeditionPreparations.ts` (novo): `EXPEDITION_PREPARATIONS`. Exportado em
+  `src/data/index.ts`.
+- `src/domain/expeditionModifiers.ts` (novo): `NEUTRAL_RUN_MODIFIERS`, `getRunModifiers`,
+  `canAffordPreparation` e `payPreparation`.
+- `src/domain/types.ts`: `RunModifiers`, `ExpeditionPreparationDef`,
+  `ExpeditionState.preparationId`, `SceneSetup.modifiers`, `ExpeditionScene.modifiers` e
+  `ExpeditionReport.preparationId`.
+- `src/domain/catalog.ts`: `getExpeditionPreparation` e `hasExpeditionPreparation`.
+- `src/domain/expedition.ts`: `startExpedition` aceita o preparo e paga; `getSceneSetup` passa os
+  modificadores; o relatório conta o preparo.
+- `src/domain/expeditionScene.ts`: velocidade, dano recebido, ritmo e teto das ondas, recarga e
+  dano do especial e ritmo das pegadas lidos de `draft.modifiers`.
+- `src/store/expeditionSession.ts` e `src/store/types.ts`: `startExpedition(mapId, preparationId)`.
+- `src/store/expeditionSelectors.ts`: lista de preparos com custo e se dá para pagar; o preparo no
+  painel e na volta; a barra do especial segue a recarga modificada.
+- `src/store/saveManager.ts`: confere `preparationId`.
+- `src/store/tuning.ts`: grupo "Expedição: preparos com Oferendas".
+- Tela: `ExpeditionsPanel.tsx` (escolha do preparo), `ExpeditionSidePanel.tsx` e
+  `ExpeditionReportModal.tsx`.
+- Testes: `tests/expedition.test.ts` (bloco "preparos com Oferendas"), `tests/data.test.ts`,
+  `tests/store.test.ts` (partir com preparo, salvamento) e `tests/ExpeditionScreen.test.tsx`
+  (escolher, partir, desfazer).
+- Documentação: guia de manutenção (tabelas e duas receitas novas), `docs/COMO_TESTAR.md` (passos
+  9e a 9i) e `README.md`.
+
+Com isso o Caminho 1 está completo: pausa, escala, saque próprio, pegadas e preparos.
+
 ## 26/11/2026: pegadas de Rastro na expedição (Etapa 4 do Caminho 1)
 
 A expedição virou a fonte principal de Rastros. A clareira continua dando alguns, para quem só

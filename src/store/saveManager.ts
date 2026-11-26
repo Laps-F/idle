@@ -29,6 +29,7 @@ import {
   getZoneForStage,
   hasAmuletBase,
   hasEncantado,
+  hasExpeditionPreparation,
   hasItem,
   hasJuazeiroNode,
   hasEnemy,
@@ -725,7 +726,12 @@ function sanitizeExpedition(
   const loot = Array.isArray(raw.loot) ? raw.loot.flatMap(sanitizeLootEntry) : [];
   // Salvamento da versão 5 de antes das pegadas não tem "trails": vira bolsa sem Rastros
   const trails = sanitizeCounters(raw.trails, hasEncantado);
-  return { mapId, encantadoId, loot, trails };
+  // Sem preparo salvo (ou com um que não existe mais): nenhum. O custo já tinha sido pago.
+  const preparationId =
+    typeof raw.preparationId === 'string' && hasExpeditionPreparation(raw.preparationId)
+      ? raw.preparationId
+      : null;
+  return { mapId, encantadoId, loot, trails, preparationId };
 }
 
 // Uma linha da bolsa: visagem que existe, nível e contagem inteiros e positivos

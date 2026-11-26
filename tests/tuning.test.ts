@@ -14,6 +14,7 @@ import { BALANCE, ENEMIES, EXPEDITION_MAPS } from '../src/data';
 import { chooseStarter } from '../src/domain/actions';
 import { getExpeditionFighter } from '../src/domain/expedition';
 import { createExpeditionScene } from '../src/domain/expeditionScene';
+import { getRunModifiers } from '../src/domain/expeditionModifiers';
 import { createInitialState } from '../src/domain/state';
 import {
   countTuningChanges,
@@ -127,7 +128,13 @@ describe('efeito no jogo', () => {
     setTuningValue('balance.playerBaseHp', 250);
     setTuningValue('map.beira-da-mata.levelBonus', 6);
     const fighter = game === null ? null : getExpeditionFighter(game, 0);
-    const setup = { mapId: 'beira-da-mata', fighter, trailTargets: [], trailChance: 1 };
+    const setup = {
+      mapId: 'beira-da-mata',
+      fighter,
+      trailTargets: [],
+      trailChance: 1,
+      modifiers: getRunModifiers(null),
+    };
     const scene = createExpeditionScene(setup, createSeededRandom(2));
 
     expect(fighter?.maxHp).toBe(250);

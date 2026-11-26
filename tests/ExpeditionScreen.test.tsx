@@ -83,6 +83,36 @@ describe('aba Expedições da clareira', () => {
   });
 });
 
+describe('preparo antes de partir', () => {
+  it('sem Oferendas o preparo fica apagado; com elas, escolhe e paga ao partir', async () => {
+    await mount();
+    expect(findButton('Favo no toco').disabled).toBe(true);
+    expect(host.textContent).toContain('Custa 3 Mel silvestre (você tem 0).');
+
+    await act(async () => useGameStore.setState({ inventory: { 'mel-silvestre': 3 } }));
+    await click('Favo no toco');
+    expect(findButton('Favo no toco').getAttribute('aria-pressed')).toBe('true');
+
+    await click('Partir para Beira da Mata com Favo no toco');
+
+    const state = useGameStore.getState();
+    expect(state.expedition?.preparationId).toBe('favo-no-toco');
+    expect(state.inventory['mel-silvestre']).toBe(0);
+    expect(host.textContent).toContain('Preparo: Favo no toco');
+  });
+
+  it('clicar de novo no preparo escolhido desfaz a escolha', async () => {
+    useGameStore.setState({ inventory: { 'brasa-viva': 1 } });
+    await mount();
+    await click('Brasa no bornal');
+    await click('Brasa no bornal (escolhido)');
+    await click('Partir para Beira da Mata');
+
+    expect(useGameStore.getState().expedition?.preparationId).toBeNull();
+    expect(useGameStore.getState().inventory['brasa-viva']).toBe(1);
+  });
+});
+
 describe('tela da expedição', () => {
   it('marca na legenda o arquivo de cada imagem que ainda falta', async () => {
     useGameStore.getState().startExpedition('beira-da-mata');

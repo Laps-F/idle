@@ -4,14 +4,19 @@
  * O que faz: a aba "Expedições" da clareira. Explica como a expedição
  * funciona, mostra quem sairia e com quanta vida, e lista os mapas com o
  * nível, as visagens, de quem são as pegadas que podem surgir e o botão de
- * partir. Só formata o que recebe do seletor.
+ * partir. Antes de partir dá para escolher um preparo pago com Oferendas. Só
+ * formata o que recebe do seletor. A escolha do preparo é estado só da tela:
+ * quem confere e paga é a store (startExpedition).
  *
  * Mapa:
  *   1. Aba
- *   2. Textos
+ *   2. Preparos
+ *   3. Textos
  */
 
+import { useState } from 'react';
 import { selectExpeditionList } from '../../store/expeditionSelectors';
+import type { ExpeditionPreparationView } from '../../store/expeditionSelectors';
 import type { NamedAmount } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatDuration, formatNumber, formatPercent } from '../../utils/format';
@@ -28,6 +33,9 @@ export function ExpeditionsPanel() {
   const list = useGameStore(selectExpeditionList);
   const startExpedition = useGameStore((store) => store.startExpedition);
   const canStart = list.leaderName !== null;
+  // Escolha só da tela, até partir. Preparo que deixou de caber no inventário vira "nenhum".
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  const chosen = list.preparations.find((item) => item.id === chosenId && item.canAfford) ?? null;
 
   return (
     <div className="space-y-3">
@@ -46,6 +54,11 @@ export function ExpeditionsPanel() {
           ? `Quem sai: ${list.leaderName}, com ${formatNumber(list.leaderMaxHp)} de vida.`
           : 'Escolha um encantado para começar antes de sair.'}
       </p>
+      <PreparationPicker
+        preparations={list.preparations}
+        chosenId={chosen?.id ?? null}
+        onChoose={setChosenId}
+      />
       <ul className="space-y-2">
         {list.options.map((option) => (
           <li key={option.id} className={CARD_CLASS}>
@@ -59,9 +72,14 @@ export function ExpeditionsPanel() {
               size="small"
               variant="solid"
               disabled={!canStart}
-              onClick={() => startExpedition(option.id)}
+              onClick={() => {
+                if (startExpedition(option.id, chosen?.id ?? null)) {
+                  setChosenId(null);
+                }
+              }}
             >
               Partir para {option.name}
+              {chosen === null ? '' : ` com ${chosen.name}`}
             </Button>
           </li>
         ))}
@@ -73,7 +91,59 @@ export function ExpeditionsPanel() {
 
 // =============================================================================
 // =============================================================================
+// P R E P A R O S
+
+interface PreparationPickerProps {
+  preparations: readonly ExpeditionPreparationView[];
+  chosenId: string | null;
+  onChoose: (id: string | null) => void;
+}
+
+// Um preparo por expedição, opcional. Clicar no escolhido desfaz a escolha.
+function PreparationPicker({ preparations, chosenId, onChoose }: PreparationPickerProps) {
+  return (
+    <section className="space-y-2" aria-label="Preparo antes de partir">
+      <h3 className="font-display text-lg leading-none">Preparo (opcional)</h3>
+      <p className="text-xs">
+        Gaste Oferendas para mudar a próxima expedição. Um preparo por vez, pago ao partir.
+      </p>
+      <ul className="space-y-2">
+        {preparations.map((preparation) => {
+          const isChosen = preparation.id === chosenId;
+          return (
+            <li key={preparation.id} className={CARD_CLASS}>
+              <Button
+                size="small"
+                variant={isChosen ? 'solid' : 'outline'}
+                disabled={!preparation.canAfford}
+                aria-pressed={isChosen}
+                onClick={() => onChoose(isChosen ? null : preparation.id)}
+              >
+                {isChosen ? `${preparation.name} (escolhido)` : preparation.name}
+              </Button>
+              <p className="text-xs">{preparation.description}</p>
+              <p className="text-xs">{describeCost(preparation)}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+
+// =============================================================================
+// =============================================================================
 // T E X T O S
+
+// "Custa 3 Mel silvestre (você tem 5)"
+function describeCost(preparation: ExpeditionPreparationView): string {
+  const parts = preparation.cost.map((item, index) => {
+    const have = preparation.have[index]?.amount ?? 0;
+    return `${formatNumber(item.amount)} ${item.name} (você tem ${formatNumber(have)})`;
+  });
+  return `Custa ${parts.join(' e ')}.`;
+}
 
 // "Pegadas: Caipora (faltam 3)", ou o aviso de que ninguém precisa de Rastro agora
 function describeFootprints(footprints: readonly NamedAmount[]): string {

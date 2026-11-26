@@ -63,13 +63,16 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
      * Parte em expedição com o primeiro encantado da comitiva e monta a cena do mapa.
      *
      * @param mapId Mapa da expedição (src/data/world.ts).
-     * @returns true se partiu. False sem comitiva, já em expedição ou com mapa que não existe.
+     * @param preparationId Opcional. Preparo pago com Oferendas ao partir
+     *                      (src/data/expeditionPreparations.ts). Ausente ou null: nenhum.
+     * @returns true se partiu. False sem comitiva, já em expedição, com mapa que não existe,
+     *          ou com preparo que não existe ou sem Oferendas bastantes.
      */
-    startExpedition: (mapId) =>
+    startExpedition: (mapId, preparationId = null) =>
       applyInput(
         set,
         get,
-        (state) => startExpedition(state, mapId),
+        (state) => startExpedition(state, mapId, preparationId),
         (_previous, next) => ({
           expeditionScene: createSceneFor(next),
           moveInput: NO_INPUT,
