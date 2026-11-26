@@ -2,12 +2,15 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/store/expeditionSession.ts
  * O que faz: a parte da store que cuida da expedição: as ações de partir,
- * andar, golpe especial e voltar, o passo do mapa dentro do tick e a entrega
- * da bolsa na volta. As regras ficam em src/domain/expedition.ts e
+ * andar, golpe especial, pausar e voltar, o passo do mapa dentro do tick, o que
+ * fazer com a expedição numa ausência e a entrega da bolsa na volta. As regras ficam em src/domain/expedition.ts e
  * src/domain/expeditionScene.ts. Aqui só se liga a entrada à regra e se grava.
  *
  * Quem usa: src/store/useGameStore.ts, que junta estas ações às outras e chama
- * runExpeditionTick e endExpedition dentro do tick.
+ * runExpeditionTick e holdExpeditionDuringAbsence dentro do tick.
+ *
+ * Pausa: com isExpeditionPaused, a cena não anda (tempo, ondas, recargas e
+ * visagens param). É só estado de sessão: não vai para o salvamento.
  *
  * Mapa:
  *   1. Ações de expedição
@@ -26,11 +29,18 @@ import { pickGameState } from '../domain/state';
 import type { ExpeditionOutcome } from '../domain/types';
 import { applyInput, commitState, NO_INPUT, NO_SCENE_EVENTS } from './storeTools';
 import type { GetStore, SetStore } from './storeTools';
-import type { GameActions } from './types';
+import type { GameActions, SessionState } from './types';
 
 // =============================================================================
 // =============================================================================
 // A Ç Õ E S   D E   E X P E D I Ç Ã O
+
+// Campos gravados ao pausar: a personagem para e o golpe pedido é esquecido
+const PAUSED_SESSION: Partial<SessionState> = {
+  isExpeditionPaused: true,
+  moveInput: NO_INPUT,
+  isSpecialPending: false,
+};
 
 export type ExpeditionActions = Pick<
   GameActions,
@@ -38,10 +48,12 @@ export type ExpeditionActions = Pick<
   | 'leaveExpedition'
   | 'setMoveInput'
   | 'triggerSpecial'
+  | 'pauseExpedition'
+  | 'resumeExpedition'
   | 'dismissExpeditionReport'
 >;
 
-// Partir, andar, golpe especial e voltar. As regras estão em src/domain/expedition.ts.
+// Partir, andar, golpe especial, pausar e voltar. As regras estão em src/domain/expedition.ts.
 export function createExpeditionActions(set: SetStore, get: GetStore): ExpeditionActions {
   return {
     /**
@@ -63,6 +75,7 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
           ),
           moveInput: NO_INPUT,
           isSpecialPending: false,
+          isExpeditionPaused: false,
           sceneEvents: NO_SCENE_EVENTS,
           expeditionReport: null,
         }),
@@ -84,19 +97,61 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
     },
 
     // Guarda a direção apertada. Só grava quando muda, para não redesenhar à toa.
+    // Com a expedição pausada, a direção fica parada: quem volta começa sem andar.
     setMoveInput: (input) => {
       const current = get().moveInput;
+      const hasChanged = current.moveX !== input.moveX || current.moveY !== input.moveY;
 
-      if (current.moveX !== input.moveX || current.moveY !== input.moveY) {
+      if (hasChanged && !get().isExpeditionPaused) {
         set({ moveInput: { moveX: input.moveX, moveY: input.moveY } });
       }
     },
 
-    // Pede o golpe especial. Ele sai no próximo tick, se estiver pronto.
+    // Pede o golpe especial. Ele sai no próximo tick, se estiver pronto. Pausada, não pede.
     triggerSpecial: () => {
-      if (get().expedition !== null) {
+      if (get().expedition !== null && !get().isExpeditionPaused) {
         set({ isSpecialPending: true });
       }
+    },
+
+    /**
+     * Pausa a cena do mapa: tempo, ondas, recargas, visagens e projéteis param.
+     *
+     * Chamada ao esconder a aba, ao trocar de janela (src/store/gameLoop.ts) e pela
+     * tecla P. A clareira continua rendendo. Antes de pausar, o jogo é simulado
+     * até agora, para a pausa valer a partir deste instante.
+     *
+     * Casos de borda: sem expedição, sem cena, já pausada ou com o jogo aberto em
+     * outra aba, não faz nada.
+     */
+    pauseExpedition: () => {
+      if (!canPause(get)) {
+        return;
+      }
+
+      get().tick(Date.now());
+
+      // O tick pode ter acabado com a expedição (fim do tempo bem nesse passo)
+      if (canPause(get)) {
+        set(PAUSED_SESSION);
+      }
+    },
+
+    /**
+     * Continua a expedição pausada. A cena volta a andar no próximo tick.
+     *
+     * Antes de continuar, o jogo é simulado até agora (só a clareira anda, porque a
+     * cena está pausada). Assim o próximo passo da cena mede só o tempo depois da volta.
+     *
+     * Casos de borda: sem expedição pausada ou com o jogo aberto em outra aba, não faz nada.
+     */
+    resumeExpedition: () => {
+      if (get().isOpenInAnotherTab || !get().isExpeditionPaused) {
+        return;
+      }
+
+      get().tick(Date.now());
+      set({ isExpeditionPaused: false });
     },
 
     dismissExpeditionReport: () => set({ expeditionReport: null }),
@@ -121,6 +176,7 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
  *
  * Casos de borda:
  * - Sem expedição em andamento: não faz nada.
+ * - Expedição pausada: a cena não anda. O tempo pausado não conta para nada.
  * - Expedição salva sem cena (a página foi recarregada no meio dela): entrega a
  *   bolsa como "interrompida".
  * - Os eventos só são entregues em intervalos de até maxSecondsWithEvents.
@@ -138,6 +194,9 @@ export function runExpeditionTick(
   }
   if (scene === null) {
     endExpedition(set, get, 'interrompida', now);
+    return;
+  }
+  if (get().isExpeditionPaused) {
     return;
   }
 
@@ -190,8 +249,46 @@ export function endExpedition(
     expeditionScene: null,
     moveInput: NO_INPUT,
     isSpecialPending: false,
+    isExpeditionPaused: false,
     sceneEvents: NO_SCENE_EVENTS,
     expeditionReport: result.report,
   });
   return true;
+}
+
+/**
+ * O que acontece com a expedição quando o tick encontra uma ausência (mais de
+ * offlineThresholdSeconds desde o último tick).
+ *
+ * Com a cena ainda na memória (aba escondida por muito tempo, computador
+ * dormindo), a expedição fica pausada esperando a pessoa. Sem cena (a página foi
+ * recarregada ou o jogo foi fechado), a bolsa é entregue como "interrompida", no
+ * instante do último tick.
+ *
+ * @param set Função de gravação da store.
+ * @param get Função de leitura da store.
+ *
+ * Caso de borda: sem expedição em andamento, não faz nada.
+ */
+export function holdExpeditionDuringAbsence(set: SetStore, get: GetStore): void {
+  if (get().expedition === null) {
+    return;
+  }
+
+  if (get().expeditionScene === null) {
+    endExpedition(set, get, 'interrompida', get().lastSaveTimestamp);
+  } else {
+    set(PAUSED_SESSION);
+  }
+}
+
+// Dá para pausar: há expedição com cena, ainda não pausada, e esta aba cuida do jogo
+function canPause(get: GetStore): boolean {
+  const store = get();
+  return (
+    !store.isOpenInAnotherTab &&
+    store.expedition !== null &&
+    store.expeditionScene !== null &&
+    !store.isExpeditionPaused
+  );
 }

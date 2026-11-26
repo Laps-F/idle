@@ -26,8 +26,9 @@
  * mesmo tick também anda com a cena do mapa e guarda as derrotas na bolsa
  * (src/store/expeditionSession.ts). A bolsa só vira
  * Patacas, XP e quedas na volta (finishExpedition). A expedição não roda com
- * o jogo fechado: uma ausência no meio dela entrega a bolsa como
- * "interrompida", e a clareira rende a ausência como sempre.
+ * o jogo fechado nem pausada: com a aba escondida ela pausa e espera, e só uma
+ * recarga no meio dela entrega a bolsa como "interrompida". A clareira rende
+ * a ausência como sempre.
  *
  * É aqui, e não no domínio, que o relógio (Date.now) e o sorteio (Math.random)
  * são lidos. O domínio recebe os dois por parâmetro.
@@ -77,7 +78,11 @@ import { performRebrota, setAutoBuy } from '../domain/rebrota';
 import { advanceSimulation, dealDirectDamage } from '../domain/simulation';
 import { createInitialState, pickGameState } from '../domain/state';
 import type { CombatEvent, GameState } from '../domain/types';
-import { createExpeditionActions, endExpedition, runExpeditionTick } from './expeditionSession';
+import {
+  createExpeditionActions,
+  holdExpeditionDuringAbsence,
+  runExpeditionTick,
+} from './expeditionSession';
 import {
   createThrottledStorage,
   decodeSave,
@@ -104,6 +109,7 @@ const SESSION_DEFAULTS: SessionState = {
   expeditionScene: null,
   moveInput: NO_INPUT,
   isSpecialPending: false,
+  isExpeditionPaused: false,
   sceneEvents: NO_SCENE_EVENTS,
   expeditionReport: null,
   offlineReport: null,
@@ -181,9 +187,11 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      * - Jogo aberto em outra aba: nada acontece.
      * - Os eventos de combate só são entregues em intervalos de até 1 segundo.
      *   Acima disso a aba estava em segundo plano e não há o que animar.
-     * - Com expedição em andamento, o jogo aberto também anda com a cena do mapa.
-     *   Uma ausência no meio dela entrega a bolsa ("interrompida") antes de a
-     *   clareira render a ausência.
+     * - Com expedição em andamento, o jogo aberto também anda com a cena do mapa,
+     *   menos quando ela está pausada. Numa ausência no meio dela, a cena que
+     *   ainda está na memória (aba escondida, computador dormindo) fica pausada
+     *   esperando a pessoa. Sem cena (a página foi recarregada), a bolsa é
+     *   entregue como "interrompida". Depois disso a clareira rende a ausência.
      */
     tick: (now = Date.now()) => {
       const elapsedSeconds = (now - get().lastSaveTimestamp) / MS_PER_SECOND;
@@ -194,7 +202,7 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
       if (elapsedSeconds < 0) {
         set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
       } else if (elapsedSeconds > BALANCE.offlineThresholdSeconds) {
-        endExpedition(set, get, 'interrompida', get().lastSaveTimestamp);
+        holdExpeditionDuringAbsence(set, get);
         runOfflineTick(set, get, now);
       } else if (elapsedSeconds > 0) {
         runOnlineTick(set, get, now, elapsedSeconds);
@@ -437,6 +445,7 @@ function replaceGame(set: SetStore, state: GameState): void {
     combatEvents: NO_EVENTS,
     rebrotaCeremony: null,
     expeditionScene: null,
+    isExpeditionPaused: false,
     sceneEvents: NO_SCENE_EVENTS,
     expeditionReport: null,
   });

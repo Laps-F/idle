@@ -6,18 +6,27 @@
  * (mapRenderer.ts). Também transforma os eventos do tick em números que
  * sobem: o dano de cada acerto e, em vermelho, o dano que a personagem leva.
  *
+ * Com a expedição pausada, um aviso cobre o mapa. Um clique nele (ou qualquer
+ * tecla, em useExpeditionKeyboard) continua. O aviso é React comum: só muda ao
+ * pausar e ao continuar.
+ *
  * Por que fora do React: a personagem e as visagens mudam de lugar a cada
  * tick, perto de 60 vezes por segundo. Passar isso por estado do React
  * redesenharia a tela inteira. O componente é montado uma vez e só o canvas muda.
  *
  * Mapa:
  *   1. Canvas
- *   2. Efeitos
+ *   2. Aviso de pausa
+ *   3. Efeitos
  */
 
 import { useEffect, useRef } from 'react';
 
-import { readSceneFrame, selectExpeditionMapView } from '../../store/expeditionSelectors';
+import {
+  readSceneFrame,
+  selectExpeditionMapView,
+  selectIsExpeditionPaused,
+} from '../../store/expeditionSelectors';
 import type { SceneEventView } from '../../store/expeditionSelectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatNumber } from '../../utils/format';
@@ -81,14 +90,58 @@ export function ExpeditionCanvas() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={VIEW_WIDTH_PX}
-      height={VIEW_HEIGHT_PX}
-      className="block h-auto w-full border-2 border-tinta bg-tinta"
-      aria-label="Mapa da expedição. Ande com as setas ou com W, A, S e D."
-      role="img"
-    />
+    <div className="relative">
+      <canvas
+        ref={canvasRef}
+        width={VIEW_WIDTH_PX}
+        height={VIEW_HEIGHT_PX}
+        className="block h-auto w-full border-2 border-tinta bg-tinta"
+        aria-label="Mapa da expedição. Ande com as setas ou com W, A, S e D."
+        role="img"
+      />
+      <PauseNotice />
+    </div>
+  );
+}
+
+
+// =============================================================================
+// =============================================================================
+// A V I S O   D E   P A U S A
+
+// O aviso cobre o mapa inteiro, com a tinta transparente por cima
+const PAUSE_NOTICE_CLASS =
+  'absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-3 ' +
+  'bg-tinta/70 p-4 text-center text-jornal';
+
+const PAUSE_BUTTON_CLASS =
+  'border-2 border-jornal bg-jornal px-3 py-1.5 text-sm font-semibold text-tinta ' +
+  'hover:bg-jornal/85';
+
+// Cobre o mapa enquanto a expedição está pausada. Clicar em qualquer ponto continua.
+function PauseNotice() {
+  const isPaused = useGameStore(selectIsExpeditionPaused);
+  const resumeExpedition = useGameStore((store) => store.resumeExpedition);
+
+  if (!isPaused) {
+    return null;
+  }
+
+  return (
+    <div
+      className={PAUSE_NOTICE_CLASS}
+      role="dialog"
+      aria-label="Expedição pausada"
+      onClick={resumeExpedition}
+    >
+      <p className="font-display text-3xl leading-none">Pausado</p>
+      <p className="text-sm">
+        O tempo, as visagens e as recargas pararam. A clareira continua rendendo.
+      </p>
+      <button type="button" className={PAUSE_BUTTON_CLASS}>
+        Continuar (qualquer tecla ou clique)
+      </button>
+    </div>
   );
 }
 

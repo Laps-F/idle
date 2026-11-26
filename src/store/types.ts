@@ -50,6 +50,7 @@ export interface SessionState {
   expeditionScene: ExpeditionScene | null; // o que está no mapa agora. Null: sem expedição.
   moveInput: MoveInput; // direção que a pessoa está apertando
   isSpecialPending: boolean; // golpe especial pedido, que sai no próximo tick
+  isExpeditionPaused: boolean; // a cena do mapa parou (aba escondida, outra janela ou tecla P)
   sceneEvents: readonly SceneEvent[]; // golpes e derrotas do último tick, para o mapa animar
   expeditionReport: ExpeditionReport | null; // saque da última volta, até a pessoa fechar
   offlineReport: OfflineReport | null; // preenchido quando a pessoa volta de uma ausência
@@ -85,6 +86,8 @@ export interface GameActions {
   leaveExpedition: () => boolean;
   setMoveInput: (input: MoveInput) => void;
   triggerSpecial: () => void;
+  pauseExpedition: () => void;
+  resumeExpedition: () => void;
   dismissExpeditionReport: () => void;
 
   // Jogo. Devolvem true quando a ação foi aplicada.

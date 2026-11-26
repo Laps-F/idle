@@ -16,6 +16,11 @@
  * personagem andar suave, e volta ao ritmo normal quando a expedição acaba.
  * O desenho do mapa é feito à parte, no canvas, com requestAnimationFrame.
  *
+ * Pausa da expedição: ao esconder a aba ou trocar de janela, a expedição pausa
+ * (pauseExpedition), para a personagem não apanhar parada. Ela só continua
+ * quando a pessoa aperta uma tecla ou clica no mapa (useExpeditionKeyboard e
+ * ExpeditionCanvas), nunca sozinha.
+ *
  * Mapa:
  *   1. Laço do jogo
  *   2. Passos do laço
@@ -50,6 +55,7 @@ export function startGameLoop(): () => void {
   const stopWatchingStore = useGameStore.subscribe(adjustInterval);
 
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('blur', pauseExpedition);
   window.addEventListener('pagehide', saveProgress);
   window.addEventListener('beforeunload', saveProgress);
 
@@ -57,6 +63,7 @@ export function startGameLoop(): () => void {
     stopWatchingStore();
     window.clearInterval(intervalId);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('blur', pauseExpedition);
     window.removeEventListener('pagehide', saveProgress);
     window.removeEventListener('beforeunload', saveProgress);
   };
@@ -96,9 +103,16 @@ function saveProgress(): void {
   useGameStore.getState().saveNow();
 }
 
-// Aba escondida: grava, porque ela pode ser fechada sem aviso. Aba de volta: atualiza na hora.
+// Pausa a expedição em andamento (aba escondida ou outra janela). Sem expedição, nada muda.
+function pauseExpedition(): void {
+  useGameStore.getState().pauseExpedition();
+}
+
+// Aba escondida: pausa a expedição e grava, porque a aba pode ser fechada sem aviso.
+// Aba de volta: atualiza na hora (a expedição continua pausada até a pessoa voltar a jogar).
 function handleVisibilityChange(): void {
   if (document.visibilityState === 'hidden') {
+    pauseExpedition();
     saveProgress();
   } else {
     runTick();

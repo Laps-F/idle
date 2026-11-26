@@ -5,6 +5,12 @@
  * direção em que a personagem anda (setMoveInput) e a barra de espaço pede o
  * golpe especial (triggerSpecial).
  *
+ * Pausa: a tecla P pausa a expedição. Com ela pausada (pela tecla, pela aba
+ * escondida ou por outra janela), qualquer tecla continua. A tecla que continua
+ * não faz mais nada, para a personagem não sair andando ou atirando sem querer.
+ * Teclas sozinhas de atalho (Shift, Ctrl, Alt, Tab) não continuam, porque
+ * costumam vir antes de trocar de janela.
+ *
  * As teclas são lidas pela posição no teclado (event.code), então W, A, S e D
  * funcionam igual em qualquer layout. Enquanto a pessoa escreve numa caixa de
  * texto (importar salvamento, por exemplo), as teclas não movem a personagem.
@@ -12,6 +18,7 @@
 
 import { useEffect } from 'react';
 
+import { selectIsExpeditionPaused } from '../../store/expeditionSelectors';
 import { useGameStore } from '../../store/useGameStore';
 
 // =============================================================================
@@ -20,6 +27,22 @@ import { useGameStore } from '../../store/useGameStore';
 
 // Tecla do golpe especial
 const SPECIAL_KEY = 'Space';
+
+// Tecla que pausa a expedição
+const PAUSE_KEY = 'KeyP';
+
+// Teclas que, sozinhas, não continuam a expedição pausada
+const MODIFIER_KEYS = new Set([
+  'ShiftLeft',
+  'ShiftRight',
+  'ControlLeft',
+  'ControlRight',
+  'AltLeft',
+  'AltRight',
+  'MetaLeft',
+  'MetaRight',
+  'Tab',
+]);
 
 // Cada tecla e a direção que ela soma: x para a direita, y para baixo
 const KEY_DIRECTIONS: Record<string, { x: number; y: number }> = {
@@ -43,6 +66,8 @@ const KEY_DIRECTIONS: Record<string, { x: number; y: number }> = {
 export function useExpeditionKeyboard(): void {
   const setMoveInput = useGameStore((store) => store.setMoveInput);
   const triggerSpecial = useGameStore((store) => store.triggerSpecial);
+  const pauseExpedition = useGameStore((store) => store.pauseExpedition);
+  const resumeExpedition = useGameStore((store) => store.resumeExpedition);
 
   useEffect(() => {
     const pressed = new Set<string>();
@@ -60,12 +85,22 @@ export function useExpeditionKeyboard(): void {
     };
 
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (isTypingTarget(event.target)) {
+      if (isTypingTarget(event.target) || MODIFIER_KEYS.has(event.code)) {
+        return;
+      }
+
+      // Pausada: a tecla só continua. As setas e o espaço não rolam a página.
+      if (selectIsExpeditionPaused(useGameStore.getState())) {
+        event.preventDefault();
+        resumeExpedition();
         return;
       }
 
       // As setas e o espaço rolariam a página (ou apertariam o botão em foco)
-      if (event.code === SPECIAL_KEY) {
+      if (event.code === PAUSE_KEY) {
+        releaseAll();
+        pauseExpedition();
+      } else if (event.code === SPECIAL_KEY) {
         event.preventDefault();
         triggerSpecial();
       } else if (event.code in KEY_DIRECTIONS) {
@@ -96,7 +131,7 @@ export function useExpeditionKeyboard(): void {
       window.removeEventListener('blur', releaseAll);
       releaseAll();
     };
-  }, [setMoveInput, triggerSpecial]);
+  }, [setMoveInput, triggerSpecial, pauseExpedition, resumeExpedition]);
 }
 
 // Diz se a tecla foi apertada dentro de uma caixa de texto

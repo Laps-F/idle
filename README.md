@@ -167,8 +167,9 @@ laço passa a rodar a cada 16 ms para a personagem andar suave.
   A cena (onde estão as visagens, a vida) não é.
 - Na volta, a bolsa vira Patacas, XP, Oferendas, Rastros e amuletos por `rewardKills`
   (`src/domain/rewards.ts`), as mesmas regras da clareira.
-- A expedição não roda com o jogo fechado. Uma ausência ou uma recarga no meio dela entrega a
-  bolsa como "interrompida", e a clareira rende a ausência como sempre.
+- A expedição não roda com o jogo fechado. Ela pausa ao esconder a aba, ao trocar de janela e
+  pela tecla P, e só continua quando a pessoa aperta uma tecla ou clica no mapa. Uma recarga no
+  meio dela entrega a bolsa como "interrompida". A clareira rende a ausência como sempre.
 
 O mapa é desenhado num canvas, fora do React, a cada quadro do navegador
 (`requestAnimationFrame`). O React só desenha o painel do lado e as janelas.

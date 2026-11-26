@@ -134,13 +134,20 @@ essas ações às outras e chama o passo dentro do `tick`.
      o caso, como a expedição terminou;
    - guarda as derrotas na bolsa (`addKillsToLoot`). A bolsa é salva, a cena não.
 4. A expedição termina no fim do tempo (`concluida`), quando a vida zera (`caiu`), na passagem
-   de volta ou no botão (`voltou`), ou numa ausência ou recarga no meio dela (`interrompida`).
+   de volta ou no botão (`voltou`), ou numa recarga no meio dela (`interrompida`).
    `endExpedition` chama `finishExpedition`, que entrega a bolsa pelas regras de `rewardKills`
    (`src/domain/rewards.ts`, com bônus só em `concluida`), e guarda o relatório em
    `expeditionReport`.
 5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
    lendo `readSceneFrame` e `selectExpeditionMapView` (`src/store/expeditionSelectors.ts`). Os eventos de `sceneEvents` viram
    números que sobem.
+
+**Pausa.** Com `isExpeditionPaused` (campo de sessão, não salvo), `runExpeditionTick` não anda
+com a cena: tempo, ondas, recargas, visagens e projéteis param, e a clareira continua. Pausa ao
+esconder a aba e ao trocar de janela (`src/store/gameLoop.ts`), pela tecla P e numa ausência com
+a cena ainda na memória (`holdExpeditionDuringAbsence`). Só continua pela pessoa: qualquer tecla
+(`useExpeditionKeyboard.ts`) ou um clique no aviso (`ExpeditionCanvas.tsx`), que chamam
+`resumeExpedition`. Durante a pausa, a direção e o golpe especial pedidos são ignorados.
 
 Os golpes da expedição são projéteis que voam pelo mapa (`projectiles`, na cena). O comum sai
 sozinho na visagem mais perto e para na primeira que acerta. O especial sai para o lado em que a
@@ -229,8 +236,10 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | O que o `tick` faz e quando conta como ausência | `src/store/useGameStore.ts`, bloco "Ações de simulação" |
 | Partir, voltar, direção e golpe especial | `src/store/expeditionSession.ts`, bloco "Ações de expedição" |
 | O passo da expedição dentro do tick e a entrega da bolsa | `src/store/expeditionSession.ts`, `runExpeditionTick` e `endExpedition` |
+| Pausar e continuar a expedição | `src/store/expeditionSession.ts`, `pauseExpedition` e `resumeExpedition` |
+| O que acontece com a expedição numa ausência (pausa ou "interrompida") | `src/store/expeditionSession.ts`, `holdExpeditionDuringAbsence` |
 | Gravar o estado novo, aplicar uma entrada da pessoa, listas vazias únicas | `src/store/storeTools.ts` |
-| Campos de sessão da expedição (cena, direção, golpe pedido, eventos, relatório) | `src/store/types.ts`, `SessionState` |
+| Campos de sessão da expedição (cena, direção, golpe pedido, pausa, eventos, relatório) | `src/store/types.ts`, `SessionState` |
 | Aba de expedições, painel, janela da volta e leitura de cada quadro | `src/store/expeditionSelectors.ts` |
 | Seletor que reaproveita o resultado, listas com nome | `src/store/selectorTools.ts` |
 | Conferência da expedição salva (mapa, quem saiu, bolsa) | `src/store/saveManager.ts`, `sanitizeExpedition` |
@@ -245,7 +254,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Conferência dos amuletos de um salvamento | `src/store/saveManager.ts`, `sanitizeAmulets` e `sanitizeEquipped` |
 | Conferência do juazeiro de um salvamento | `src/store/saveManager.ts`, `sanitizeJuazeiro` |
 | Conversão de salvamentos de versões antigas | `src/store/saveManager.ts`, `MIGRATIONS` |
-| Quando o laço roda (e o intervalo mais curto na expedição), quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
+| Quando o laço roda (e o intervalo mais curto na expedição), quando grava ao esconder ou fechar a aba, quando a expedição pausa sozinha | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
 | Quais números aparecem no painel "Ajustes", o nome, o grupo, o passo e o mínimo de cada um | `src/store/tuning.ts` |
 | Mudar, desfazer e o atalho de nível do painel "Ajustes" | `src/store/useGameStore.ts`, `setTuning`, `resetTuning` e `debugSetLeaderLevel` |
@@ -271,7 +280,8 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Arquivo de imagem e cor provisória de cada ladrilho, da personagem e das visagens | `src/components/expedition/sprites.ts` |
 | Ligar as imagens de verdade ou tirar os nomes escritos nos blocos | `src/components/expedition/sprites.ts`, `LOAD_SPRITE_IMAGES` e `SHOW_SPRITE_LABELS` |
 | Painel ao lado do mapa: bolsa, voltar agora, como jogar, legenda | `src/components/expedition/ExpeditionSidePanel.tsx` |
-| Teclas da expedição (direção e golpe especial) | `src/components/hooks/useExpeditionKeyboard.ts` |
+| Teclas da expedição (direção, golpe especial, pausa e quais teclas continuam) | `src/components/hooks/useExpeditionKeyboard.ts` |
+| Aviso "Pausado" por cima do mapa | `src/components/expedition/ExpeditionCanvas.tsx`, `PauseNotice` |
 | Cor do papel de cada bioma, textos de origem, raridade, fase do dia e lua | `src/components/theme.ts` |
 | Carimbo de cada raridade, texto de cada bônus e opções do desmanche automático | `src/components/theme.ts`, bloco "Amuletos" |
 | Cores e fontes do tema, animações (número flutuante, tranco, carimbo, barras) | `src/index.css` |

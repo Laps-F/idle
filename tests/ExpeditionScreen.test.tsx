@@ -4,8 +4,8 @@
  * Arquivo: tests/ExpeditionScreen.test.tsx
  * O que faz: testa as telas da expedição num navegador simulado: a aba
  * "Expedições" da clareira, a troca de tela ao partir, o painel ao lado do
- * mapa, o teclado (direção e golpe especial), o botão de voltar e a janela
- * da volta. O navegador simulado não tem canvas, então o desenho do mapa não
+ * mapa, o teclado (direção, golpe especial e pausa), a pausa ao trocar de
+ * aba ou de janela, o botão de voltar e a janela da volta. O navegador simulado não tem canvas, então o desenho do mapa não
  * é testado aqui (as regras do mapa estão em tests/expedition.test.ts).
  */
 
@@ -106,6 +106,43 @@ describe('tela da expedição', () => {
 
     await act(async () => window.dispatchEvent(new Event('blur')));
     expect(useGameStore.getState().moveInput).toEqual({ moveX: 0, moveY: 0 });
+  });
+
+  it('pausa ao trocar de janela e continua com uma tecla, sem fazer o que a tecla faria', async () => {
+    useGameStore.getState().startExpedition('beira-da-mata');
+    await mount();
+
+    await act(async () => window.dispatchEvent(new Event('blur')));
+    expect(useGameStore.getState().isExpeditionPaused).toBe(true);
+    expect(host.querySelector('[aria-label="Expedição pausada"]')).not.toBeNull();
+
+    // Shift sozinho não continua (costuma vir antes de trocar de janela)
+    await press('keydown', 'ShiftLeft');
+    expect(useGameStore.getState().isExpeditionPaused).toBe(true);
+
+    await press('keydown', 'Space');
+    expect(useGameStore.getState().isExpeditionPaused).toBe(false);
+    expect(useGameStore.getState().isSpecialPending).toBe(false);
+    expect(host.querySelector('[aria-label="Expedição pausada"]')).toBeNull();
+  });
+
+  it('pausa ao esconder a aba e com a tecla P, e continua com um clique no aviso', async () => {
+    useGameStore.getState().startExpedition('beira-da-mata');
+    await mount();
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')));
+    expect(useGameStore.getState().isExpeditionPaused).toBe(true);
+
+    visibility.mockReturnValue('visible');
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')));
+    expect(useGameStore.getState().isExpeditionPaused).toBe(true); // só a pessoa continua
+
+    await click('Continuar');
+    expect(useGameStore.getState().isExpeditionPaused).toBe(false);
+
+    await press('keydown', 'KeyP');
+    expect(useGameStore.getState().isExpeditionPaused).toBe(true);
   });
 
   it('volta para a clareira pelo botão e mostra a janela da volta', async () => {

@@ -2,6 +2,39 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: pausa da expedição (Etapa 1 do Caminho 1)
+
+A expedição continuava rodando com a aba escondida: a personagem ficava parada, apanhava e caía,
+e depois de 2 minutos fora a expedição acabava como "interrompida". Agora ela pausa.
+
+- Pausa ao esconder a aba, ao trocar de janela, pela tecla P e numa ausência longa com a cena
+  ainda na memória (computador dormindo, por exemplo).
+- Pausada, a cena não anda: tempo, ondas, recargas, visagens e projéteis param. A clareira
+  continua rendendo.
+- Só a pessoa continua: qualquer tecla ou um clique no aviso "Pausado". A tecla que continua não
+  faz mais nada (o espaço não solta o especial). Shift, Ctrl, Alt e Tab sozinhos não continuam.
+- "Interrompida" ficou só para a recarga da página no meio da expedição, quando a cena se perde.
+- A pausa é só estado de sessão. O salvamento continua na versão 5.
+
+Arquivos:
+
+- `src/store/types.ts`: campo de sessão `isExpeditionPaused` e as ações `pauseExpedition` e
+  `resumeExpedition`.
+- `src/store/expeditionSession.ts`: as duas ações, `holdExpeditionDuringAbsence` (pausa ou
+  "interrompida" numa ausência) e o passo do mapa parado durante a pausa. A direção e o golpe
+  especial pedidos durante a pausa são ignorados.
+- `src/store/useGameStore.ts`: o `tick` chama `holdExpeditionDuringAbsence` no lugar de encerrar a
+  expedição. A pausa entra nos valores iniciais e no "apagar tudo" e "importar".
+- `src/store/gameLoop.ts`: pausa ao esconder a aba e no `blur` da janela.
+- `src/store/expeditionSelectors.ts`: `selectIsExpeditionPaused`.
+- `src/components/hooks/useExpeditionKeyboard.ts`: tecla P e qualquer tecla para continuar.
+- `src/components/expedition/ExpeditionCanvas.tsx`: aviso `PauseNotice` por cima do mapa.
+- `src/components/expedition/ExpeditionSidePanel.tsx`: a pausa em "Como jogar".
+- Testes: `tests/store.test.ts` (a ausência agora pausa; cena parada e volta; pausa sem
+  expedição; voltar pausada) e `tests/ExpeditionScreen.test.tsx` (outra janela, aba escondida,
+  tecla P, qual tecla continua, clique no aviso).
+- Documentação: guia de manutenção, `docs/COMO_TESTAR.md` (passos 12a a 12e) e `README.md`.
+
 ## 26/11/2026: arrumação antes de ligar a clareira e a expedição (Etapa 0 do Caminho 1)
 
 Antes de mexer na expedição (pausa, escala, saque próprio, pegadas e preparos), as partes que vão

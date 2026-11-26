@@ -74,6 +74,10 @@ function HowToPlaySection() {
         <li>As visagens perseguem e batem ao encostar. Fuja, elas são mais lentas.</li>
         <li>O bloco roxo leva de volta para a clareira, com a bolsa inteira.</li>
         <li>Aguentando até o fim do tempo, a bolsa rende mais.</li>
+        <li>
+          P pausa. A expedição também pausa sozinha ao trocar de aba ou de janela. Qualquer tecla
+          ou um clique no mapa continua.
+        </li>
       </ul>
     </section>
   );

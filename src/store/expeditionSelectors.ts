@@ -159,6 +159,11 @@ export function selectIsOnExpedition(snapshot: GameSnapshot): boolean {
   return snapshot.expedition !== null;
 }
 
+// A cena do mapa está pausada (aba escondida, outra janela ou tecla P)
+export function selectIsExpeditionPaused(snapshot: GameSnapshot): boolean {
+  return snapshot.expedition !== null && snapshot.isExpeditionPaused;
+}
+
 export const selectExpeditionList = createStableSelector(buildExpeditionList);
 export const selectExpeditionHud = createStableSelector(buildExpeditionHud);
 export const selectExpeditionReport = createStableSelector(buildExpeditionReport);

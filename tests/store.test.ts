@@ -766,16 +766,70 @@ describe('expedições e salvamento da versão 5', () => {
     expect(state.leaveExpedition()).toBe(false);
   });
 
-  it('entrega a bolsa como interrompida depois de uma ausência', async () => {
+  it('pausa a expedição, sem perder nada, numa ausência com a cena na memória', async () => {
     const useGameStore = await openExpedition();
-    useGameStore.getState().tick(Date.now());
+    runTicks(useGameStore, 20);
+    const sceneBefore = useGameStore.getState().expeditionScene;
     vi.advanceTimersByTime(ONE_HOUR_MS);
     useGameStore.getState().tick(Date.now());
 
     const state = useGameStore.getState();
-    expect(state.expedition).toBeNull();
-    expect(state.expeditionReport?.outcome).toBe('interrompida');
+    expect(state.expedition?.mapId).toBe('beira-da-mata');
+    expect(state.isExpeditionPaused).toBe(true);
+    expect(state.expeditionScene?.elapsedSeconds).toBe(sceneBefore?.elapsedSeconds);
+    expect(state.expeditionReport).toBeNull();
     expect(state.offlineReport?.summary.kills).toBeGreaterThan(0);
+  });
+
+  it('pausada, a cena não anda, e ao continuar só conta o tempo depois da volta', async () => {
+    const useGameStore = await openExpedition();
+    runTicks(useGameStore, 10);
+    useGameStore.getState().setMoveInput({ moveX: 1, moveY: 0 });
+    useGameStore.getState().pauseExpedition();
+    const paused = useGameStore.getState();
+    const elapsedAtPause = paused.expeditionScene?.elapsedSeconds ?? 0;
+    const killsAtPause = paused.stats.totalKills;
+
+    expect(paused.isExpeditionPaused).toBe(true);
+    expect(paused.moveInput).toEqual({ moveX: 0, moveY: 0 });
+
+    // A direção e o golpe especial pedidos durante a pausa são ignorados
+    useGameStore.getState().setMoveInput({ moveX: 0, moveY: 1 });
+    useGameStore.getState().triggerSpecial();
+    runTicks(useGameStore, 300);
+
+    const stillPaused = useGameStore.getState();
+    expect(stillPaused.expeditionScene?.elapsedSeconds).toBe(elapsedAtPause);
+    expect(stillPaused.moveInput).toEqual({ moveX: 0, moveY: 0 });
+    expect(stillPaused.isSpecialPending).toBe(false);
+    expect(stillPaused.stats.totalKills).toBeGreaterThan(killsAtPause); // a clareira rendeu
+
+    useGameStore.getState().resumeExpedition();
+    runTicks(useGameStore, 10);
+    const resumed = useGameStore.getState();
+    expect(resumed.isExpeditionPaused).toBe(false);
+    expect(resumed.expeditionScene?.elapsedSeconds ?? 0).toBeCloseTo(elapsedAtPause + 1, 6);
+  });
+
+  it('pausar e continuar sem expedição não fazem nada', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    useGameStore.getState().pauseExpedition();
+    expect(useGameStore.getState().isExpeditionPaused).toBe(false);
+
+    useGameStore.getState().resumeExpedition();
+    expect(useGameStore.getState().isExpeditionPaused).toBe(false);
+  });
+
+  it('voltar com a expedição pausada entrega a bolsa e tira a pausa', async () => {
+    const useGameStore = await openExpedition();
+    runTicks(useGameStore, 10);
+    useGameStore.getState().pauseExpedition();
+
+    expect(useGameStore.getState().leaveExpedition()).toBe(true);
+    expect(useGameStore.getState().expedition).toBeNull();
+    expect(useGameStore.getState().isExpeditionPaused).toBe(false);
+    expect(useGameStore.getState().expeditionReport?.outcome).toBe('voltou');
   });
 
   it('entrega a bolsa ao abrir um salvamento com expedição em andamento', async () => {
