@@ -2,6 +2,38 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: painel de ajustes de teste
+
+Para testar a dificuldade sem mexer no código, entrou o painel "Ajustes", no cabeçalho da
+clareira e da expedição. Ele lista todos os números de balanceamento (cerca de 130), em grupos e
+com busca, e troca o valor na hora:
+
+- todas as constantes de `src/data/balance.ts`, menos as técnicas (laço, gravação, versão);
+- nível de cada mapa de expedição;
+- multiplicadores de vida, Patacas e XP de cada visagem e a chance de cada queda;
+- dano base e intervalo de cada encantado;
+- visagens até o chefe, tempo do chefe e chance de Rastro de cada zona;
+- custo, crescimento do custo e bônus de cada melhoria.
+
+Atalhos: nível do primeiro da comitiva e +1000 Patacas. As mudanças ficam no navegador (chave
+`encantados-ajustes`), aparecem no botão ("Ajustes (N)") e numa lista com o arquivo onde mudar de
+vez. "Voltar" e "Desfazer tudo" voltam ao código.
+
+Exceção à arquitetura, registrada no guia: `src/store/tuning.ts` troca os números direto nos
+objetos de `src/data`. Constante nova em `balance.ts` sem campo no painel faz o `typecheck` falhar.
+
+Arquivos:
+
+- `src/store/tuning.ts` (novo): lista de campos, mudar, desfazer, guardar e carregar.
+- `src/store/useGameStore.ts`: aplica os ajustes guardados ao abrir; ações `setTuning`,
+  `resetTuning` e `debugSetLeaderLevel`.
+- `src/store/types.ts`: campo de sessão `tuningVersion` e as ações novas.
+- `src/store/selectors.ts`: bloco "Ajustes de teste" (`selectTuningView`, `selectTuningChangeCount`).
+- `src/components/debug/TuningPanel.tsx` (novo): botão e janela.
+- `src/components/header/AppHeader.tsx` e `src/components/expedition/ExpeditionScreen.tsx`: o
+  botão no cabeçalho.
+- `tests/tuning.test.ts` e `tests/TuningPanel.test.tsx` (novos).
+
 ## 26/11/2026: projéteis na expedição
 
 O golpe especial em área não ficou bom. Os golpes da expedição viraram projéteis, simples e sem

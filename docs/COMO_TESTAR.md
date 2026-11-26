@@ -95,6 +95,17 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
 | 12 | Recarregar a página no meio de uma expedição | A clareira abre com "Expedição interrompida" e a bolsa entregue. |
 
+### Ajustes de teste
+
+| # | O que fazer | O que deve acontecer |
+|---|---|---|
+| 13 | Clicar em "Ajustes", no cabeçalho | Abre "Ajustes de teste", com os atalhos em cima, a busca e os grupos de números. |
+| 14 | Buscar "vida", mudar "Vida base no nível 1" para 300 e apertar Enter | O nome fica em negrito, aparece "código: 100" e o botão "Voltar". O botão do cabeçalho vira "Ajustes (1)" e a aba "Expedições" passa a dizer "com 300 de vida". Embaixo aparece "src/data/balance.ts, playerBaseHp: 100 -> 300". |
+| 15 | Mudar "Nível do primeiro da comitiva" para 10 | O encantado passa ao nível 10 na hora (veja na aba "Comitiva"). |
+| 16 | Recarregar a página | O botão continua "Ajustes (1)": a mudança ficou guardada no navegador. |
+| 17 | Abrir "Ajustes" durante uma expedição e mudar "Dano base no nível 1" das visagens | As visagens que nascem dali em diante batem com o dano novo. As setas e o W, A, S e D não movem a personagem enquanto você escreve no campo. |
+| 18 | Clicar em "Desfazer tudo" | Todos os números voltam ao código e o botão volta a "Ajustes". |
+
 ## 6. Roteiro da clareira (combate por estágios)
 
 Abra `http://localhost:5173/`. Faça na ordem. Cada linha diz o que fazer e o que deve acontecer.
@@ -285,6 +296,7 @@ não tem botão para fechar pacto.
 | A página abre em branco | Abra as ferramentas do navegador (F12), aba Console, e veja o erro em vermelho. |
 | O jogo abriu com números estranhos de um teste antigo | Use "Apagar tudo" (três cliques). |
 | A personagem não anda no mapa | Clique uma vez na página, fora de caixas de texto, para ela receber as teclas. |
+| O jogo está fácil ou difícil demais de um jeito estranho | Veja se o botão do cabeçalho mostra "Ajustes (N)". Se mostrar, há números de teste ligados: use "Desfazer tudo". |
 | O espaço não solta o golpe especial | Confira a barra azul em cima do mapa: o golpe só sai quando ela está cheia. |
 | A personagem continua andando sozinha | Aperte e solte a tecla da direção. Trocar de janela também solta todas as teclas. |
 | Aviso de jogo aberto em outra aba | Feche as outras abas do jogo e recarregue esta. O jogo e o painel de debug abertos ao mesmo tempo também contam como duas abas. |

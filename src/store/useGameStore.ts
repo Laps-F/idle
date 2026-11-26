@@ -41,7 +41,7 @@
  *   6. Ações de amuletos (vestir, tirar, desmanchar, entalhar)
  *   7. Ações da Rebrota (rebrotar, juazeiro, compra automática)
  *   8. Ações de salvamento (gravar, exportar, importar, apagar tudo)
- *   9. Ações de teste (usadas pelo painel de debug)
+ *   9. Ações de teste (painel de debug e ajustes de teste)
  *  10. Ferramentas
  */
 
@@ -90,6 +90,7 @@ import {
   getSavedGameSize,
   SAVE_STORAGE_KEY,
 } from './saveManager';
+import { loadSavedTuning, resetTuning as resetTuningValues, setTuningValue } from './tuning';
 import type { GameActions, GameStore, MoveInput, SessionState } from './types';
 
 // =============================================================================
@@ -112,6 +113,7 @@ const SESSION_DEFAULTS: SessionState = {
   isOpenInAnotherTab: false,
   tickCount: 0,
   rebrotaCeremony: null,
+  tuningVersion: 0,
 };
 
 const OPEN_IN_ANOTHER_TAB_ERROR = 'O jogo está aberto em outra aba. Recarregue esta página.';
@@ -131,6 +133,9 @@ type SessionUpdate = (previous: GameState, next: GameState) => Partial<SessionSt
 // =============================================================================
 // =============================================================================
 // S T O R E
+
+// Os ajustes de teste guardados entram antes de a store montar o estado inicial
+loadSavedTuning();
 
 export const useGameStore = create<GameStore>()(
   persist(
@@ -657,7 +662,14 @@ function replaceGame(set: SetStore, state: GameState): void {
 
 type DebugActions = Pick<
   GameActions,
-  'debugHitEnemy' | 'debugGrantGold' | 'debugSkipTime' | 'debugGrantAmulet' | 'debugGrantRoots'
+  | 'debugHitEnemy'
+  | 'debugGrantGold'
+  | 'debugSkipTime'
+  | 'debugGrantAmulet'
+  | 'debugGrantRoots'
+  | 'debugSetLeaderLevel'
+  | 'setTuning'
+  | 'resetTuning'
 >;
 
 // Atalhos para o painel de debug mexer no jogo sem esperar o ritmo normal.
@@ -695,7 +707,44 @@ function createDebugActions(set: SetStore, get: GetStore): DebugActions {
     debugGrantRoots: (amount) => {
       applyInput(set, get, (state) => grantRoots(state, amount));
     },
+
+    // Põe o primeiro da comitiva no nível pedido, com o XP zerado
+    debugSetLeaderLevel: (level) =>
+      applyInput(set, get, (state) => setLeaderLevel(state, level)),
+
+    /**
+     * Troca um número de balanceamento na hora (ajustes de teste).
+     *
+     * @param fieldId Campo do painel "Ajustes" (src/store/tuning.ts).
+     * @param value Valor novo.
+     * @returns true se o valor foi aceito. O painel redesenha pelo tuningVersion.
+     */
+    setTuning: (fieldId, value) => {
+      const isAccepted = setTuningValue(fieldId, value);
+      set({ tuningVersion: get().tuningVersion + 1 });
+      return isAccepted;
+    },
+
+    // Volta um campo (ou todos, com null) ao valor do código
+    resetTuning: (fieldId) => {
+      resetTuningValues(fieldId);
+      set({ tuningVersion: get().tuningVersion + 1 });
+    },
   };
+}
+
+// Nível do primeiro da comitiva. Null sem comitiva ou com nível abaixo de 1.
+function setLeaderLevel(state: GameState, level: number): GameState | null {
+  const leaderId = state.party[0];
+  const owned = leaderId === undefined ? undefined : state.roster[leaderId];
+  const wholeLevel = Math.floor(level);
+
+  if (leaderId === undefined || owned === undefined || !(wholeLevel >= 1)) {
+    return null;
+  }
+
+  const leader = { ...owned, level: wholeLevel, xp: 0 };
+  return { ...state, roster: { ...state.roster, [leaderId]: leader } };
 }
 
 // Gera um amuleto e entrega pelo mesmo caminho de uma queda (mochila ou desmanche)

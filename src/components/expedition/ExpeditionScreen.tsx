@@ -11,6 +11,7 @@
  *   ExpeditionScreen
  *   ├─ cabeçalho
  *   │  ├─ ResourceBar            Patacas, Raízes, Cavacos e Oferendas
+ *   │  ├─ TuningButton           painel "Ajustes" (números de teste)
  *   │  └─ SaveMenu               Exportar, Importar e Apagar tudo
  *   ├─ ExpeditionCanvas          mapa, efeitos e painel de vida (mapRenderer.ts)
  *   ├─ ExpeditionSidePanel       bolsa, voltar agora, como jogar e legenda das imagens
@@ -20,6 +21,7 @@
  *   1. Tela
  */
 
+import { TuningButton } from '../debug/TuningPanel';
 import { useExpeditionKeyboard } from '../hooks/useExpeditionKeyboard';
 import { ResourceBar } from '../header/ResourceBar';
 import { SaveMenu } from '../header/SaveMenu';
@@ -56,7 +58,10 @@ export default function ExpeditionScreen() {
         </p>
         <div className={ROW_CLASS}>
           <ResourceBar />
-          <SaveMenu />
+          <div className="flex flex-wrap gap-2">
+            <TuningButton />
+            <SaveMenu />
+          </div>
         </div>
       </header>
 

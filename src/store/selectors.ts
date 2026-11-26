@@ -33,7 +33,8 @@
  *  10. Construção: ausência e escolha inicial
  *  11. Construção: visões do painel de debug
  *  12. Expedições: visões, seletores e a leitura de cada quadro do mapa
- *  13. Ferramentas
+ *  13. Ajustes de teste
+ *  14. Ferramentas
  */
 
 import {
@@ -111,6 +112,8 @@ import type {
 } from '../domain/types';
 import { isDeepEqual } from '../utils/object';
 import type { GameSnapshot, RebrotaCeremony } from './types';
+import { countTuningChanges, describeTuningChanges, listTuningFields } from './tuning';
+import type { TuningFieldView } from './tuning';
 
 // =============================================================================
 // =============================================================================
@@ -1196,6 +1199,53 @@ function buildExpeditionReport(snapshot: GameSnapshot): ExpeditionReportView | n
     trails: toNamedAmounts(summary.trails, encantadoName),
     levelUps: toNamedAmounts(summary.levelUps, encantadoName),
     amuletsFound: summary.amuletsFound,
+  };
+}
+
+
+// =============================================================================
+// =============================================================================
+// A J U S T E S   D E   T E S T E
+
+// Um grupo do painel "Ajustes" (ex.: "Expedição: ondas")
+export interface TuningGroupView {
+  name: string;
+  fields: TuningFieldView[];
+}
+
+// Painel "Ajustes": os campos por grupo e o resumo das mudanças
+export interface TuningView {
+  changeCount: number;
+  changesText: string; // uma linha por mudança, com o arquivo onde mudar de vez
+  groups: TuningGroupView[];
+}
+
+export const selectTuningView = createStableSelector(buildTuningView);
+
+// Quantos ajustes estão diferentes do código, para o botão do cabeçalho
+export function selectTuningChangeCount(snapshot: GameSnapshot): number {
+  // O tuningVersion liga a leitura à store: sem ele, a mudança não redesenharia o botão
+  return snapshot.tuningVersion >= 0 ? countTuningChanges() : 0;
+}
+
+// Campos agrupados, na ordem dos grupos de src/store/tuning.ts
+function buildTuningView(snapshot: GameSnapshot): TuningView {
+  const groups: TuningGroupView[] = [];
+
+  for (const field of listTuningFields()) {
+    const last = groups.at(-1);
+
+    if (last !== undefined && last.name === field.group) {
+      last.fields.push(field);
+    } else {
+      groups.push({ name: field.group, fields: [field] });
+    }
+  }
+
+  return {
+    changeCount: selectTuningChangeCount(snapshot),
+    changesText: describeTuningChanges(),
+    groups,
   };
 }
 

@@ -57,6 +57,7 @@ export interface SessionState {
   isOpenInAnotherTab: boolean; // outra aba assumiu o jogo: esta para de simular e de gravar
   tickCount: number; // quantos ticks rodaram desde que a página abriu. Prova que o laço anda.
   rebrotaCeremony: RebrotaCeremony | null; // edição que acabou de começar, para a cerimônia
+  tuningVersion: number; // sobe a cada ajuste de teste, para o painel "Ajustes" redesenhar
 }
 
 // O que a cerimônia de uma Rebrota mostra
@@ -121,6 +122,11 @@ export interface GameActions {
   debugSkipTime: (seconds: number) => void;
   debugGrantAmulet: () => void;
   debugGrantRoots: (amount: number) => void;
+  debugSetLeaderLevel: (level: number) => boolean;
+
+  // Ajustes de teste (src/store/tuning.ts). setTuning devolve true quando o valor foi aceito.
+  setTuning: (fieldId: string, value: number) => boolean;
+  resetTuning: (fieldId: string | null) => void;
 }
 
 

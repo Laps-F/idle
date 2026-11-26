@@ -95,6 +95,7 @@ src/
     saveManager.ts     gravação, exportação, importação e conferência do salvamento
     gameLoop.ts        liga o tick (mais rápido na expedição) e grava ao esconder ou fechar a aba
     tabGuard.ts        garante que só uma aba cuida do jogo
+    tuning.ts          ajustes de teste: troca números de balanceamento com o jogo aberto
   components/          componentes visuais burros
     expedition/        expedições: aba da clareira, tela, canvas do mapa, painel e vagas de imagem
     GameScreen.tsx     a clareira: cabeçalho, arena, abas laterais e janelas
@@ -107,6 +108,7 @@ src/
     modals/            janelas: escolha inicial, boas-vindas de volta, salvamento, outra aba
     ui/                peças reutilizáveis: figura, barras, botão e abas
     art/               xilogravuras em SVG
+    debug/             painel "Ajustes" (números de balanceamento para testes)
     hooks/             barra movida por ref, escuta dos eventos de combate e teclado da expedição
     DebugView.tsx      painel de debug: métricas, indicador de tick, ausência e controles
   utils/               funções utilitárias puras
@@ -260,6 +262,20 @@ Como a tela se mantém leve:
   delas não redesenha.
 - Os números flutuantes e o tranco do inimigo são feitos direto no elemento, com animação de
   CSS.
+
+## Ajustes de teste
+
+O botão "Ajustes", no cabeçalho da clareira e da expedição, abre um painel com todos os números
+de balanceamento: vida, dano e recompensas das visagens, vida e dano da personagem, ondas,
+projéteis, nível dos mapas, chances de queda, melhorias, amuletos, Rebrota e mais. Cada número
+muda na hora, fica guardado no navegador (chave `encantados-ajustes`, separada do salvamento) e
+volta ao valor do código com "Voltar" ou "Desfazer tudo". O painel também lista as mudanças com
+o arquivo onde mudar de vez, para um ajuste bom virar permanente.
+
+- Lista de campos e como cada um é lido e escrito: `src/store/tuning.ts`. Constante nova em
+  `src/data/balance.ts` precisa de um campo em `BALANCE_FIELDS` (o TypeScript acusa se faltar).
+- Tela: `src/components/debug/TuningPanel.tsx`. Para esconder o botão dos jogadores, troque
+  `SHOW_TUNING_BUTTON` para `false`.
 
 ## Painel de debug
 

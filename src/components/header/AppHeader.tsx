@@ -3,9 +3,10 @@
  * Arquivo: src/components/header/AppHeader.tsx
  * O que faz: o cabeçalho da tela. Junta o nome do jogo (com a edição do
  * folheto, depois da primeira Rebrota), os recursos, o lugar onde a comitiva
- * está e os controles de salvamento.
+ * está, o botão dos ajustes de teste e os controles de salvamento.
  */
 
+import { TuningButton } from '../debug/TuningPanel';
 import { useGameStore } from '../../store/useGameStore';
 import { ResourceBar } from './ResourceBar';
 import { SaveMenu } from './SaveMenu';
@@ -35,7 +36,10 @@ export function AppHeader() {
       </div>
       <div className={ROW_CLASS}>
         <ResourceBar />
-        <SaveMenu />
+        <div className="flex flex-wrap gap-2">
+          <TuningButton />
+          <SaveMenu />
+        </div>
       </div>
     </header>
   );

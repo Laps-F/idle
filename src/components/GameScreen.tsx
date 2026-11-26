@@ -16,6 +16,7 @@
  *   ├─ AppHeader
  *   │  ├─ ResourceBar            Patacas, Raízes, Cavacos e Oferendas
  *   │  ├─ StageBadge             zona, estágio e relógio do sertão
+ *   │  ├─ TuningButton           painel "Ajustes" (números de teste)
  *   │  └─ SaveMenu               Exportar, Importar e Apagar tudo
  *   │     └─ ExportModal, ImportModal, ResetModal
  *   ├─ ArenaPanel                centro

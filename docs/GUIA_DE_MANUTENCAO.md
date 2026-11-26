@@ -50,6 +50,8 @@ na raiz do projeto.
 - Pega o estado atual, chama uma função pura do domínio, recebe o estado novo e grava.
 - O estado é atualizado de forma imutável: nada é alterado no lugar.
 - É a única camada que lê o relógio e o sorteio, e passa os dois para o domínio.
+- Exceção única: `src/store/tuning.ts` (ajustes de teste) troca números direto nos objetos de
+  `src/data`, a pedido da pessoa, e guarda o valor original de cada um para desfazer.
 - Tudo que vem de fora (`localStorage`, código colado) entra como `unknown` e só vira
   `GameState` depois de passar por `sanitizeGameState`.
 
@@ -233,6 +235,8 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Conversão de salvamentos de versões antigas | `src/store/saveManager.ts`, `MIGRATIONS` |
 | Quando o laço roda (e o intervalo mais curto na expedição), quando grava ao esconder ou fechar a aba | `src/store/gameLoop.ts` |
 | Comportamento com duas abas abertas | `src/store/tabGuard.ts` |
+| Quais números aparecem no painel "Ajustes", o nome, o grupo, o passo e o mínimo de cada um | `src/store/tuning.ts` |
+| Mudar, desfazer e o atalho de nível do painel "Ajustes" | `src/store/useGameStore.ts`, `setTuning`, `resetTuning` e `debugSetLeaderLevel` |
 
 ### Publicação
 
@@ -289,6 +293,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Como uma barra anda sem redesenhar o componente | `src/components/hooks/useStoreMeter.ts` |
 | Como um componente recebe os eventos de combate | `src/components/hooks/useCombatFeed.ts` |
 | Painel de debug: métricas, botões, seções | `src/components/DebugView.tsx` |
+| Painel "Ajustes": busca, grupos, campos, atalhos e o botão do cabeçalho | `src/components/debug/TuningPanel.tsx` |
 
 Os dados que cada componente recebe vêm de `src/store/selectors.ts`. Os eventos de combate
 viram golpes e linhas de registro em `src/store/eventViews.ts`.
@@ -460,6 +465,8 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
   `specialProjectileMaxDistance`.
 - Acertar de longe demais ou de perto demais: `attackRange` e `projectileMaxDistance`.
 - Bolsa rende pouco ou muito: `expeditionCompletionBonus`, ou o nível inicial (`level`) do mapa.
+- Para testar jogando: botão "Ajustes" no cabeçalho, com todos esses números e o nível de quem
+  sai em expedição.
 - Para medir sem jogar: monte uma cena com `createExpeditionScene` e chame `advanceScene` em
   passos de 0,1 s, como no histórico da etapa das expedições.
 
@@ -496,6 +503,18 @@ Siga esta ordem. Cada passo só depende dos anteriores.
 2. Traduza o evento em `src/store/eventViews.ts`: tipo novo em `LogEntryKind` e um caso em
    `toLogEntry`. O TypeScript acusa se faltar.
 3. Dê a frase e o ícone em `src/components/arena/EventLog.tsx`.
+
+### Acrescentar um número ao painel "Ajustes"
+
+- Constante nova em `src/data/balance.ts`: acrescente o campo em `BALANCE_FIELDS`, em
+  `src/store/tuning.ts`, com grupo, nome, passo e mínimo. O `npm run typecheck` acusa constante
+  sem campo. Constante técnica (laço, gravação) vai em `TECHNICAL_BALANCE_KEYS`.
+- Número dentro de outro dado (encantado, visagem, mapa, zona, melhoria): use `createObjectField`
+  no bloco "Campos dos outros dados". Item novo de uma lista já coberta (uma visagem nova, um
+  mapa novo) entra sozinho.
+- Para testar: abra "Ajustes", mude o número e confira o efeito. As mudanças valem para o que
+  for calculado depois (visagens que nascem, próximo golpe, próxima expedição).
+- Ajuste bom vira permanente trocando o valor no arquivo que aparece em "Mudanças ligadas".
 
 ### Acrescentar algo ao painel de debug
 
