@@ -122,6 +122,12 @@ const BALANCE_FIELDS = {
     label: 'Bônus de quem aguenta até o fim (0,5 = +50% na bolsa)',
     step: 0.05,
   },
+  expeditionHitsPerEnemy: {
+    group: GROUP.expedition,
+    label: 'Golpes que uma visagem aguenta no nível de partida',
+    step: 0.5,
+    min: 0.5,
+  },
 
   playerBaseHp: { group: GROUP.player, label: 'Vida base no nível 1', step: 10, min: 1 },
   playerHpPerLevel: {
@@ -172,10 +178,14 @@ const BALANCE_FIELDS = {
     step: 0.05,
   },
 
-  enemyDamageBase: { group: GROUP.sceneEnemies, label: 'Dano base no nível 1', step: 1 },
-  enemyDamageGrowth: {
+  enemyContactHpFraction: {
     group: GROUP.sceneEnemies,
-    label: 'Crescimento do dano por nível (×)',
+    label: 'Encostada no nível de partida (0,03 = 3% da vida máxima)',
+    step: 0.005,
+  },
+  enemyContactGrowth: {
+    group: GROUP.sceneEnemies,
+    label: 'Crescimento da encostada por nível acima da partida (×)',
     step: 0.01,
   },
   enemyHitCooldownSeconds: {
@@ -389,16 +399,16 @@ function createObjectField<Target extends object>(
   };
 }
 
-// Nível inicial de cada mapa de expedição
+// Bônus de nível de cada mapa de expedição, somado ao nível de partida de quem sai
 function createMapFields(): TuningField[] {
   return EXPEDITION_MAPS.map((map) =>
-    createObjectField(map, 'level', {
-      id: `map.${map.id}.level`,
-      source: `src/data/world.ts, ${map.id}, level`,
+    createObjectField(map, 'levelBonus', {
+      id: `map.${map.id}.levelBonus`,
+      source: `src/data/world.ts, ${map.id}, levelBonus`,
       group: GROUP.maps,
-      label: `${map.name}: nível das visagens`,
+      label: `${map.name}: níveis acima do poder de quem sai`,
       step: 1,
-      min: 1,
+      min: 0,
       isInteger: true,
     }),
   );

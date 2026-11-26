@@ -43,7 +43,8 @@ import { pickRandom, rollChance } from '../utils/random';
 import type { RandomSource } from '../utils/random';
 import { getEnemy, getExpeditionMap } from './catalog';
 import { launchProjectile, updateProjectiles } from './expeditionProjectiles';
-import { getEnemyContactDamage, getEnemyMaxHp } from './formulas';
+import { getEnemyContactDamage, getFighterBaseLevel, getWaveLevel } from './expeditionScaling';
+import { getEnemyMaxHp } from './formulas';
 import {
   getDistance,
   getPlayerPoint,
@@ -74,6 +75,9 @@ const WANDER_ATTEMPTS = 6;
 
 const SECONDS_PER_MINUTE = 60;
 
+// O que a cena precisa saber de quem sai para começar (ExpeditionFighter serve)
+type SceneFighterStats = Pick<ExpeditionFighter, 'maxHp' | 'damage'>;
+
 // Tudo que um passo precisa. O draft é a cópia de trabalho da cena.
 interface StepContext {
   draft: ExpeditionScene;
@@ -94,8 +98,13 @@ interface StepContext {
 /**
  * Monta a cena do começo de uma expedição.
  *
+ * O nível de partida (baseLevel) sai do dano de quem sai e fica fixo durante a
+ * expedição inteira (src/domain/expeditionScaling.ts). Se a comitiva ficar mais
+ * forte na clareira no meio da expedição, as visagens não mudam.
+ *
  * @param mapId Mapa da expedição. Precisa existir em src/data/world.ts.
- * @param maxHp Vida cheia da personagem (ExpeditionFighter.maxHp).
+ * @param fighter Quem sai: a vida cheia e o dano decidem a cena. Null: vida
+ *                playerBaseHp e nível de partida 1.
  * @param random Fonte de sorteio para o lugar e o tipo das primeiras visagens.
  * @returns Cena no tempo zero: personagem no início do mapa, olhando para a direita, com a vida
  *          cheia, golpe especial pronto e waveStartEnemies visagens longe dela.
@@ -103,14 +112,16 @@ interface StepContext {
  */
 export function createExpeditionScene(
   mapId: string,
-  maxHp: number,
+  fighter: SceneFighterStats | null,
   random: RandomSource,
 ): ExpeditionScene {
   const map = getExpeditionMap(mapId);
   const start = toTileCenter(map.start.x, map.start.y);
+  const maxHp = fighter?.maxHp ?? BALANCE.playerBaseHp;
   const context = createContext(
     {
       mapId,
+      baseLevel: getFighterBaseLevel(fighter?.damage ?? 0),
       elapsedSeconds: 0,
       playerX: start.x,
       playerY: start.y,
@@ -198,10 +209,6 @@ export function advanceScene(
   };
 }
 
-// Nível das visagens que nascem em certo momento: sobe um a cada waveLevelUpSeconds
-export function getWaveLevel(map: ExpeditionMapDef, elapsedSeconds: number): number {
-  return map.level + Math.floor(elapsedSeconds / BALANCE.waveLevelUpSeconds);
-}
 
 
 // =============================================================================
@@ -340,7 +347,7 @@ function spawnEnemy(context: StepContext): void {
 
   const enemyId = pickRandom(map.enemyIds, random);
   const enemyDef = getEnemy(enemyId);
-  const level = getWaveLevel(map, draft.elapsedSeconds);
+  const level = getWaveLevel(draft.baseLevel, map, draft.elapsedSeconds);
   const maxHp = getEnemyMaxHp(level, enemyDef, false);
   const enemy: SceneEnemy = {
     uid: draft.nextEnemyUid,
@@ -350,7 +357,7 @@ function spawnEnemy(context: StepContext): void {
     y: spot.y,
     hp: maxHp,
     maxHp,
-    damage: getEnemyContactDamage(level, enemyDef),
+    damage: getEnemyContactDamage(draft.playerMaxHp, level, draft.baseLevel, enemyDef),
     hitCooldown: 0,
     targetX: spot.x,
     targetY: spot.y,

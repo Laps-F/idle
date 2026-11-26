@@ -89,7 +89,8 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 5 | Deixar uma visagem dentro do círculo | Quando a barra amarela embaixo da personagem enche, sai um quadradinho claro (o projétil) na direção da visagem. Ao acertar, sobe o número do dano. A visagem derrotada some e a bolsa soma 1. |
 | 6 | Andar para um lado e apertar espaço | Sai um quadradinho azul (o projétil especial) para o lado em que você andou por último. Ele atravessa as visagens no caminho e some ao bater em árvore ou água. A barra do golpe especial esvazia e enche de novo em 6 segundos. |
 | 7 | Olhar o cabeçalho durante a expedição | As Patacas continuam subindo: a clareira rende enquanto você está fora. |
-| 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. |
+| 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. Cada encostada tira uma parte maior da vida. |
+| 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força de quem sai. O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
 | 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. |
 | 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
@@ -108,7 +109,7 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 14 | Buscar "vida", mudar "Vida base no nível 1" para 300 e apertar Enter | O nome fica em negrito, aparece "código: 100" e o botão "Voltar". O botão do cabeçalho vira "Ajustes (1)" e a aba "Expedições" passa a dizer "com 300 de vida". Embaixo aparece "src/data/balance.ts, playerBaseHp: 100 -> 300". |
 | 15 | Mudar "Nível do primeiro da comitiva" para 10 | O encantado passa ao nível 10 na hora (veja na aba "Comitiva"). |
 | 16 | Recarregar a página | O botão continua "Ajustes (1)": a mudança ficou guardada no navegador. |
-| 17 | Abrir "Ajustes" durante uma expedição e mudar "Dano base no nível 1" das visagens | As visagens que nascem dali em diante batem com o dano novo. As setas e o W, A, S e D não movem a personagem enquanto você escreve no campo. |
+| 17 | Abrir "Ajustes" durante uma expedição e mudar "Encostada no nível de partida" das visagens | As visagens que nascem dali em diante batem com o dano novo. As setas e o W, A, S e D não movem a personagem enquanto você escreve no campo. |
 | 18 | Clicar em "Desfazer tudo" | Todos os números voltam ao código e o botão volta a "Ajustes". |
 | 19 | Clicar em "Fechar" (ou apertar Esc) | A janela fecha. |
 

@@ -364,7 +364,7 @@ export interface ExpeditionMapDef {
   id: string;
   name: string;
   zoneId: string; // zona de onde vêm os Rastros (src/data/zones.ts)
-  level: number; // nível das visagens no começo. Sobe com o tempo de expedição.
+  levelBonus: number; // níveis somados ao de partida de quem sai (0: igual ao poder dela)
   layout: string[]; // uma linha de texto por linha do mapa, um caractere por ladrilho
   start: { x: number; y: number }; // ladrilho onde a personagem começa
   exit: { x: number; y: number }; // ladrilho da passagem de volta para a clareira
@@ -409,6 +409,7 @@ export interface SceneEnemy {
 // Tudo que está acontecendo no mapa agora. Só existe com o jogo aberto, não é salvo.
 export interface ExpeditionScene {
   mapId: string;
+  baseLevel: number; // nível de partida de quem saiu, fixo na expedição (expeditionScaling.ts)
   elapsedSeconds: number; // tempo de expedição até agora
   playerX: number;
   playerY: number;

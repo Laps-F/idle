@@ -27,6 +27,7 @@ import {
   getTileAt,
 } from '../domain/catalog';
 import { countLoot, getExpeditionFighter } from '../domain/expedition';
+import { getFighterBaseLevel, getMapStartLevel } from '../domain/expeditionScaling';
 import type { ExpeditionOutcome, SceneEvent } from '../domain/types';
 import { createStableSelector, toNamedAmounts } from './selectorTools';
 import type { NamedAmount } from './selectorTools';
@@ -50,7 +51,7 @@ export interface MapView {
 export interface ExpeditionOptionView {
   id: string;
   name: string;
-  level: number;
+  level: number; // nível das visagens no começo, pelo poder de quem sairia agora
   enemyNames: string[];
 }
 
@@ -232,6 +233,7 @@ function buildMapView(mapId: string): MapView {
 // Aba "Expedições": mapas e quem sairia agora
 function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
   const fighter = getExpeditionFighter(snapshot, snapshot.lastSaveTimestamp);
+  const baseLevel = getFighterBaseLevel(fighter?.damage ?? 0);
 
   return {
     leaderName: fighter === null ? null : getEncantado(fighter.encantadoId).name,
@@ -241,7 +243,7 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
     options: EXPEDITION_MAPS.map((map) => ({
       id: map.id,
       name: map.name,
-      level: map.level,
+      level: getMapStartLevel(baseLevel, map),
       enemyNames: map.enemyIds.map((enemyId) => getEnemy(enemyId).name),
     })),
   };

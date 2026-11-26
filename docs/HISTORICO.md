@@ -2,6 +2,64 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 26/11/2026: escala da expedição pelo poder de quem sai (Etapa 2 do Caminho 1)
+
+Antes, as visagens nasciam no nível fixo do mapa (1 e 4) e batiam um número fixo por nível. Com
+o jogo andando, a expedição ficava fácil e rendia pouco. Agora a dificuldade acompanha a força de
+quem sai.
+
+Regras novas:
+
+- **Nível de partida** = o maior nível em que uma visagem comum aguenta `expeditionHitsPerEnemy`
+  (3) golpes de quem sai: 1 + piso(log(3 × dano ÷ 10) ÷ log(1,18)), no mínimo 1. Fica fixo
+  durante a expedição. Melhorias, amuletos, sinergias, Raízes e o nível do encantado entram,
+  porque estão no dano.
+- **Mapas:** `level` virou `levelBonus`, somado ao nível de partida. Beira da Mata +0, Brejo
+  Escuro +1 (era o nível 4 fixo; +3 deixou o Brejo pesado demais na medição abaixo).
+- **Ondas:** continuam subindo 1 nível por minuto.
+- **Encostada:** vida máxima × 3% (`enemyContactHpFraction`) × 1,15 (`enemyContactGrowth`) por
+  nível acima da partida × multiplicador de vida da visagem. A vida maior de um encantado mais
+  forte deixou de deixar a expedição mais fácil.
+- A aba "Expedições" mostra o nível de cada mapa para quem sairia agora, e explica a escala.
+- Como a bolsa usa o nível da visagem no lugar do estágio, ela já rende mais com a comitiva mais
+  forte. O saque próprio da expedição é a Etapa 3.
+
+Ritmo medido (Saci sozinho comprando melhorias sem parar, três sementes, um robô parado e um robô
+que foge das visagens de perto e se aproxima das de longe):
+
+| Momento | Nível de partida | Beira, parado | Beira, desviando | Brejo, parado | Brejo, desviando |
+|---|---|---|---|---|---|
+| 1 min de jogo | 2 a 3 | 1min40 a 3min40 | 1min10 a 2min | 10 a 45 s | 30 s a 4min10 |
+| 15 min | 10 | 1min30 a 3min50 | 1min50 a 5 min | 12 s a 2min | 1min20 a 3 min |
+| 60 min | 15 | 3 a 5 min | 1min40 a 2min40 | 15 s a 4 min | 3 a 3min40 |
+
+O ponto principal: a Beira da Mata aguenta mais ou menos o mesmo tempo em qualquer momento do
+jogo, quando antes ficava trivial. O robô desviando é fraco (entra em becos), então uma pessoa
+deve durar mais. Cada expedição rendeu de 2 a 28 visagens, menos que o imaginado na análise
+(150). Com 1 hora, a bolsa rende de 20% a 45% das Patacas de 5 minutos de clareira. Isso entra
+na conta da Etapa 3.
+
+Arquivos:
+
+- `src/domain/expeditionScaling.ts` (novo): `getFighterBaseLevel`, `getMapStartLevel`,
+  `getWaveLevel` (saiu de `expeditionScene.ts`) e `getEnemyContactDamage` (saiu de
+  `formulas.ts`, com a fórmula nova).
+- `src/domain/expeditionScene.ts`: `createExpeditionScene` recebe quem sai (vida e dano), em vez
+  da vida. A cena guarda `baseLevel`.
+- `src/domain/types.ts`: `ExpeditionMapDef.levelBonus` no lugar de `level`;
+  `ExpeditionScene.baseLevel`.
+- `src/data/balance.ts`: `expeditionHitsPerEnemy`, `enemyContactHpFraction` e
+  `enemyContactGrowth` no lugar de `enemyDamageBase` e `enemyDamageGrowth`.
+- `src/data/world.ts`: `levelBonus` 0 e 1.
+- `src/store/expeditionSession.ts`: passa quem sai para a cena.
+- `src/store/expeditionSelectors.ts`: nível de cada mapa pelo poder de quem sairia.
+- `src/store/tuning.ts`: campos novos no painel "Ajustes" e o bônus de cada mapa.
+- `src/components/expedition/ExpeditionsPanel.tsx`: texto da escala.
+- Testes: `tests/expedition.test.ts` (nível de partida, bônus do mapa, ondas, encostada),
+  `tests/tuning.test.ts` e `tests/data.test.ts`.
+- Documentação: guia de manutenção, `docs/COMO_TESTAR.md` (passo 8a) e `README.md`. O salvamento
+  continua na versão 5: o nível de partida fica na cena, que não é salva.
+
 ## 26/11/2026: pausa da expedição (Etapa 1 do Caminho 1)
 
 A expedição continuava rodando com a aba escondida: a personagem ficava parada, apanhava e caía,

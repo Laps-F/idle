@@ -20,8 +20,14 @@ import {
   getExpeditionFighter,
   startExpedition,
 } from '../src/domain/expedition';
-import { advanceScene, createExpeditionScene, getWaveLevel } from '../src/domain/expeditionScene';
-import { getEnemyContactDamage, getExpeditionMaxHp } from '../src/domain/formulas';
+import { advanceScene, createExpeditionScene } from '../src/domain/expeditionScene';
+import {
+  getEnemyContactDamage,
+  getFighterBaseLevel,
+  getMapStartLevel,
+  getWaveLevel,
+} from '../src/domain/expeditionScaling';
+import { getEnemyMaxHp, getExpeditionMaxHp } from '../src/domain/formulas';
 import { getModifiers } from '../src/domain/modifiers';
 import { isWalkablePosition } from '../src/domain/sceneGeometry';
 import { createInitialState } from '../src/domain/state';
@@ -51,6 +57,7 @@ function deepFreeze<T>(value: T): T {
 function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
   return deepFreeze({
     mapId: FIRST_MAP,
+    baseLevel: 1,
     elapsedSeconds: 0,
     playerX: 10.5,
     playerY: 11.5,
@@ -128,7 +135,8 @@ function createGameOnExpedition(): GameState {
 describe('montagem da cena', () => {
   it('põe a personagem no início, com vida cheia, e as visagens longe dela', () => {
     const map = getExpeditionMap(FIRST_MAP);
-    const scene = createExpeditionScene(FIRST_MAP, 130, createSeededRandom(3));
+    const fighter = { maxHp: 130, damage: 3 };
+    const scene = createExpeditionScene(FIRST_MAP, fighter, createSeededRandom(3));
 
     expect(scene.playerX).toBe(map.start.x + 0.5);
     expect(scene.playerHp).toBe(130);
@@ -139,8 +147,34 @@ describe('montagem da cena', () => {
       const distance = Math.hypot(enemy.x - scene.playerX, enemy.y - scene.playerY);
       expect(isWalkablePosition(map, enemy.x, enemy.y)).toBe(true);
       expect(distance).toBeGreaterThanOrEqual(BALANCE.enemyMinSpawnDistance);
-      expect(enemy.level).toBe(map.level);
+      expect(enemy.level).toBe(getMapStartLevel(1, map));
     }
+  });
+
+  it('o nível de partida acompanha o dano de quem sai', () => {
+    const strongFighter = { maxHp: 100, damage: 50 };
+    const strong = createExpeditionScene(FIRST_MAP, strongFighter, createSeededRandom(3));
+    const level = getFighterBaseLevel(50);
+    const commonHp = getEnemyMaxHp(level, getEnemy('visagem-da-neblina'), false);
+
+    expect(strong.baseLevel).toBe(level);
+    expect(strong.enemies.every((enemy) => enemy.level === level)).toBe(true);
+    // A visagem comum de multiplicador 1 aguenta entre 3 ÷ 1,18 e 3 golpes
+    expect(commonHp / 50).toBeLessThanOrEqual(BALANCE.expeditionHitsPerEnemy + 1e-9);
+    expect(commonHp / 50).toBeGreaterThan(BALANCE.expeditionHitsPerEnemy / BALANCE.enemyHpGrowth);
+    expect(getEnemyMaxHp(level + 1, getEnemy('visagem-da-neblina'), false) / 50).toBeGreaterThan(
+      BALANCE.expeditionHitsPerEnemy,
+    );
+  });
+
+  it('dano fraco, zero ou que não é número parte do nível 1, e cada mapa soma o seu bônus', () => {
+    const brejo = getExpeditionMap('brejo-escuro');
+
+    expect(getFighterBaseLevel(0)).toBe(1);
+    expect(getFighterBaseLevel(Number.NaN)).toBe(1);
+    expect(getFighterBaseLevel(1)).toBe(1);
+    expect(createExpeditionScene(FIRST_MAP, null, createSeededRandom(1)).baseLevel).toBe(1);
+    expect(getMapStartLevel(10, brejo)).toBe(10 + brejo.levelBonus);
   });
 
   it('não aceita posição que não é número', () => {
@@ -236,9 +270,9 @@ describe('visagens', () => {
     const result = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(4));
 
     expect(result.scene.enemies).toHaveLength(1);
-    expect(result.scene.enemies[0]?.level).toBe(map.level + 2);
-    expect(getWaveLevel(map, 59)).toBe(map.level);
-    expect(getWaveLevel(map, 60)).toBe(map.level + 1);
+    expect(result.scene.enemies[0]?.level).toBe(getMapStartLevel(1, map) + 2);
+    expect(getWaveLevel(5, map, 59)).toBe(getMapStartLevel(5, map));
+    expect(getWaveLevel(5, map, 60)).toBe(getMapStartLevel(5, map) + 1);
   });
 
   it('a expedição termina como "concluida" no fim do tempo', () => {
@@ -332,12 +366,22 @@ describe('golpes e projéteis', () => {
 });
 
 describe('fórmulas da expedição', () => {
-  it('a vida cresce com o nível e o dano das visagens com o nível delas', () => {
+  it('a vida cresce com o nível do encantado', () => {
     expect(getExpeditionMaxHp(1)).toBe(BALANCE.playerBaseHp);
     expect(getExpeditionMaxHp(11)).toBe(BALANCE.playerBaseHp * 2);
-    const levelFive = Math.ceil(BALANCE.enemyDamageBase * BALANCE.enemyDamageGrowth ** 4);
-    expect(getEnemyContactDamage(1, getEnemy('visagem-da-neblina'))).toBe(BALANCE.enemyDamageBase);
-    expect(getEnemyContactDamage(5, getEnemy('visagem-da-neblina'))).toBe(levelFive);
+  });
+
+  it('a encostada tira uma fração da vida, que cresce com os níveis acima da partida', () => {
+    const neblina = getEnemy('visagem-da-neblina');
+    const atStart = Math.ceil(1000 * BALANCE.enemyContactHpFraction);
+    const fourAboveFraction = BALANCE.enemyContactHpFraction * BALANCE.enemyContactGrowth ** 4;
+
+    expect(getEnemyContactDamage(1000, 30, 30, neblina)).toBe(atStart);
+    expect(getEnemyContactDamage(1000, 34, 30, neblina)).toBe(Math.ceil(1000 * fourAboveFraction));
+    // A mesma fração para quem tem mais vida: a vida maior não deixa a expedição mais fácil
+    expect(getEnemyContactDamage(2000, 34, 30, neblina)).toBe(Math.ceil(2000 * fourAboveFraction));
+    expect(getEnemyContactDamage(1000, 10, 30, neblina)).toBe(atStart);
+    expect(getEnemyContactDamage(1, 1, 1, neblina)).toBe(1);
   });
 });
 

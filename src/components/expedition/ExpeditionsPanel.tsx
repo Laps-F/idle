@@ -31,6 +31,10 @@ export function ExpeditionsPanel() {
         inteira, mesmo se você cair. Quem aguenta {formatDuration(list.durationSeconds)} ganha{' '}
         {formatPercent(list.completionBonus)} a mais. A clareira continua rendendo enquanto isso.
       </p>
+      <p className="text-sm">
+        O nível das visagens acompanha a força de quem sai. Quanto mais forte a comitiva fica na
+        clareira, mais fortes são as visagens e mais a bolsa rende.
+      </p>
       <p className="text-sm font-bold">
         {canStart
           ? `Quem sai: ${list.leaderName}, com ${formatNumber(list.leaderMaxHp)} de vida.`

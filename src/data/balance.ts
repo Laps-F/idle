@@ -101,6 +101,9 @@ export const BALANCE = {
   expeditionDurationSeconds: 300, // limite de 5 minutos. Quem aguenta até o fim ganha o bônus.
   expeditionCompletionBonus: 0.5, // fim do tempo: a bolsa rende 50% a mais de visagens
 
+  // Expedições: escala. O nível de partida acompanha o poder de quem sai (expeditionScaling.ts).
+  expeditionHitsPerEnemy: 3, // no nível de partida, uma visagem comum aguenta uns 3 golpes
+
   // Expedições: personagem
   playerSpeed: 4,
   bodyRadius: 0.3, // metade da largura da personagem e das visagens, para a colisão
@@ -125,8 +128,8 @@ export const BALANCE = {
   enemyAggroRange: 9, // a visagem persegue quem chega mais perto que isto
   enemyContactRange: 0.6, // distância entre os centros para a visagem encostar
   enemyHitCooldownSeconds: 1, // cada visagem bate no máximo uma vez por segundo
-  enemyDamageBase: 3, // dano de uma encostada no nível 1
-  enemyDamageGrowth: 1.15, // o dano cresce 15% por nível
+  enemyContactHpFraction: 0.03, // uma encostada no nível de partida tira 3% da vida máxima...
+  enemyContactGrowth: 1.15, // ...e 15% a mais a cada nível acima dele (bônus do mapa e ondas)
   enemyWanderRadius: 2.5, // até onde a visagem passeia a cada vez que anda
   enemyWaitSecondsMin: 1, // tempo parada entre dois passeios: de 1...
   enemyWaitSecondsMax: 3, // ...a 3 segundos

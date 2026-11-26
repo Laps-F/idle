@@ -167,10 +167,11 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Duração do dia e do ciclo da lua | `src/data/balance.ts` |
 | Tempo da expedição e bônus de quem aguenta até o fim | `src/data/balance.ts`, `expeditionDurationSeconds` e `expeditionCompletionBonus` |
 | Personagem na expedição: velocidade, vida, alcance, força e recarga do golpe especial | `src/data/balance.ts`, bloco "Expedições: personagem" |
+| Quantos golpes uma visagem aguenta no nível de partida (a escala da expedição) | `src/data/balance.ts`, `expeditionHitsPerEnemy` |
 | Projéteis: velocidade, tamanho e distância máxima (comum e especial) | `src/data/balance.ts`, bloco "Expedições: projéteis" |
-| Visagens na expedição: perseguição, encostada, dano, passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
+| Visagens na expedição: perseguição, encostada, dano (fração da vida e crescimento), passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
 | Ondas: visagens no começo, teto, ritmo de chegada, nível subindo com o tempo | `src/data/balance.ts`, bloco "Expedições: ondas" |
-| Desenho de um mapa, nível inicial, visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
+| Desenho de um mapa, bônus de nível (`levelBonus`), visagens que aparecem, início e passagem de volta | `src/data/world.ts`, `EXPEDITION_MAPS` |
 | Tipos de ladrilho: símbolo no desenho e se dá para passar | `src/data/world.ts`, `TILES` |
 | Ataque, velocidade, origem, raridade, quadra ou pacto de um encantado | `src/data/encantados.ts` |
 | Vida, Patacas, XP ou itens que uma visagem ou chefe deixa cair | `src/data/enemies.ts` |
@@ -215,7 +216,8 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Cálculo do progresso offline e junção de relatórios | `src/domain/offline.ts` |
 | Estado de um jogo novo, combate contra visagem ou chefe | `src/domain/state.ts` |
 | Mapa, ladrilho de uma coluna e linha, tamanho do mapa, zona por id | `src/domain/catalog.ts` |
-| Dano de uma visagem na expedição e vida da personagem | `src/domain/formulas.ts`, bloco "Expedições" |
+| Vida da personagem na expedição | `src/domain/formulas.ts`, `getExpeditionMaxHp` |
+| Nível de partida pelo dano de quem sai, nível de cada mapa e das ondas, dano da encostada | `src/domain/expeditionScaling.ts` |
 | Movimento e colisão da personagem, passagem de volta | `src/domain/expeditionScene.ts`, bloco "Personagem" |
 | Ondas, passeio, perseguição e encostada das visagens | `src/domain/expeditionScene.ts`, bloco "Visagens" |
 | Quando o projétil comum e o especial saem, e para onde | `src/domain/expeditionScene.ts`, bloco "Golpes" |
@@ -463,8 +465,8 @@ atributo em `src/domain/modifiers.ts`, usá-lo na conta certa do domínio e dar 
 
 1. Desenhe o mapa em `EXPEDITION_MAPS`, em `src/data/world.ts`: uma linha de texto por linha do
    mapa, todas do mesmo tamanho, com os símbolos de `TILES`. Feche as bordas com árvore ou água.
-2. Preencha `zoneId` (de onde vêm os Rastros), `level` (nível das visagens no começo), `start`,
-   `exit` (a passagem de volta, perto do início) e `enemyIds`.
+2. Preencha `zoneId` (de onde vêm os Rastros), `levelBonus` (níveis acima do poder de quem sai:
+   0 é o mapa mais fácil), `start`, `exit` (a passagem de volta, perto do início) e `enemyIds`.
 3. Rode `npm test`. O teste de dados confere o desenho, os ids, o início e a passagem. A aba
    "Expedições" mostra o mapa sozinha.
 
@@ -482,14 +484,16 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
 
 ### Mudar a dificuldade da expedição
 
-- Morre rápido demais: `enemyDamageBase`, `enemyChaseSpeed` ou `waveMaxEnemiesStart` para baixo,
-  ou `playerBaseHp` para cima.
+- Morre rápido demais: `enemyContactHpFraction`, `enemyContactGrowth`, `enemyChaseSpeed` ou
+  `waveMaxEnemiesStart` para baixo, ou `levelBonus` do mapa. A vida (`playerBaseHp`) não ajuda:
+  a encostada é uma fração da vida máxima.
+- Visagem aguenta golpes demais ou de menos: `expeditionHitsPerEnemy`.
 - Fácil demais: `waveSpawnSpeedupPerMinute` e `waveMaxEnemiesPerMinute` para cima, ou
   `waveLevelUpSeconds` para baixo (visagens sobem de nível mais cedo).
 - Golpe especial fraco ou forte: `specialDamageMultiplier`, `specialCooldownSeconds` e
   `specialProjectileMaxDistance`.
 - Acertar de longe demais ou de perto demais: `attackRange` e `projectileMaxDistance`.
-- Bolsa rende pouco ou muito: `expeditionCompletionBonus`, ou o nível inicial (`level`) do mapa.
+- Bolsa rende pouco ou muito: `expeditionCompletionBonus`, ou o `levelBonus` do mapa.
 - Para testar jogando: botão "Ajustes" no cabeçalho, com todos esses números e o nível de quem
   sai em expedição.
 - Para medir sem jogar: monte uma cena com `createExpeditionScene` e chame `advanceScene` em

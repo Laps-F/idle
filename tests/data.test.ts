@@ -133,7 +133,7 @@ describe('mapas de expedição', () => {
       expect(hasZone(map.zoneId)).toBe(true);
       expect(map.enemyIds.length).toBeGreaterThan(0);
       expect(map.enemyIds.every(hasEnemy)).toBe(true);
-      expect(map.level).toBeGreaterThanOrEqual(1);
+      expect(map.levelBonus).toBeGreaterThanOrEqual(0);
     }
   });
 

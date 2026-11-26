@@ -43,7 +43,7 @@ export const EXPEDITION_MAPS: ExpeditionMapDef[] = [
     id: 'beira-da-mata',
     name: 'Beira da Mata',
     zoneId: 'mata-atlantica',
-    level: 1,
+    levelBonus: 0,
     layout: [
       'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
       'T.....T..............T.........T',
@@ -74,7 +74,7 @@ export const EXPEDITION_MAPS: ExpeditionMapDef[] = [
     id: 'brejo-escuro',
     name: 'Brejo Escuro',
     zoneId: 'mata-atlantica',
-    level: 4,
+    levelBonus: 1,
     layout: [
       'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
       'T~~~...........T......~~~~~~~~~T',

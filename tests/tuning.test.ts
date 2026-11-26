@@ -53,9 +53,10 @@ describe('lista de ajustes', () => {
       'balance.xpBase',
       'balance.playerBaseHp',
       'balance.playerHpPerLevel',
-      'balance.enemyDamageBase',
+      'balance.enemyContactHpFraction',
+      'balance.expeditionHitsPerEnemy',
       'balance.waveSpawnSecondsStart',
-      'map.beira-da-mata.level',
+      'map.beira-da-mata.levelBonus',
       'enemy.visagem-da-neblina.hpMultiplier',
       'enemy.visagem-da-neblina.drop0.chance',
       'encantado.saci.baseAttack',
@@ -93,8 +94,8 @@ describe('mudar e desfazer', () => {
   });
 
   it('arredonda os campos de número inteiro', () => {
-    setTuningValue('map.beira-da-mata.level', 3.6);
-    expect(EXPEDITION_MAPS[0]?.level).toBe(4);
+    setTuningValue('map.beira-da-mata.levelBonus', 3.6);
+    expect(EXPEDITION_MAPS[0]?.levelBonus).toBe(4);
   });
 
   it('aplica o que estava guardado e ignora o que não serve', () => {
@@ -124,10 +125,11 @@ describe('efeito no jogo', () => {
     const game = chooseStarter(createInitialState(0, createSeededRandom(1)), 'saci');
 
     setTuningValue('balance.playerBaseHp', 250);
-    setTuningValue('map.beira-da-mata.level', 7);
-    const scene = createExpeditionScene('beira-da-mata', 250, createSeededRandom(2));
+    setTuningValue('map.beira-da-mata.levelBonus', 6);
+    const fighter = game === null ? null : getExpeditionFighter(game, 0);
+    const scene = createExpeditionScene('beira-da-mata', fighter, createSeededRandom(2));
 
-    expect(game === null ? null : getExpeditionFighter(game, 0)?.maxHp).toBe(250);
+    expect(fighter?.maxHp).toBe(250);
     expect(scene.enemies.every((enemy) => enemy.level === 7)).toBe(true);
   });
 });

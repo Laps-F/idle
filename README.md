@@ -77,6 +77,7 @@ src/
     expedition.ts      expedições: quem sai, partir, bolsa e a volta com o bônus
     expeditionScene.ts expedições em tempo real: movimento, visagens, ondas, golpes e fim
     expeditionProjectiles.ts  voo e acerto dos projéteis da expedição
+    expeditionScaling.ts  escala da expedição: nível pelo poder de quem sai, dano da encostada
     sceneGeometry.ts   distâncias, colisão e ladrilhos livres do mapa
   data/                datasets estáticos e tipados, sem função e sem cálculo
     balance.ts         constantes das fórmulas (ritmo do jogo)

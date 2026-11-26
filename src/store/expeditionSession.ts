@@ -71,7 +71,7 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
         (_previous, next) => ({
           expeditionScene: createExpeditionScene(
             mapId,
-            getExpeditionFighter(next, Date.now())?.maxHp ?? BALANCE.playerBaseHp,
+            getExpeditionFighter(next, Date.now()),
             Math.random,
           ),
           moveInput: NO_INPUT,
