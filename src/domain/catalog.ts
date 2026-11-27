@@ -23,6 +23,7 @@ import {
   EXPEDITION_LOOT,
   EXPEDITION_MAPS,
   EXPEDITION_PREPARATIONS,
+  SPECIALS,
   TILES,
   UPGRADES,
   ZONES,
@@ -35,6 +36,7 @@ import type {
   ExpeditionLootDef,
   ExpeditionMapDef,
   ExpeditionPreparationDef,
+  SpecialDef,
   ItemDef,
   JuazeiroNodeDef,
   Rarity,
@@ -56,6 +58,7 @@ const JUAZEIRO_NODES_BY_ID = indexById(JUAZEIRO_NODES);
 const ZONES_BY_ID = indexById(ZONES);
 const EXPEDITION_MAPS_BY_ID = indexById(EXPEDITION_MAPS);
 const EXPEDITION_PREPARATIONS_BY_ID = indexById(EXPEDITION_PREPARATIONS);
+const SPECIALS_BY_ENCANTADO = new Map(SPECIALS.map((special) => [special.encantadoId, special]));
 const EXPEDITION_LOOT_BY_MAP = new Map(EXPEDITION_LOOT.map((loot) => [loot.mapId, loot]));
 const TILES_BY_SYMBOL = new Map(TILES.map((tile) => [tile.symbol, tile]));
 
@@ -217,6 +220,15 @@ export function getExpeditionPreparation(id: string): ExpeditionPreparationDef {
 
 export function hasExpeditionPreparation(id: string): boolean {
   return EXPEDITION_PREPARATIONS_BY_ID.has(id);
+}
+
+// Golpe especial de um encantado na expedição (src/data/specials.ts)
+export function getSpecial(encantadoId: string): SpecialDef {
+  return getOrThrow(SPECIALS_BY_ENCANTADO, encantadoId, 'Golpe especial');
+}
+
+export function hasSpecial(encantadoId: string): boolean {
+  return SPECIALS_BY_ENCANTADO.has(encantadoId);
 }
 
 /**

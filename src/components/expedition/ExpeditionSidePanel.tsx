@@ -52,6 +52,9 @@ function ExpeditionSection() {
     <section className={SECTION_CLASS} aria-label="Expedição">
       <h2 className={TITLE_CLASS}>{hud.mapName}</h2>
       <p className="text-sm">Quem saiu: {hud.leaderName}</p>
+      <p className="text-sm">
+        Golpe especial: <strong>{hud.special.name}</strong>. {hud.special.description}
+      </p>
       <p className="text-sm">Visagens na bolsa: {formatNumber(hud.lootCount)}</p>
       <p className="text-sm">Rastros na bolsa: {formatNumber(hud.trailCount)}</p>
       <p className="text-sm">Preparo: {hud.preparationName ?? 'nenhum'}</p>
@@ -71,8 +74,8 @@ function HowToPlaySection() {
         <li>Ande com as setas ou com W, A, S e D.</li>
         <li>O projétil comum sai sozinho na visagem mais perto, dentro do círculo.</li>
         <li>
-          Espaço solta o projétil especial para o lado em que você anda. Ele atravessa as
-          visagens e precisa recarregar.
+          Espaço solta o golpe especial de quem saiu (está logo acima). Cada encantado tem o seu,
+          e todos precisam recarregar. Os que atiram saem para o lado em que você anda.
         </li>
         <li>As visagens perseguem e batem ao encostar. Fuja, elas são mais lentas.</li>
         <li>

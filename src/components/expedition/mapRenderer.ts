@@ -21,7 +21,7 @@
  *   7. Peças de desenho e vagas de imagem
  */
 
-import type { MapView, SceneFrame } from '../../store/expeditionSelectors';
+import type { MapView, SceneEnemyFrame, SceneFrame } from '../../store/expeditionSelectors';
 import { formatDuration, formatNumber } from '../../utils/format';
 import {
   EXIT_SPRITE,
@@ -67,6 +67,10 @@ const ATTACK_COLOR = '#e8b93a';
 const SPECIAL_COLOR = '#8fd3ff';
 const HURT_COLOR = '#ff5a3c';
 const TRAIL_COLOR = '#ffb35c';
+const HEAL_COLOR = '#7be08a';
+const SLOW_TINT = 'rgba(143, 211, 255, 0.45)';
+const BURN_TINT = 'rgba(255, 120, 40, 0.5)';
+const RING_COLOR = 'rgba(143, 211, 255, 0.9)';
 const RANGE_COLOR = 'rgba(241, 234, 216, 0.35)';
 const HUD_BACKGROUND = 'rgba(27, 22, 18, 0.75)';
 const LABEL_FONT = '9px sans-serif';
@@ -81,6 +85,7 @@ export interface MapEffect {
   color: string;
   isBig: boolean;
   ageSeconds: number;
+  ringRadius: number; // em ladrilhos: anel que abre no lugar do texto (0: só texto)
 }
 
 // Canto de cima e à esquerda da parte do mapa que aparece, em pixels
@@ -230,9 +235,31 @@ function drawEnemies(context: CanvasRenderingContext2D, frame: SceneFrame, camer
     const top = toScreen(enemy.y, camera.top) - size / 2;
     const sprite = getEnemySprite(enemy.enemyId);
     drawSlot(context, sprite, left, top, size, false);
+    drawEnemyStatus(context, enemy, left, top, size);
     drawFigureLabel(context, sprite, left + size / 2, top + size + 12);
     drawBar(context, left, top - 7, size, enemy.hpFraction, HP_COLOR);
     drawCenteredText(context, `${enemy.name} ${enemy.level}`, left + size / 2, top - 10, NAME_FONT);
+  }
+}
+
+// Sinais dos golpes especiais por cima da visagem: azul lenta, laranja queimando, "?" sem pista
+function drawEnemyStatus(
+  context: CanvasRenderingContext2D,
+  enemy: SceneEnemyFrame,
+  left: number,
+  top: number,
+  size: number,
+): void {
+  if (enemy.isSlowed) {
+    context.fillStyle = SLOW_TINT;
+    context.fillRect(left, top, size, size);
+  }
+  if (enemy.isBurning) {
+    context.fillStyle = BURN_TINT;
+    context.fillRect(left, top + size / 2, size, size / 2);
+  }
+  if (enemy.isConfused) {
+    drawCenteredText(context, '?', left + size / 2, top + size / 2 + 6, HUD_FONT, PAPER_COLOR);
   }
 }
 
@@ -255,7 +282,10 @@ function drawPlayer(context: CanvasRenderingContext2D, frame: SceneFrame, camera
   const top = toScreen(frame.playerY, camera.top) - size / 2;
   const sprite = getPlayerSprite(frame.leaderId);
 
+  // No Redemoinho, a personagem fica meio sumida
+  context.globalAlpha = frame.isInvulnerable ? 0.4 : 1;
   drawSlot(context, sprite, left, top, size, false);
+  context.globalAlpha = 1;
   if (frame.isHurt) {
     context.fillStyle = 'rgba(255, 90, 60, 0.6)';
     context.fillRect(left, top, size, size);
@@ -269,7 +299,7 @@ function drawPlayer(context: CanvasRenderingContext2D, frame: SceneFrame, camera
 // =============================================================================
 // N Ú M E R O S   Q U E   S O B E M
 
-// Cada número sobe e some aos poucos
+// Cada número sobe e some aos poucos. O anel de golpe especial abre até o raio e some.
 function drawEffects(
   context: CanvasRenderingContext2D,
   effects: readonly MapEffect[],
@@ -277,6 +307,12 @@ function drawEffects(
 ): void {
   for (const effect of effects) {
     const progress = Math.min(1, effect.ageSeconds / EFFECT_SECONDS);
+
+    if (effect.ringRadius > 0) {
+      drawRing(context, effect, camera, progress);
+      continue;
+    }
+
     const x = toScreen(effect.x, camera.left);
     const y = toScreen(effect.y - progress * FLOATING_TEXT_RISE, camera.top);
     const font = effect.isBig ? 'bold 20px sans-serif' : 'bold 14px sans-serif';
@@ -287,12 +323,36 @@ function drawEffects(
   }
 }
 
-// Cor de cada efeito de texto, para quem monta os efeitos (ExpeditionCanvas.tsx)
+// Anel que abre do centro do efeito até o raio, sumindo aos poucos
+function drawRing(
+  context: CanvasRenderingContext2D,
+  effect: MapEffect,
+  camera: Camera,
+  progress: number,
+): void {
+  context.globalAlpha = 1 - progress;
+  context.strokeStyle = effect.color;
+  context.lineWidth = 3;
+  context.beginPath();
+  context.arc(
+    toScreen(effect.x, camera.left),
+    toScreen(effect.y, camera.top),
+    Math.max(1, effect.ringRadius * TILE_PX * progress),
+    0,
+    2 * Math.PI,
+  );
+  context.stroke();
+  context.globalAlpha = 1;
+}
+
+// Cor de cada efeito, para quem monta os efeitos (ExpeditionCanvas.tsx)
 export const EFFECT_COLORS = {
   hit: PAPER_COLOR,
   crit: ATTACK_COLOR,
   hurt: HURT_COLOR,
   trail: TRAIL_COLOR,
+  heal: HEAL_COLOR,
+  ring: RING_COLOR,
 } as const;
 
 

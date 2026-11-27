@@ -15,6 +15,7 @@ import {
   EXPEDITION_LOOT,
   EXPEDITION_MAPS,
   EXPEDITION_PREPARATIONS,
+  SPECIALS,
   TILES,
   UPGRADES,
   ZONES,
@@ -129,6 +130,30 @@ describe('preparos de expedição', () => {
       for (const [key, value] of Object.entries(preparation.modifiers)) {
         expect(modifierKeys).toContain(key);
         expect(value).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe('golpes especiais', () => {
+  it('um golpe por encantado, com nome, recarga e efeitos de número positivo', () => {
+    const owners = SPECIALS.map((special) => special.encantadoId);
+    expect(new Set(owners).size).toBe(owners.length);
+    expect([...owners].sort()).toEqual(ENCANTADOS.map((encantado) => encantado.id).sort());
+
+    for (const special of SPECIALS) {
+      expect(hasEncantado(special.encantadoId)).toBe(true);
+      expect(special.name.length).toBeGreaterThan(0);
+      expect(special.description.length).toBeGreaterThan(0);
+      expect(special.cooldownSeconds).toBeGreaterThan(0);
+      expect(special.effects.length).toBeGreaterThan(0);
+
+      for (const effect of special.effects) {
+        for (const value of Object.values(effect)) {
+          if (typeof value === 'number') {
+            expect(value).toBeGreaterThanOrEqual(0);
+          }
+        }
       }
     }
   });

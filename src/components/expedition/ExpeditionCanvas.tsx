@@ -150,6 +150,9 @@ function PauseNotice() {
 // =============================================================================
 // E F E I T O S
 
+// Raio do anel dos golpes sem área (cura, projétil), em ladrilhos
+const SPECIAL_RING_MIN_RADIUS = 1;
+
 // Evento do tick -> número na tela. A derrota não vira número (a visagem só some).
 function toEffect(event: SceneEventView): MapEffect[] {
   switch (event.type) {
@@ -163,6 +166,7 @@ function toEffect(event: SceneEventView): MapEffect[] {
           color: event.isCrit ? EFFECT_COLORS.crit : EFFECT_COLORS.hit,
           isBig: event.isCrit,
           ageSeconds: 0,
+          ringRadius: 0,
         },
       ];
     }
@@ -175,6 +179,7 @@ function toEffect(event: SceneEventView): MapEffect[] {
           color: EFFECT_COLORS.hurt,
           isBig: true,
           ageSeconds: 0,
+          ringRadius: 0,
         },
       ];
     case 'trail':
@@ -186,6 +191,32 @@ function toEffect(event: SceneEventView): MapEffect[] {
           color: EFFECT_COLORS.trail,
           isBig: true,
           ageSeconds: 0,
+          ringRadius: 0,
+        },
+      ];
+    case 'heal':
+      return [
+        {
+          x: event.x,
+          y: event.y - 0.6,
+          text: `+${formatNumber(event.amount)}`,
+          color: EFFECT_COLORS.heal,
+          isBig: true,
+          ageSeconds: 0,
+          ringRadius: 0,
+        },
+      ];
+    case 'special':
+      // Golpe de área: um anel abre até o raio. Golpe sem área: um anel pequeno.
+      return [
+        {
+          x: event.x,
+          y: event.y,
+          text: '',
+          color: EFFECT_COLORS.ring,
+          isBig: false,
+          ageSeconds: 0,
+          ringRadius: Math.max(event.radius, SPECIAL_RING_MIN_RADIUS),
         },
       ];
     case 'defeat':

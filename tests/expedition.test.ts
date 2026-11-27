@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BALANCE } from '../src/data';
 import { chooseStarter } from '../src/domain/actions';
-import { getEnemy, getExpeditionLoot, getExpeditionMap } from '../src/domain/catalog';
+import { getEnemy, getExpeditionLoot, getExpeditionMap, getSpecial } from '../src/domain/catalog';
 import { getClearingReference } from '../src/domain/expeditionGuarantee';
 import { rewardExpeditionBag } from '../src/domain/expeditionLoot';
 import {
@@ -59,6 +59,15 @@ import type {
 import { createSeededRandom } from '../src/utils/random';
 
 const FIRST_MAP = 'beira-da-mata';
+
+// O efeito de projétil do Rastro de fogo do Boitatá (src/data/specials.ts)
+const BOITATA_PROJECTILE = (() => {
+  const effect = getSpecial('boitata').effects.find((item) => item.kind === 'projectile');
+  if (effect?.kind !== 'projectile') {
+    throw new Error('O Boitatá deveria ter um golpe de projétil.');
+  }
+  return effect;
+})();
 const STOPPED = { moveX: 0, moveY: 0, useSpecial: false };
 const POSITION_DIGITS = 6;
 
@@ -89,8 +98,10 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
     playerHp: 100,
     playerMaxHp: 100,
     hurtSeconds: 0,
+    invulnerableSeconds: 0,
     attackProgress: 0,
     specialCooldown: 0,
+    specialCooldownTotal: 6,
     facingX: 1,
     facingY: 0,
     enemies: [],
@@ -128,6 +139,12 @@ function createEnemy(x: number, y: number, changes: Partial<SceneEnemy> = {}): S
     targetX: x,
     targetY: y,
     waitSeconds: 100,
+    slowSeconds: 0,
+    slowMultiplier: 1,
+    confusedSeconds: 0,
+    burnSeconds: 0,
+    burnDps: 0,
+    burnTickSeconds: 0,
     ...changes,
   };
 }
@@ -174,7 +191,7 @@ function createGameOnExpedition(): GameState {
 describe('montagem da cena', () => {
   it('põe a personagem no início, com vida cheia, e as visagens longe dela', () => {
     const map = getExpeditionMap(FIRST_MAP);
-    const fighter = { maxHp: 130, damage: 3 };
+    const fighter = { encantadoId: 'saci', maxHp: 130, damage: 3 };
     const scene = createExpeditionScene(setupFor(fighter), createSeededRandom(3));
 
     expect(scene.playerX).toBe(map.start.x + 0.5);
@@ -191,7 +208,7 @@ describe('montagem da cena', () => {
   });
 
   it('o nível de partida acompanha o dano de quem sai', () => {
-    const strongFighter = { maxHp: 100, damage: 50 };
+    const strongFighter = { encantadoId: 'saci', maxHp: 100, damage: 50 };
     const strong = createExpeditionScene(setupFor(strongFighter), createSeededRandom(3));
     const level = getFighterBaseLevel(50);
     const commonHp = getEnemyMaxHp(level, getEnemy('visagem-da-neblina'), false);
@@ -329,7 +346,9 @@ describe('golpes e projéteis', () => {
   }
 
   const weakFighter = { ...STRONG_FIGHTER, damage: 2 };
-  const specialDamage = 2 * BALANCE.specialDamageMultiplier;
+  // O Boitatá é quem tem o golpe especial de projétil (Rastro de fogo)
+  const fireFighter = { ...weakFighter, encantadoId: 'boitata' };
+  const specialDamage = 2 * BOITATA_PROJECTILE.damageMultiplier;
 
   it('o golpe comum vira um projétil que voa até a visagem e a derruba', () => {
     // A visagem fica a 3,5 ladrilhos: o projétil leva alguns passos para chegar
@@ -369,8 +388,8 @@ describe('golpes e projéteis', () => {
     const enemies = [createTarget(1, 12.5, 11.5), createTarget(2, 13.5, 11.5)];
     const scene = createScene({ enemies });
     const special = { ...STOPPED, useSpecial: true };
-    const first = advanceScene(scene, weakFighter, special, 0.5, createSeededRandom(1));
-    const again = advanceScene(first.scene, weakFighter, special, 0.05, createSeededRandom(1));
+    const first = advanceScene(scene, fireFighter, special, 0.5, createSeededRandom(1));
+    const again = advanceScene(first.scene, fireFighter, special, 0.05, createSeededRandom(1));
 
     expect(first.scene.enemies.map((enemy) => enemy.hp)).toEqual([
       100 - specialDamage,
@@ -383,9 +402,9 @@ describe('golpes e projéteis', () => {
   it('o especial segue a última direção em que a personagem andou', () => {
     const scene = createScene();
     const up = { moveX: 0, moveY: -1, useSpecial: false };
-    const walked = advanceScene(scene, weakFighter, up, 0.05, createSeededRandom(1));
+    const walked = advanceScene(scene, fireFighter, up, 0.05, createSeededRandom(1));
     const special = { ...STOPPED, useSpecial: true };
-    const fired = advanceScene(walked.scene, weakFighter, special, 0.05, createSeededRandom(1));
+    const fired = advanceScene(walked.scene, fireFighter, special, 0.05, createSeededRandom(1));
 
     expect(walked.scene.facingY).toBe(-1);
     expect(fired.scene.projectiles[0]?.directionY).toBe(-1);
@@ -396,8 +415,8 @@ describe('golpes e projéteis', () => {
     const special = { ...STOPPED, useSpecial: true };
     // A linha 0 da Beira da Mata é toda de árvores
     const wallScene = createScene({ playerX: 1.5, playerY: 1.5, facingX: 0, facingY: -1 });
-    const wall = advanceScene(wallScene, weakFighter, special, 0.2, createSeededRandom(1));
-    const open = advanceScene(createScene(), weakFighter, special, 1, createSeededRandom(1));
+    const wall = advanceScene(wallScene, fireFighter, special, 0.2, createSeededRandom(1));
+    const open = advanceScene(createScene(), fireFighter, special, 1, createSeededRandom(1));
 
     expect(wall.scene.projectiles).toEqual([]);
     expect(open.scene.projectiles).toEqual([]);
@@ -863,13 +882,13 @@ describe('preparos com Oferendas', () => {
   it('a brasa dobra o dano do especial e encurta a recarga', () => {
     const target = createEnemy(12.5, 11.5, { damage: 0, hp: 1000, maxHp: 1000 });
     const scene = createScene({ modifiers: getRunModifiers('brasa-no-bornal'), enemies: [target] });
-    const fighter = { ...STRONG_FIGHTER, damage: 2 };
+    const fighter = { ...STRONG_FIGHTER, encantadoId: 'boitata', damage: 2 };
     const special = { ...STOPPED, useSpecial: true };
     const result = advanceScene(scene, fighter, special, 0.5, createSeededRandom(1));
 
-    expect(result.scene.enemies[0]?.hp).toBe(1000 - 2 * BALANCE.specialDamageMultiplier * 2);
+    expect(result.scene.enemies[0]?.hp).toBe(1000 - 2 * BOITATA_PROJECTILE.damageMultiplier * 2);
     // O especial sai no primeiro pedaço do passo e a recarga já anda no resto dele
-    const shortCooldown = (BALANCE.specialCooldownSeconds * 2) / 3;
+    const shortCooldown = (getSpecial('boitata').cooldownSeconds * 2) / 3;
     expect(result.scene.specialCooldown).toBeLessThanOrEqual(shortCooldown);
     expect(result.scene.specialCooldown).toBeGreaterThan(shortCooldown - 0.5);
   });

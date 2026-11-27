@@ -73,6 +73,7 @@ describe('aba Expedições da clareira', () => {
   it('mostra quem sai e os mapas, e troca para a tela da expedição ao partir', async () => {
     await mount();
     expect(host.textContent).toContain('Quem sai: Saci, com 100 de vida.');
+    expect(host.textContent).toContain('Golpe especial (espaço): Redemoinho.');
     expect(host.textContent).toContain('Brejo Escuro');
 
     await click('Partir para Beira da Mata');
@@ -80,6 +81,7 @@ describe('aba Expedições da clareira', () => {
     expect(useGameStore.getState().expedition?.mapId).toBe('beira-da-mata');
     expect(host.querySelector('canvas')).not.toBeNull();
     expect(host.textContent).toContain('Quem saiu: Saci');
+    expect(host.textContent).toContain('Golpe especial: Redemoinho.');
     expect(host.textContent).toContain('Visagens na bolsa: 0');
   });
 });
@@ -97,6 +99,7 @@ describe('quem sai primeiro', () => {
     await click('Iara');
     expect(useGameStore.getState().party).toEqual(['iara', 'saci']);
     expect(host.textContent).toContain('Quem sai: Iara');
+    expect(host.textContent).toContain('Canto da Iara');
 
     await click('Partir para Beira da Mata');
     expect(useGameStore.getState().expedition?.encantadoId).toBe('iara');

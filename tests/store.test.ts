@@ -447,7 +447,8 @@ describe('amuletos e migração do salvamento', () => {
     useGameStore.getState().saveNow();
     const saved = JSON.parse(localStorage.getItem(SAVE_STORAGE_KEY) ?? '{}');
     expect(saved.version).toBe(BALANCE.saveVersion);
-    expect(Object.keys(saved.state.amulets)).toEqual(['amuleto-1']);
+    // O segundo de clareira pode sortear outro amuleto antes do que o teste deu
+    expect(Object.keys(saved.state.amulets)).toContain('amuleto-1');
   });
 
   it('importa um código exportado na versão 1', async () => {
@@ -775,7 +776,11 @@ describe('expedições e salvamento da versão 5', () => {
 
   it('na volta, a garantia paga pelo menos o que a clareira renderia no mesmo tempo', async () => {
     const useGameStore = await openExpedition();
+    // Parada por 30 segundos a personagem poderia cair antes da hora: fica no Redemoinho
+    const scene = useGameStore.getState().expeditionScene;
+    useGameStore.setState({ expeditionScene: scene && { ...scene, invulnerableSeconds: 1e9 } });
     runTicks(useGameStore, 300); // 30 segundos de expedição, sem andar
+    expect(useGameStore.getState().expedition).not.toBeNull();
 
     const goldBefore = useGameStore.getState().gold;
     useGameStore.getState().leaveExpedition();

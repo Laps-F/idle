@@ -23,7 +23,7 @@
  * Mapa:
  *   1. Tipos
  *   2. Montagem
- *   3. Passo: surgir e pegar
+ *   3. Passo: surgir e pegar (e surgir na hora, pelo Assobio)
  *   4. Pegada onde a visagem caiu
  */
 
@@ -107,6 +107,13 @@ export function updateFootprints(context: FootprintContext, seconds: number): vo
   if (spot !== null) {
     placeFootprint(context, spot);
   }
+}
+
+// Faz uma pegada surgir agora, num lugar sorteado longe da personagem (Assobio da Caipora).
+// Não muda a contagem até a próxima pegada. Sem quem precise ou sem lugar no chão, não surge.
+export function spawnFootprintNow(context: FootprintContext): boolean {
+  const spot = pickFootprintSpot(context);
+  return spot !== null && placeFootprint(context, spot);
 }
 
 // Passou por cima: a pegada some e vira um Rastro na bolsa

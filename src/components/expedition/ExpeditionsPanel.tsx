@@ -63,6 +63,13 @@ export function ExpeditionsPanel() {
           ? `Quem sai: ${list.leaderName}, com ${formatNumber(list.leaderMaxHp)} de vida.`
           : 'Escolha um encantado para começar antes de sair.'}
       </p>
+      {list.leaderSpecial !== null && (
+        <p className="text-xs">
+          Golpe especial (espaço): <strong>{list.leaderSpecial.name}</strong>.{' '}
+          {list.leaderSpecial.description} Recarrega em{' '}
+          {formatDuration(list.leaderSpecial.cooldownSeconds)}.
+        </p>
+      )}
       <LeaderPicker members={list.partyMembers} onChoose={setPartyLeader} />
       <PreparationPicker
         preparations={list.preparations}
@@ -124,6 +131,7 @@ function LeaderPicker({ members, onChoose }: LeaderPickerProps) {
           variant={member.isLeader ? 'solid' : 'outline'}
           aria-pressed={member.isLeader}
           onClick={() => onChoose(member.id)}
+          title={`Golpe especial: ${member.specialName}`}
         >
           {member.name}
         </Button>

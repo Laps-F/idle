@@ -25,7 +25,9 @@ import {
   getExpeditionPreparation,
   getItem,
   getMapSize,
+  getSpecial,
   getTileAt,
+  hasSpecial,
 } from '../domain/catalog';
 import {
   countLoot,
@@ -34,6 +36,7 @@ import {
   getTrailTargets,
 } from '../domain/expedition';
 import { canAffordPreparation } from '../domain/expeditionModifiers';
+import { getSpecialCooldown } from '../domain/expeditionSpecials';
 import { getFighterBaseLevel, getMapStartLevel } from '../domain/expeditionScaling';
 import type { ExpeditionOutcome, ExpeditionScene, SceneEvent } from '../domain/types';
 import { createStableSelector, toNamedAmounts } from './selectorTools';
@@ -79,12 +82,21 @@ export interface PartyLeaderOptionView {
   id: string;
   name: string;
   isLeader: boolean;
+  specialName: string; // golpe especial dele na expedição
+}
+
+// O golpe especial de quem sai (src/data/specials.ts)
+export interface SpecialView {
+  name: string;
+  description: string;
+  cooldownSeconds: number; // sem preparo
 }
 
 export interface ExpeditionListView {
   leaderName: string | null; // null sem comitiva
   partyMembers: PartyLeaderOptionView[]; // na ordem da comitiva; o primeiro é quem sai
   leaderMaxHp: number;
+  leaderSpecial: SpecialView | null; // null sem comitiva
   durationSeconds: number;
   completionBonus: number; // de 0 a 1
   options: ExpeditionOptionView[];
@@ -95,6 +107,7 @@ export interface ExpeditionListView {
 export interface ExpeditionHudView {
   mapName: string;
   leaderName: string;
+  special: SpecialView;
   lootCount: number; // visagens na bolsa
   trailCount: number; // Rastros das pegadas na bolsa
   preparationName: string | null; // preparo desta expedição, ou null
@@ -109,6 +122,9 @@ export interface SceneEnemyFrame {
   x: number;
   y: number;
   hpFraction: number; // de 0 a 1
+  isSlowed: boolean; // Assobio da Caipora
+  isConfused: boolean; // Pés virados do Curupira
+  isBurning: boolean; // Rastro de fogo do Boitatá
 }
 
 // Uma pegada de Rastro no quadro atual
@@ -138,6 +154,7 @@ export interface SceneFrame {
   hp: number;
   maxHp: number;
   isHurt: boolean; // levou golpe agora há pouco: a personagem pisca
+  isInvulnerable: boolean; // no Redemoinho do Saci: nenhuma encostada tira vida
   attackProgress: number; // de 0 a 1
   specialReadiness: number; // de 0 (acabou de usar) a 1 (pronto)
   secondsLeft: number; // até o fim do tempo da expedição
@@ -240,8 +257,9 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
     hp: scene.playerHp,
     maxHp: scene.playerMaxHp,
     isHurt: scene.hurtSeconds > 0,
+    isInvulnerable: scene.invulnerableSeconds > 0,
     attackProgress: scene.attackProgress,
-    specialReadiness: 1 - scene.specialCooldown / getSpecialCooldown(scene),
+    specialReadiness: getSpecialReadiness(scene),
     secondsLeft: Math.max(0, BALANCE.expeditionDurationSeconds - scene.elapsedSeconds),
     lootCount: countLoot(expedition.loot),
     trailCount: countTrails(expedition.trails),
@@ -263,6 +281,9 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
       x: enemy.x,
       y: enemy.y,
       hpFraction: enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 0,
+      isSlowed: enemy.slowSeconds > 0,
+      isConfused: enemy.confusedSeconds > 0,
+      isBurning: enemy.burnSeconds > 0,
     })),
   };
 }
@@ -291,6 +312,7 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
   return {
     leaderName: fighter === null ? null : getEncantado(fighter.encantadoId).name,
     leaderMaxHp: fighter?.maxHp ?? 0,
+    leaderSpecial: fighter === null ? null : buildSpecialView(fighter.encantadoId),
     durationSeconds: BALANCE.expeditionDurationSeconds,
     completionBonus: BALANCE.expeditionCompletionBonus,
     options: EXPEDITION_MAPS.map((map) => ({
@@ -311,6 +333,7 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
       id,
       name: getEncantado(id).name,
       isLeader: index === 0,
+      specialName: buildSpecialView(id).name,
     })),
   };
 }
@@ -326,6 +349,7 @@ function buildExpeditionHud(snapshot: GameSnapshot): ExpeditionHudView | null {
   return {
     mapName: getExpeditionMap(expedition.mapId).name,
     leaderName: getEncantado(expedition.encantadoId).name,
+    special: buildSpecialView(expedition.encantadoId),
     lootCount: countLoot(expedition.loot),
     trailCount: countTrails(expedition.trails),
     preparationName: getPreparationName(expedition.preparationId),
@@ -363,9 +387,30 @@ function buildExpeditionReport(snapshot: GameSnapshot): ExpeditionReportView | n
   };
 }
 
-// Recarga inteira do golpe especial nesta partida (o preparo pode encurtar)
-function getSpecialCooldown(scene: ExpeditionScene): number {
-  return BALANCE.specialCooldownSeconds * scene.modifiers.specialCooldown;
+// Quanto o golpe especial já recarregou: 0 (acabou de sair) a 1 (pronto)
+function getSpecialReadiness(scene: ExpeditionScene): number {
+  if (scene.specialCooldownTotal <= 0) {
+    return 1;
+  }
+  return Math.min(1, Math.max(0, 1 - scene.specialCooldown / scene.specialCooldownTotal));
+}
+
+// Golpe especial de um encantado, com a recarga sem preparo
+function buildSpecialView(encantadoId: string): SpecialView {
+  if (!hasSpecial(encantadoId)) {
+    return {
+      name: 'Golpe especial',
+      description: 'Um projétil que atravessa as visagens no caminho.',
+      cooldownSeconds: getSpecialCooldown(encantadoId, 1),
+    };
+  }
+
+  const special = getSpecial(encantadoId);
+  return {
+    name: special.name,
+    description: special.description,
+    cooldownSeconds: special.cooldownSeconds,
+  };
 }
 
 // Nome do preparo, ou null sem preparo

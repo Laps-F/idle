@@ -7,10 +7,12 @@
  * cuida do golpe automático e do golpe especial, e diz quando a expedição
  * acaba (fim do tempo, vida zerada ou passagem de volta).
  *
- * Os golpes são projéteis: o comum voa na visagem mais perto e para na
- * primeira que acerta; o especial voa para o lado em que a personagem anda e
- * atravessa todas no caminho. Projétil some ao bater em árvore ou água, ou
- * depois de andar a distância máxima.
+ * O golpe comum é um projétil que voa na visagem mais perto e para na
+ * primeira que acerta. Projétil some ao bater em árvore ou água, ou depois de
+ * andar a distância máxima. O golpe especial é o de quem está em campo
+ * (src/data/specials.ts): quem aplica é src/domain/expeditionSpecials.ts, que
+ * também cuida dos estados que ele deixa nas visagens (lenta, sem a pista,
+ * queimando).
  *
  * Como funciona: a cena (ExpeditionScene) é tudo que está no mapa agora. Ela
  * só existe com o jogo aberto e não é salva. advanceScene recebe a cena, o
@@ -26,7 +28,8 @@
  * Coordenadas em ladrilhos (ver o bloco "Expedições" de src/domain/types.ts).
  *
  * Arquivos vizinhos: o voo e o acerto dos projéteis ficam em
- * src/domain/expeditionProjectiles.ts, as pegadas de Rastro em
+ * src/domain/expeditionProjectiles.ts, os golpes especiais em
+ * src/domain/expeditionSpecials.ts, as pegadas de Rastro em
  * src/domain/expeditionFootprints.ts, o nível e o dano das visagens em
  * src/domain/expeditionScaling.ts, e distâncias, colisão e ladrilhos livres em
  * src/domain/sceneGeometry.ts.
@@ -51,6 +54,14 @@ import {
   updateFootprints,
 } from './expeditionFootprints';
 import { launchProjectile, updateProjectiles } from './expeditionProjectiles';
+import {
+  applyBurn,
+  castSpecial,
+  getSpecialCooldown,
+  getSpeedMultiplier,
+  isConfused,
+  updateEnemyStatus,
+} from './expeditionSpecials';
 import { getEnemyContactDamage, getFighterBaseLevel, getWaveLevel } from './expeditionScaling';
 import { getEnemyMaxHp } from './formulas';
 import {
@@ -95,6 +106,8 @@ interface StepContext {
   events: SceneEvent[];
   outcome: ExpeditionOutcome | null;
   isSpecialPending: boolean; // o pedido de golpe especial vale uma vez por chamada
+  // Tira vida de uma visagem e cuida da derrota (para os golpes especiais e a queimadura)
+  damageEnemy: (enemy: SceneEnemy, damage: number) => void;
 }
 
 
@@ -133,8 +146,13 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
       playerHp: maxHp,
       playerMaxHp: maxHp,
       hurtSeconds: 0,
+      invulnerableSeconds: 0,
       attackProgress: 0,
       specialCooldown: 0,
+      specialCooldownTotal: getSpecialCooldown(
+        fighter?.encantadoId ?? '',
+        setup.modifiers.specialCooldown,
+      ),
       facingX: 1,
       facingY: 0,
       enemies: [],
@@ -234,7 +252,7 @@ function createContext(
   fighter: ExpeditionFighter | null,
   random: RandomSource,
 ): StepContext {
-  return {
+  const context: StepContext = {
     draft,
     map: getExpeditionMap(draft.mapId),
     fighter,
@@ -244,7 +262,9 @@ function createContext(
     events: [],
     outcome: null,
     isSpecialPending: false,
+    damageEnemy: (enemy, damage) => damageEnemy(context, enemy, damage, false),
   };
+  return context;
 }
 
 // Um passo curto, na ordem descrita em advanceScene
@@ -252,6 +272,7 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
   const { draft } = context;
   draft.elapsedSeconds += seconds;
   draft.hurtSeconds = Math.max(0, draft.hurtSeconds - seconds);
+  draft.invulnerableSeconds = Math.max(0, draft.invulnerableSeconds - seconds);
   draft.specialCooldown = Math.max(0, draft.specialCooldown - seconds);
 
   movePlayer(context, input, seconds);
@@ -270,9 +291,10 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
 
   fireSpecialIfPending(context);
   updateAttack(context, seconds);
-  updateProjectiles(draft, context.map, seconds, (enemy, damage, isCrit) =>
-    damageEnemy(context, enemy, damage, isCrit),
-  );
+  updateProjectiles(draft, context.map, seconds, (enemy, projectile) => {
+    damageEnemy(context, enemy, projectile.damage, projectile.isCrit);
+    applyBurn(enemy, projectile.burnDps, projectile.burnSeconds);
+  });
   updateWaves(context, seconds);
   updateFootprints(context, seconds);
 
@@ -380,6 +402,12 @@ function spawnEnemy(context: StepContext): void {
     targetX: spot.x,
     targetY: spot.y,
     waitSeconds: rollWaitSeconds(random),
+    slowSeconds: 0,
+    slowMultiplier: 1,
+    confusedSeconds: 0,
+    burnSeconds: 0,
+    burnDps: 0,
+    burnTickSeconds: 0,
   };
 
   draft.nextEnemyUid += 1;
@@ -398,17 +426,25 @@ function pickSpawnSpot(context: StepContext): Point | null {
   return options.length > 0 ? pickRandom(options, random) : null;
 }
 
-// Perto da personagem, a visagem persegue e bate. Longe, passeia.
+// Perto da personagem, a visagem persegue e bate. Longe, ou sem a pista, passeia.
+// Lenta, faz tudo mais devagar. Se a queimadura derrubar, para por aqui.
 function updateEnemy(context: StepContext, enemy: SceneEnemy, seconds: number): void {
   const player = getPlayerPoint(context.draft);
   const distance = getDistance(enemy, player);
   enemy.hitCooldown = Math.max(0, enemy.hitCooldown - seconds);
+  updateEnemyStatus(context, enemy, seconds);
 
-  if (distance <= BALANCE.enemyAggroRange) {
-    chasePlayer(context, enemy, distance, seconds);
+  if (enemy.hp <= 0) {
+    return;
+  }
+
+  const movingSeconds = seconds * getSpeedMultiplier(enemy);
+
+  if (distance <= BALANCE.enemyAggroRange && !isConfused(enemy)) {
+    chasePlayer(context, enemy, distance, movingSeconds);
     touchPlayer(context, enemy);
   } else {
-    wander(context, enemy, seconds);
+    wander(context, enemy, movingSeconds);
   }
 }
 
@@ -440,12 +476,16 @@ function chasePlayer(
   }
 }
 
-// Encostada na personagem e fora da recarga, a visagem bate
+// Encostada na personagem e fora da recarga, a visagem bate. No Redemoinho, não acerta.
 function touchPlayer(context: StepContext, enemy: SceneEnemy): void {
   const { draft } = context;
   const distance = getDistance(enemy, getPlayerPoint(draft));
 
-  if (distance > BALANCE.enemyContactRange || enemy.hitCooldown > 0) {
+  if (
+    distance > BALANCE.enemyContactRange ||
+    enemy.hitCooldown > 0 ||
+    draft.invulnerableSeconds > 0
+  ) {
     return;
   }
 
@@ -550,7 +590,7 @@ function updateAttack(context: StepContext, seconds: number): void {
   });
 }
 
-// Projétil especial: sai para o lado em que a personagem olha. Só se pedido e pronto.
+// Golpe especial de quem está em campo (src/domain/expeditionSpecials.ts). Só se pedido e pronto.
 function fireSpecialIfPending(context: StepContext): void {
   const { draft, fighter } = context;
   const isRequested = context.isSpecialPending;
@@ -560,15 +600,8 @@ function fireSpecialIfPending(context: StepContext): void {
     return;
   }
 
-  draft.specialCooldown = BALANCE.specialCooldownSeconds * draft.modifiers.specialCooldown;
-  launchProjectile(draft, {
-    isSpecial: true,
-    direction: { x: draft.facingX, y: draft.facingY },
-    speed: BALANCE.specialProjectileSpeed,
-    maxDistance: BALANCE.specialProjectileMaxDistance,
-    damage: fighter.damage * BALANCE.specialDamageMultiplier * draft.modifiers.specialDamage,
-    isCrit: false,
-  });
+  castSpecial(context, fighter);
+  draft.specialCooldownTotal = draft.specialCooldown;
 }
 
 // Visagem mais perto da personagem dentro da distância pedida, ou null
@@ -597,6 +630,11 @@ function damageEnemy(
   isCrit: boolean,
 ): void {
   const { draft, map } = context;
+
+  if (enemy.hp <= 0) {
+    return; // já derrotada neste passo (por exemplo, pela queimadura)
+  }
+
   enemy.hp = Math.max(0, enemy.hp - damage);
   context.events.push({ type: 'hit', x: enemy.x, y: enemy.y, damage, isCrit });
 

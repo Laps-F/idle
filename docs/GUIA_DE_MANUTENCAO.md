@@ -153,10 +153,27 @@ a cena ainda na memória (`holdExpeditionDuringAbsence`). Só continua pela pess
 (`useExpeditionKeyboard.ts`) ou um clique no aviso (`ExpeditionCanvas.tsx`), que chamam
 `resumeExpedition`. Durante a pausa, a direção e o golpe especial pedidos são ignorados.
 
-Os golpes da expedição são projéteis que voam pelo mapa (`projectiles`, na cena). O comum sai
-sozinho na visagem mais perto e para na primeira que acerta. O especial sai para o lado em que a
-personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao bater em árvore ou
-água, ou depois da distância máxima.
+O golpe comum da expedição é um projétil que voa pelo mapa (`projectiles`, na cena). Ele sai
+sozinho na visagem mais perto e para na primeira que acerta. Os projéteis somem ao bater em árvore
+ou água, ou depois da distância máxima.
+
+O golpe especial (espaço) é o de quem está em campo. Cada encantado tem o seu em
+`src/data/specials.ts`, como uma lista de efeitos (`SpecialEffect`, em `src/domain/types.ts`):
+projétil que atravessa e pode queimar (Boitatá), empurrão em volta (Saci), tempo sem levar golpe
+(Saci), visagens sem a pista (Curupira), visagens lentas (Caipora), cura (Iara) e pegada na hora
+(Caipora). Quem aplica cada efeito é `src/domain/expeditionSpecials.ts`, que também faz andar os
+estados das visagens (`slowSeconds`, `confusedSeconds`, `burnSeconds`) a cada passo. Sem a pista,
+a visagem passeia em vez de perseguir e não bate. Lenta, faz tudo mais devagar. A queimadura bate
+a cada meio segundo. O dano dos efeitos conta sobre o dano do golpe comum, e a Brasa no bornal
+multiplica por cima. A recarga é a do golpe (`cooldownSeconds`) vezes a do preparo, e a cena
+guarda a recarga inteira em `specialCooldownTotal`, para a barra. Um encantado sem golpe nos dados
+solta o projétil padrão, com `specialDamageMultiplier` e `specialCooldownSeconds` de
+`src/data/balance.ts`.
+
+Para criar um efeito novo: some o tipo em `SpecialEffect`, o caso em `applyEffect`
+(`expeditionSpecials.ts`) e, se ele deixar um estado na visagem, o campo em `SceneEnemy`, o passo
+em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e o sinal na tela
+(`SceneEnemyFrame` e `drawEnemyStatus`, em `mapRenderer.ts`).
 
 ## 3. Quero mudar... onde eu mexo?
 
@@ -170,7 +187,8 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Tamanho da comitiva | `src/data/balance.ts` |
 | Duração do dia e do ciclo da lua | `src/data/balance.ts` |
 | Tempo da expedição e bônus de quem aguenta até o fim | `src/data/balance.ts`, `expeditionDurationSeconds` e `expeditionCompletionBonus` |
-| Personagem na expedição: velocidade, vida, alcance, força e recarga do golpe especial | `src/data/balance.ts`, bloco "Expedições: personagem" |
+| Personagem na expedição: velocidade, vida, alcance, golpe especial padrão | `src/data/balance.ts`, bloco "Expedições: personagem" |
+| Golpe especial de cada encantado: nome, texto, recarga, dano, raio, duração dos efeitos | `src/data/specials.ts`, `SPECIALS` |
 | Quantos golpes uma visagem aguenta no nível de partida (a escala da expedição) | `src/data/balance.ts`, `expeditionHitsPerEnemy` |
 | Projéteis: velocidade, tamanho e distância máxima (comum e especial) | `src/data/balance.ts`, bloco "Expedições: projéteis" |
 | Visagens na expedição: perseguição, encostada, dano (fração da vida e crescimento), passeio, distância ao nascer | `src/data/balance.ts`, bloco "Expedições: visagens" |
@@ -228,6 +246,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Movimento e colisão da personagem, passagem de volta | `src/domain/expeditionScene.ts`, bloco "Personagem" |
 | Ondas, passeio, perseguição e encostada das visagens | `src/domain/expeditionScene.ts`, bloco "Visagens" |
 | Quando o projétil comum e o especial saem, e para onde | `src/domain/expeditionScene.ts`, bloco "Golpes" |
+| O que cada efeito de golpe especial faz; lentidão, falta de pista e queimadura das visagens | `src/domain/expeditionSpecials.ts` |
 | O que acontece com a visagem acertada (dano, derrota, bolsa) | `src/domain/expeditionScene.ts`, `damageEnemy` |
 | Voo do projétil, acerto, atravessar visagens e fim (parede ou distância) | `src/domain/expeditionProjectiles.ts` |
 | Colisão com árvore e água, distâncias, ladrilhos livres para nascer | `src/domain/sceneGeometry.ts` |
@@ -527,8 +546,9 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
 - Visagem aguenta golpes demais ou de menos: `expeditionHitsPerEnemy`.
 - Fácil demais: `waveSpawnSpeedupPerMinute` e `waveMaxEnemiesPerMinute` para cima, ou
   `waveLevelUpSeconds` para baixo (visagens sobem de nível mais cedo).
-- Golpe especial fraco ou forte: `specialDamageMultiplier`, `specialCooldownSeconds` e
-  `specialProjectileMaxDistance`.
+- Golpe especial fraco ou forte: o golpe de cada encantado em `src/data/specials.ts`
+  (`cooldownSeconds`, `damageMultiplier`, raios e durações). A distância da labareda é
+  `specialProjectileMaxDistance`, em `src/data/balance.ts`.
 - Acertar de longe demais ou de perto demais: `attackRange` e `projectileMaxDistance`.
 - Bolsa rende pouco ou muito: `goldMultiplier`, `xpMultiplier`, `amuletChance` e `drops` do mapa,
   em `src/data/expeditionLoot.ts`, ou `expeditionCompletionBonus`. O `levelBonus` também muda o

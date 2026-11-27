@@ -159,12 +159,12 @@ const BALANCE_FIELDS = {
   hurtFlashSeconds: { group: GROUP.player, label: 'Tempo piscando ao apanhar (s)', step: 0.05 },
   specialDamageMultiplier: {
     group: GROUP.player,
-    label: 'Força do golpe especial (vezes o golpe comum)',
+    label: 'Força do golpe especial padrão (sem golpe nos dados)',
     step: 0.5,
   },
   specialCooldownSeconds: {
     group: GROUP.player,
-    label: 'Recarga do golpe especial (s)',
+    label: 'Recarga do golpe especial padrão (s)',
     step: 0.5,
   },
 

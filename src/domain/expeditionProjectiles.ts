@@ -44,10 +44,13 @@ export interface LaunchOptions {
   maxDistance: number;
   damage: number;
   isCrit: boolean;
+  burnDps?: number; // queimadura que deixa em quem acerta. Padrão: nenhuma.
+  burnSeconds?: number;
 }
 
-// Avisa que um projétil acertou uma visagem. Quem chama tira a vida e cuida da derrota.
-export type ProjectileHit = (enemy: SceneEnemy, damage: number, isCrit: boolean) => void;
+// Avisa que um projétil acertou uma visagem. Quem chama tira a vida, cuida da derrota e
+// aplica a queimadura do projétil, se houver.
+export type ProjectileHit = (enemy: SceneEnemy, projectile: SceneProjectile) => void;
 
 
 // =============================================================================
@@ -69,6 +72,8 @@ export function launchProjectile(draft: ExpeditionScene, options: LaunchOptions)
     damage: options.damage,
     isCrit: options.isCrit,
     hitEnemyUids: [],
+    burnDps: options.burnDps ?? 0,
+    burnSeconds: options.burnSeconds ?? 0,
   };
 
   draft.nextProjectileUid += 1;
@@ -127,7 +132,7 @@ function flyProjectile(
 
   for (const enemy of targets) {
     projectile.hitEnemyUids.push(enemy.uid);
-    onHit(enemy, projectile.damage, projectile.isCrit);
+    onHit(enemy, projectile);
 
     if (!projectile.isSpecial) {
       return false;

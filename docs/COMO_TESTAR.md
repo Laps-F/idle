@@ -87,8 +87,13 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 3 | Apertar as setas ou W, A, S e D | A personagem anda nas quatro direções e na diagonal. Para ao encostar em árvore ou água. A página não rola. |
 | 4 | Chegar perto das visagens (blocos vermelhos) | Elas vêm atrás de você, mais devagar do que você anda. Encostando, batem: sobe um número vermelho, a personagem pisca e a vida cai. |
 | 5 | Deixar uma visagem dentro do círculo | Quando a barra amarela embaixo da personagem enche, sai um quadradinho claro (o projétil) na direção da visagem. Ao acertar, sobe o número do dano. A visagem derrotada some e a bolsa soma 1. |
-| 6 | Andar para um lado e apertar espaço | Sai um quadradinho azul (o projétil especial) para o lado em que você andou por último. Ele atravessa as visagens no caminho e some ao bater em árvore ou água. A barra do golpe especial esvazia e enche de novo em 6 segundos. |
-| 7 | Olhar o cabeçalho durante a expedição | As Patacas continuam subindo: a clareira rende enquanto você está fora. |
+| 6 | Com o Saci, chegar perto de visagens e apertar espaço | Redemoinho: um anel azul abre em volta, as visagens perto são empurradas para longe (sobe o dano), e a personagem fica meio apagada por 1 segundo, sem levar golpe nesse tempo. A barra do golpe especial esvazia e enche de novo em 6 segundos. |
+| 6a | Na aba "Expedições", olhar a linha "Golpe especial (espaço)" | Mostra o golpe de quem sai, o que ele faz e a recarga. Passando o mouse em cada botão de "Trocar quem sai" aparece o golpe daquele encantado. Durante a expedição, o painel ao lado do mapa mostra o golpe também. |
+| 6b | Sair com o Curupira, deixar visagens se aproximarem e apertar espaço | Pés virados: as visagens perto ganham um "?" e passam 3 segundos passeando, sem perseguir nem bater. Recarga de 8 segundos. |
+| 6c | Sair com a Iara, levar uns golpes e apertar espaço | Canto da Iara: sobe um número verde e a vida volta 25% da máxima, sem passar dela. Recarga de 10 segundos. |
+| 6d | Sair com a Caipora, apertar espaço com visagens perto | Assobio: as visagens perto ficam azuladas e andam bem mais devagar por 4 segundos. Se alguém ainda precisa de Rastro, surge uma pegada no mapa. Recarga de 8 segundos. |
+| 6e | Sair com o Boitatá, andar para um lado e apertar espaço | Rastro de fogo: sai o projétil azul para o lado em que você andou, atravessa as visagens, e as acertadas ficam alaranjadas embaixo e perdem vida por 3 segundos. Recarga de 6 segundos. |
+| 7 | Olhar o cabeçalho durante a expedição | As Patacas não sobem: a clareira fica parada enquanto a comitiva está fora. |
 | 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. Cada encostada tira uma parte maior da vida. |
 | 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força de quem sai. O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
 | 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. Com umas 15 visagens, as Patacas ficam perto do que a clareira rende em 5 minutos. |
@@ -99,14 +104,14 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 9e | Na aba "Expedições", olhar "Preparo (opcional)" sem Oferendas | Os três preparos aparecem apagados, com o custo e quanto você tem ("Custa 3 Mel silvestre (você tem 0)"). |
 | 9f | Juntar 3 de mel silvestre, clicar em "Favo no toco" e partir | O botão de partir passa a dizer "Partir para ... com Favo no toco". Ao partir, o mel cai 3, chegam mais visagens e mais depressa, e o painel ao lado do mapa mostra "Preparo: Favo no toco". A janela da volta também mostra o preparo. |
 | 9g | Partir com "Trilha de cipó" (3 de cipó) | As pegadas surgem duas vezes mais rápido (a primeira uns 5 segundos depois de partir). |
-| 9h | Partir com "Brasa no bornal" (1 brasa viva, do Corpo-Seco ou do Brejo Escuro) | O golpe especial tira o dobro e a barra dele enche em 4 segundos, em vez de 6. |
+| 9h | Partir com "Brasa no bornal" (1 brasa viva, do Corpo-Seco ou do Brejo Escuro) | O golpe especial tira o dobro (no empurrão do Saci e na labareda do Boitatá) e a barra dele enche um terço mais rápido (com o Saci, em 4 segundos em vez de 6). |
 | 9i | Escolher um preparo e clicar nele de novo | A escolha é desfeita e partir não gasta nada. |
 | 9a | Fazer algumas expedições no Brejo Escuro | De vez em quando a bolsa traz brasa viva, que antes só o Corpo-Seco da clareira deixava. Os amuletos caem com mais frequência que na Beira da Mata. |
 | 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
 | 12 | Recarregar a página no meio de uma expedição | A clareira abre com "Expedição interrompida" e a bolsa entregue. |
 | 12a | Partir, trocar para outra aba por uns segundos e voltar | O mapa está coberto pelo aviso "Pausado". O tempo, a vida, as visagens e as Patacas não mudaram enquanto você estava fora (a clareira também fica parada). |
-| 12b | Com o aviso na tela, apertar espaço | O aviso some e o jogo continua, sem soltar o projétil especial. Shift, Ctrl, Alt ou Tab sozinhos não continuam. |
+| 12b | Com o aviso na tela, apertar espaço | O aviso some e o jogo continua, sem soltar o golpe especial. Shift, Ctrl, Alt ou Tab sozinhos não continuam. |
 | 12c | Clicar em outra janela do computador e voltar | Pausou do mesmo jeito. Um clique no mapa continua. |
 | 12d | Apertar P | Pausa na hora. Qualquer tecla continua. |
 | 12e | Pausar, deixar a aba escondida por mais de 2 minutos e voltar | A expedição continua lá, pausada, com a bolsa. A ausência não rende nada na clareira, e não aparece janela de boas-vindas. |
@@ -318,7 +323,7 @@ não tem botão para fechar pacto.
 | O jogo abriu com números estranhos de um teste antigo | Use "Apagar tudo" (três cliques). |
 | A personagem não anda no mapa | Clique uma vez na página, fora de caixas de texto, para ela receber as teclas. |
 | O jogo está fácil ou difícil demais de um jeito estranho | Veja se o botão do cabeçalho mostra "Ajustes (N)". Se mostrar, há números de teste ligados: use "Desfazer tudo". |
-| O espaço não solta o golpe especial | Confira a barra azul em cima do mapa: o golpe só sai quando ela está cheia. |
+| O espaço não solta o golpe especial | Confira a barra azul em cima do mapa: o golpe só sai quando ela está cheia. Cada encantado tem a própria recarga (de 6 a 10 segundos). |
 | A personagem continua andando sozinha | Aperte e solte a tecla da direção. Trocar de janela também solta todas as teclas. |
 | Aviso de jogo aberto em outra aba | Feche as outras abas do jogo e recarregue esta. O jogo e o painel de debug abertos ao mesmo tempo também contam como duas abas. |
 | A porta 5173 está ocupada | O Vite escolhe outra porta e mostra o endereço novo no terminal. |

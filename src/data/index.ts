@@ -18,4 +18,5 @@ export { UPGRADES } from './upgrades';
 export { ZONES } from './zones';
 export { EXPEDITION_LOOT } from './expeditionLoot';
 export { EXPEDITION_PREPARATIONS } from './expeditionPreparations';
+export { SPECIALS } from './specials';
 export { EXPEDITION_MAPS, TILES } from './world';

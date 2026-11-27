@@ -438,7 +438,8 @@ export interface SceneFootprint {
 // O que a cena precisa para começar (createExpeditionScene)
 export interface SceneSetup {
   mapId: string;
-  fighter: Pick<ExpeditionFighter, 'maxHp' | 'damage'> | null; // null: vida base e nível 1
+  // null: vida base e nível 1. O encantado decide a recarga do golpe especial.
+  fighter: Pick<ExpeditionFighter, 'encantadoId' | 'maxHp' | 'damage'> | null;
   trailTargets: TrailTarget[]; // de quem as pegadas podem ser. Vazio: nenhuma pegada.
   trailChance: number; // multiplicador de chance de Rastro de quem sai (1: normal)
   modifiers: RunModifiers; // preparo (e, depois, bênçãos) desta partida
@@ -463,6 +464,41 @@ export interface SceneEnemy {
   targetX: number; // ponto para onde ela passeia quando não está perseguindo
   targetY: number;
   waitSeconds: number; // tempo parada antes de voltar a passear
+  slowSeconds: number; // tempo que ainda anda devagar (Assobio da Caipora)
+  slowMultiplier: number; // velocidade enquanto lenta (1: normal)
+  confusedSeconds: number; // tempo que ainda está sem a pista (Pés virados do Curupira)
+  burnSeconds: number; // tempo que ainda queima (Rastro de fogo do Boitatá)
+  burnDps: number; // dano por segundo da queimadura
+  burnTickSeconds: number; // segundos até a próxima queimada
+}
+
+// Um efeito de golpe especial (src/data/specials.ts). Quem aplica é expeditionSpecials.ts.
+export type SpecialEffect =
+  | {
+      kind: 'projectile'; // projétil que atravessa todas as visagens no caminho
+      damageMultiplier: number; // vezes o dano do golpe comum
+      burnDpsMultiplier: number; // queimadura por segundo, vezes o dano do golpe comum (0: nenhuma)
+      burnSeconds: number;
+    }
+  | {
+      kind: 'push'; // empurra as visagens em volta e tira vida
+      radius: number; // ladrilhos
+      distance: number; // ladrilhos empurrados
+      damageMultiplier: number;
+    }
+  | { kind: 'invulnerable'; seconds: number } // nenhuma encostada tira vida
+  | { kind: 'confuse'; radius: number; seconds: number } // visagens perdem a pista e passeiam
+  | { kind: 'slow'; radius: number; seconds: number; speedMultiplier: number }
+  | { kind: 'heal'; fraction: number } // recupera parte da vida máxima
+  | { kind: 'footprint' }; // surge uma pegada, se alguém precisar de Rastro
+
+// O golpe especial de um encantado (src/data/specials.ts)
+export interface SpecialDef {
+  encantadoId: string;
+  name: string;
+  description: string;
+  cooldownSeconds: number;
+  effects: SpecialEffect[];
 }
 
 // Tudo que está acontecendo no mapa agora. Só existe com o jogo aberto, não é salvo.
@@ -475,8 +511,10 @@ export interface ExpeditionScene {
   playerHp: number;
   playerMaxHp: number;
   hurtSeconds: number; // tempo que a personagem ainda pisca depois de levar um golpe
+  invulnerableSeconds: number; // tempo em que nenhuma encostada tira vida (Redemoinho do Saci)
   attackProgress: number; // de 0 a 1. Em 1, o golpe sai assim que houver visagem por perto.
   specialCooldown: number; // segundos até o golpe especial ficar pronto
+  specialCooldownTotal: number; // recarga inteira do golpe de quem está em campo (para a barra)
   facingX: number; // direção para onde a personagem olha (a última em que andou)
   facingY: number;
   enemies: SceneEnemy[];
@@ -505,6 +543,8 @@ export interface SceneProjectile {
   damage: number;
   isCrit: boolean;
   hitEnemyUids: number[]; // visagens que este projétil já acertou (para o especial)
+  burnDps: number; // queimadura que deixa em quem acerta (0: nenhuma)
+  burnSeconds: number;
 }
 
 // O que a pessoa está fazendo: direção (cada eixo de -1 a 1) e se pediu o golpe especial
@@ -535,7 +575,9 @@ export type SceneEvent =
   | { type: 'hit'; x: number; y: number; damage: number; isCrit: boolean }
   | { type: 'defeat'; x: number; y: number; enemyId: string }
   | { type: 'hurt'; x: number; y: number; damage: number }
-  | { type: 'trail'; x: number; y: number; encantadoId: string };
+  | { type: 'trail'; x: number; y: number; encantadoId: string }
+  | { type: 'special'; x: number; y: number; encantadoId: string; radius: number }
+  | { type: 'heal'; x: number; y: number; amount: number };
 
 // O que um passo da cena devolve. "outcome" vem preenchido quando a expedição acabou.
 export interface SceneStepResult {

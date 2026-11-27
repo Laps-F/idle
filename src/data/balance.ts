@@ -111,11 +111,14 @@ export const BALANCE = {
   playerBaseHp: 100, // vida no nível 1
   playerHpPerLevel: 0.1, // cada nível do encantado soma 10% da vida base
   hurtFlashSeconds: 0.25, // tempo que a personagem pisca depois de levar um golpe
-  specialDamageMultiplier: 4, // o projétil especial vale 4 golpes comuns
+  // Golpe especial padrão, só para encantado sem golpe em src/data/specials.ts. O golpe de
+  // cada encantado (dano, recarga e efeitos) fica em src/data/specials.ts.
+  specialDamageMultiplier: 4, // o projétil padrão vale 4 golpes comuns
   specialCooldownSeconds: 6,
 
   // Expedições: projéteis. O comum vai na visagem mais perto e para no primeiro que acerta.
-  // O especial vai para o lado em que a personagem anda e atravessa as visagens.
+  // O especial (Rastro de fogo e o padrão) vai para o lado em que a personagem anda e
+  // atravessa as visagens.
   projectileSpeed: 10,
   projectileRadius: 0.15, // metade da largura do projétil, para acertar a visagem
   projectileMaxDistance: 5, // o projétil comum some depois de andar isto sem acertar

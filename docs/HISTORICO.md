@@ -2,6 +2,64 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 27/11/2026: golpe especial de cada encantado (Passo 3 do Caminho 2)
+
+Cada encantado passou a ter um golpe especial próprio na expedição (tecla espaço), puxado do
+folclore, a partir da tabela do estudo da comitiva. É o que prepara o revezamento (passo 4): com 3
+em campo, trocar de encantado vai mudar o golpe disponível.
+
+Os golpes:
+
+| Encantado | Golpe | O que faz | Recarga |
+|---|---|---|---|
+| Saci | Redemoinho | 1 segundo sem levar golpe, e empurra 2,5 ladrilhos para longe as visagens que estão a até 2,5 ladrilhos, com 1 golpe comum de dano | 6 s |
+| Curupira | Pés virados | as visagens a até 6 ladrilhos perdem a pista por 3 segundos: passeiam, não perseguem nem batem | 8 s |
+| Iara | Canto da Iara | recupera 25% da vida máxima | 10 s |
+| Caipora | Assobio | as visagens a até 4 ladrilhos andam a 40% da velocidade por 4 segundos, e surge uma pegada se alguém precisar de Rastro | 8 s |
+| Boitatá | Rastro de fogo | o projétil de antes (4 golpes comuns, atravessa), e quem ele acerta queima meio golpe comum por segundo, por 3 segundos | 6 s |
+
+Regras:
+
+- O dano dos efeitos conta sobre o dano do golpe comum de quem está em campo. A Brasa no bornal
+  dobra esse dano e encurta a recarga de qualquer golpe em um terço, como antes.
+- Um estado novo do mesmo tipo fica com o mais longo (ou o mais forte, na queimadura).
+- O empurrão para em árvore e água. A queimadura bate a cada meio segundo e pode derrubar a
+  visagem, que conta como derrota normal (vai para a bolsa e pode deixar pegada).
+- Encantado sem golpe nos dados solta o projétil padrão (`specialDamageMultiplier` e
+  `specialCooldownSeconds` de `src/data/balance.ts`, que agora servem só para isso).
+- Na tela: anel azul ao soltar um golpe de área, número verde na cura, personagem meio apagada
+  no Redemoinho, visagem azulada quando lenta, alaranjada embaixo quando queima e com "?" quando
+  sem a pista. A aba "Expedições" mostra o golpe de quem sai, e o painel ao lado do mapa também.
+
+Os números são o ponto de partida. A calibragem entra no passo 6, junto com o resto.
+
+Arquivos:
+
+- `src/data/specials.ts` (novo): `SPECIALS`, um golpe por encantado.
+- `src/domain/expeditionSpecials.ts` (novo): `castSpecial`, os efeitos, `applyBurn`,
+  `updateEnemyStatus`, `isConfused`, `getSpeedMultiplier` e `getSpecialCooldown`.
+- `src/domain/types.ts`: `SpecialDef` e `SpecialEffect`; `SceneEnemy` com lentidão, falta de pista
+  e queimadura; `ExpeditionScene.invulnerableSeconds` e `specialCooldownTotal`; queimadura no
+  projétil; eventos `special` e `heal`; `SceneSetup.fighter` com o `encantadoId`.
+- `src/domain/expeditionScene.ts`: o especial chama `castSpecial`; as visagens andam com os
+  estados; a encostada respeita o Redemoinho; a derrota não conta duas vezes.
+- `src/domain/expeditionProjectiles.ts`: o projétil leva a queimadura e o aviso de acerto recebe
+  o projétil inteiro.
+- `src/domain/expeditionFootprints.ts`: `spawnFootprintNow`, para o Assobio.
+- `src/domain/catalog.ts`: `getSpecial` e `hasSpecial`.
+- `src/store/expeditionSelectors.ts`: golpe de quem sai na aba e no painel, estados no quadro,
+  barra do especial pela recarga inteira guardada na cena.
+- `src/components/expedition/`: textos do golpe (`ExpeditionsPanel.tsx`,
+  `ExpeditionSidePanel.tsx`), anel e cura (`ExpeditionCanvas.tsx`), sinais nas visagens e na
+  personagem (`mapRenderer.ts`).
+- `src/data/balance.ts` e `src/store/tuning.ts`: o golpe especial de `BALANCE` virou o padrão.
+- Testes: `tests/specials.test.ts` (novo), `tests/data.test.ts` (um golpe por encantado), os
+  testes do especial em `tests/expedition.test.ts` passaram a usar o Boitatá, e a aba e o painel
+  em `tests/ExpeditionScreen.test.tsx`.
+- Dois testes da store que falhavam às vezes, por sorteio, ficaram firmes: a garantia de 30
+  segundos (a personagem podia cair parada; agora fica no Redemoinho) e o amuleto do save antigo
+  (a clareira podia sortear outro).
+
 ## 27/11/2026: clareira parada durante a expedição e garantia da clareira (Passo 2 do Caminho 2)
 
 Decisão da usuária: a clareira só rende com a comitiva na clareira. Durante a expedição ela para,
