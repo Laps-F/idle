@@ -1,7 +1,7 @@
 /*
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/domain/modifiers.ts
- * O que faz: junta melhorias, sinergias, amuletos, Raízes e juazeiro nos
+ * O que faz: junta melhorias, sinergias, dons, amuletos, Raízes e juazeiro nos
  * multiplicadores finais que o combate usa.
  *
  * Mapa:
@@ -14,13 +14,14 @@ import { BALANCE } from '../data/balance';
 import { SYNERGIES } from '../data/synergies';
 import { UPGRADES } from '../data/upgrades';
 import { getPartyAmuletBonuses } from './amulets';
-import { getEncantado } from './catalog';
+import { findGift, getEncantado } from './catalog';
 import { getRootsMultiplier } from './formulas';
 import { getJuazeiroBonuses } from './juazeiro';
 import type {
   AmuletBonus,
   DayPhase,
   GameState,
+  GiftStat,
   ModifierStat,
   Modifiers,
   StatBonuses,
@@ -52,13 +53,14 @@ export function getActiveSynergies(party: readonly string[], dayPhase: DayPhase)
  * Calcula os multiplicadores finais que o combate usa.
  *
  * Para cada atributo: (1 + soma das melhorias) × (1 + soma das sinergias) ×
- * (1 + soma dos amuletos vestidos pela comitiva).
+ * (1 + soma dos amuletos vestidos pela comitiva) × (1 + soma dos dons da comitiva).
  * Dano e Patacas ainda são multiplicados pelo bônus das Raízes fincadas.
  * Dano e dano em chefes ganham também o fator do juazeiro (1 + bônus do galho).
  * A chance de crítico é uma soma: base + melhorias + sinergias + amuletos +
- * juazeiro, limitada a 100%.
+ * juazeiro + dons, limitada a 100%.
  * As chances de Rastro, de Oferenda e de amuleto partem da chance de achado e
- * ganham o fator próprio do juazeiro.
+ * ganham o fator próprio do juazeiro. As de Rastro e de Oferenda ganham também o
+ * fator do dom (1 + dom), como o da Caipora e o do Curupira.
  *
  * @param state Estado do jogo. Só é lido.
  * @param dayPhase Fase do dia. Algumas sinergias só valem de dia ou de noite.
@@ -70,15 +72,20 @@ export function getModifiers(state: GameState, dayPhase: DayPhase): Modifiers {
   const amuletBonus = sumAmuletBonuses(getPartyAmuletBonuses(state));
   const juazeiro = getJuazeiroBonuses(state.juazeiro);
   const rootsMultiplier = getRootsMultiplier(state.roots);
+  const giftBonus = sumGiftBonuses(state.party);
   const multiplierOf = (stat: ModifierStat) =>
-    (1 + upgradeBonus[stat]) * (1 + synergyBonus[stat]) * (1 + amuletBonus[stat]);
+    (1 + upgradeBonus[stat]) *
+    (1 + synergyBonus[stat]) *
+    (1 + amuletBonus[stat]) *
+    (1 + giftBonus[stat]);
   const dropChance = multiplierOf('dropChance');
   const critChance =
     BALANCE.baseCritChance +
     upgradeBonus.critChance +
     synergyBonus.critChance +
     amuletBonus.critChance +
-    juazeiro.critChance;
+    juazeiro.critChance +
+    giftBonus.critChance;
 
   return {
     damage: multiplierOf('damage') * rootsMultiplier * (1 + juazeiro.damage),
@@ -87,8 +94,8 @@ export function getModifiers(state: GameState, dayPhase: DayPhase): Modifiers {
     gold: multiplierOf('gold') * rootsMultiplier,
     dropChance,
     critChance: Math.min(1, critChance),
-    trailChance: dropChance * (1 + juazeiro.trailChance),
-    itemChance: dropChance * (1 + juazeiro.itemChance),
+    trailChance: dropChance * (1 + juazeiro.trailChance) * (1 + giftBonus.trailChance),
+    itemChance: dropChance * (1 + juazeiro.itemChance) * (1 + giftBonus.itemChance),
     amuletChance: dropChance * (1 + juazeiro.amuletChance),
   };
 }
@@ -136,6 +143,25 @@ function sumSynergyBonuses(synergies: readonly SynergyDef[]): StatBonuses {
 
   for (const synergy of synergies) {
     bonuses[synergy.stat] += synergy.bonus;
+  }
+
+  return bonuses;
+}
+
+// Soma dos dons de quem está na comitiva, por atributo (src/data/gifts.ts)
+function sumGiftBonuses(party: readonly string[]): Record<GiftStat, number> {
+  const bonuses: Record<GiftStat, number> = {
+    ...createEmptyBonuses(),
+    trailChance: 0,
+    itemChance: 0,
+  };
+
+  for (const encantadoId of party) {
+    const gift = findGift(encantadoId);
+
+    if (gift !== null) {
+      bonuses[gift.stat] += gift.bonus;
+    }
   }
 
   return bonuses;

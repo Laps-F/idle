@@ -135,6 +135,18 @@ export interface UpgradeDef {
   maxLevel?: number;
 }
 
+// O que um dom pode aumentar: os atributos comuns e as chances de Rastro e de Oferenda
+export type GiftStat = ModifierStat | 'trailChance' | 'itemChance';
+
+// O dom de um encantado (src/data/gifts.ts): vale enquanto ele está na comitiva
+export interface GiftDef {
+  encantadoId: string;
+  name: string;
+  description: string;
+  stat: GiftStat;
+  bonus: number; // fração: 0,15 é +15%
+}
+
 export interface SynergyDef {
   origin: Origin;
   name: string;

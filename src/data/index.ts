@@ -14,6 +14,7 @@ export { ENEMIES } from './enemies';
 export { ITEMS } from './items';
 export { JUAZEIRO_BRANCHES, JUAZEIRO_NODES } from './juazeiro';
 export { SYNERGIES } from './synergies';
+export { GIFTS } from './gifts';
 export { UPGRADES } from './upgrades';
 export { ZONES } from './zones';
 export { EXPEDITION_LOOT } from './expeditionLoot';

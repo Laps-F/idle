@@ -93,6 +93,8 @@ src/
     items.ts           Oferendas
     upgrades.ts        melhorias compradas com Patacas
     synergies.ts       bônus de origem da comitiva
+    gifts.ts           dom de cada encantado, que vale com ele na comitiva
+    specials.ts        golpe especial de cada encantado na expedição
     zones.ts           zonas, estágios e Rastros
     amulets.ts         tipos e raridades de amuleto
     juazeiro.ts        galhos e nós do juazeiro
@@ -180,6 +182,9 @@ rendido no tempo andado.
 - Pegadas de Rastro surgem no chão (`src/domain/expeditionFootprints.ts`). Passar por cima guarda
   um Rastro na bolsa. A expedição é a fonte principal de Rastros: a clareira dá só 15% do que
   dava (`clearingTrailMultiplier`).
+- Cada encantado tem um dom (`src/data/gifts.ts`), que vale enquanto ele está na comitiva: mais
+  velocidade, Patacas, chance de Oferenda, de Rastro ou dano contra chefes. Os dons entram na conta
+  dos multiplicadores (`src/domain/modifiers.ts`), na clareira e na expedição.
 - Cada encantado tem um golpe especial próprio na expedição (`src/data/specials.ts`, aplicado por
   `src/domain/expeditionSpecials.ts`). O golpe de quem sai aparece na aba "Expedições".
 - Antes de partir, dá para pagar um preparo com Oferendas (`src/data/expeditionPreparations.ts`):
@@ -325,7 +330,7 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSki
    preparos com Oferendas.
 2. Jogar a expedição e decidir se o combate é divertido. Balancear as ondas e os preparos.
 3. Caminho 2 (a comitiva em campo): escolher quem entra primeiro, clareira parada com garantia,
-   golpe especial de cada encantado e revezamento: prontos. Faltam os dons na clareira e a
-   calibragem. Esquiva e bênçãos depois.
+   golpe especial de cada encantado, revezamento e dons: prontos. Falta a calibragem. Esquiva e
+   bênçãos depois.
 4. Repensar a Rebrota com a clareira e as expedições.
 5. Imagens no lugar dos blocos coloridos (docs/SPRITES.md) e controle na tela para celular.

@@ -30,7 +30,7 @@ import {
   getUpgradeCost,
   getXpToNextLevel,
 } from '../src/domain/formulas';
-import { getActiveSynergies } from '../src/domain/modifiers';
+import { getActiveSynergies, getModifiers } from '../src/domain/modifiers';
 import { applyOfflineProgress, mergeOfflineReports } from '../src/domain/offline';
 import { getPactStatus, sealPact } from '../src/domain/pact';
 import { advanceSimulation, dealDirectDamage } from '../src/domain/simulation';
@@ -364,6 +364,32 @@ describe('sinergias e pactos', () => {
     const origins = getActiveSynergies(['curupira', 'caipora'], 'dia').map((s) => s.origin);
     expect(origins).toEqual(['mata']);
     expect(getActiveSynergies(['curupira', 'saci'], 'dia')).toEqual([]);
+  });
+
+  it('o dom de cada encantado vale só com ele na comitiva', () => {
+    const owned = (id: string) => createOwnedEncantado(id);
+    const roster = {
+      saci: owned('saci'),
+      iara: owned('iara'),
+      curupira: owned('curupira'),
+      caipora: owned('caipora'),
+      boitata: owned('boitata'),
+    };
+    const base = getModifiers(createGameWith('saci', { roster, party: [] }), 'dia');
+    const withParty = (party: string[]) =>
+      getModifiers(createGameWith('saci', { roster, party }), 'dia');
+
+    expect(withParty(['saci']).attackSpeed).toBeCloseTo(base.attackSpeed * 1.1, 9);
+    expect(withParty(['iara']).gold).toBeCloseTo(base.gold * 1.15, 9);
+    expect(withParty(['curupira']).itemChance).toBeCloseTo(base.itemChance * 1.15, 9);
+    expect(withParty(['caipora']).trailChance).toBeCloseTo(base.trailChance * 1.15, 9);
+    expect(withParty(['boitata']).bossDamage).toBeCloseTo(base.bossDamage * 1.2, 9);
+    // O dom de um não mexe no que os outros dons dão
+    expect(withParty(['iara']).attackSpeed).toBeCloseTo(base.attackSpeed, 9);
+    // Curupira e Caipora juntos: os dons e a sinergia da mata (chance de achado)
+    const mata = withParty(['curupira', 'caipora']);
+    expect(mata.itemChance).toBeCloseTo(base.itemChance * 1.2 * 1.15, 9);
+    expect(mata.trailChance).toBeCloseTo(base.trailChance * 1.2 * 1.15, 9);
   });
 
   it('fecha o pacto da Caipora quando tem Rastros e mel, sem alterar o estado recebido', () => {

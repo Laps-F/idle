@@ -291,8 +291,14 @@ describe('comitiva e Almanaque', () => {
     await mount();
     await click('Comitiva');
 
+    expect(host.textContent).toContain('Dom: Ligeireza.');
+    expect(host.textContent).toContain('Faro de caça. +15% de chance de Rastro. Valendo agora.');
+
     await click('Tirar da comitiva');
     expect(useGameStore.getState().party).toEqual(['caipora']);
+    expect(host.textContent).toContain(
+      'Dom: Ligeireza. +10% de velocidade de ataque da comitiva. Vale quando está na comitiva.',
+    );
     expect(findButton('Tirar da comitiva').disabled).toBe(true);
 
     await click('Chamar para a comitiva');

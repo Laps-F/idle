@@ -224,6 +224,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Nome e descrição de uma Oferenda | `src/data/items.ts` |
 | Custo, bônus ou nível máximo de uma melhoria | `src/data/upgrades.ts` |
 | Bônus de uma sinergia de origem | `src/data/synergies.ts` |
+| Dom de um encantado (nome, texto, o que aumenta e quanto) | `src/data/gifts.ts`, `GIFTS` |
 | Estágios de uma zona, inimigos, chefe, tempo do chefe, visagens até o chefe | `src/data/zones.ts` |
 | Chance de Rastro de um encantado e em que hora ele aparece | `src/data/zones.ts` |
 | Tipos de amuleto: nome, descrição, atributo principal e bônus base | `src/data/amulets.ts`, `AMULET_BASES` |
@@ -246,7 +247,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Uma peça de recompensa sozinha (Patacas, XP e nível, Oferenda, Rastro, amuleto) | `src/domain/rewards.ts`, bloco "Peças de recompensa" |
 | Dano direto fora do ritmo dos ataques (clique, teste) | `src/domain/simulation.ts`, `dealDirectDamage` |
 | Regras das ações da pessoa: comitiva, compra de melhoria, chefe, troca de estágio | `src/domain/actions.ts` |
-| Como melhorias, sinergias, amuletos e Raízes se combinam | `src/domain/modifiers.ts` |
+| Como melhorias, sinergias, dons, amuletos e Raízes se combinam | `src/domain/modifiers.ts` |
 | Sorteio da queda e geração dos atributos de um amuleto | `src/domain/amulets.ts`, bloco "Queda" |
 | O que acontece com o amuleto que cai (mochila cheia, desmanche automático) | `src/domain/amulets.ts`, `receiveAmulet` |
 | Regras de vestir, tirar, desmanchar e entalhar | `src/domain/amulets.ts` |
@@ -361,7 +362,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Barras de ataque da comitiva | `src/components/arena/AttackBars.tsx` |
 | Números que sobem a cada golpe e a cada ganho | `src/components/arena/FloatingTextLayer.tsx` |
 | Registro "O que aconteceu": frases, ícones e quantas linhas guarda | `src/components/arena/EventLog.tsx` |
-| Cartões da comitiva e lista de sinergias | `src/components/party/PartyPanel.tsx` |
+| Cartões da comitiva (com o dom) e lista de sinergias | `src/components/party/PartyPanel.tsx` |
 | Almanaque: folha de cada pacto e a lista do que falta | `src/components/party/AlmanacPanel.tsx` |
 | Lista de melhorias e botão de compra | `src/components/progress/UpgradesPanel.tsx` |
 | Navegação de estágios, avanço automático e desafio ao chefe | `src/components/progress/StagesPanel.tsx` |
@@ -404,8 +405,11 @@ viram golpes e linhas de registro em `src/store/eventViews.ts`.
    cair em `src/data/enemies.ts`.
 3. Acrescente o encantado em `encounters` de uma zona, em `src/data/zones.ts`, para ele deixar
    Rastros.
-4. Rode `npm test`. O teste de dados acusa id que não existe, Oferenda sem inimigo que a
-   entregue e encantado de pacto sem zona.
+4. Dê a ele um golpe especial em `src/data/specials.ts` e um dom em `src/data/gifts.ts`. Se o
+   dom aumentar algo que ainda não existe, some o atributo em `GiftStat` (`src/domain/types.ts`)
+   e a conta em `getModifiers` (`src/domain/modifiers.ts`).
+5. Rode `npm test`. O teste de dados acusa id que não existe, Oferenda sem inimigo que a
+   entregue, encantado de pacto sem zona e encantado sem golpe especial ou sem dom.
 
 ### Acrescentar uma zona
 

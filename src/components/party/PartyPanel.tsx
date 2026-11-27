@@ -2,8 +2,8 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/party/PartyPanel.tsx
  * O que faz: a aba da comitiva. Mostra cada encantado do elenco (nível, XP,
- * dano e ritmo), deixa colocar e tirar da comitiva e lista as sinergias de
- * origem. Os valores de dano e ritmo chegam prontos do seletor.
+ * dano, ritmo e o dom), deixa colocar e tirar da comitiva e lista as sinergias
+ * de origem. Os valores de dano e ritmo chegam prontos do seletor.
  *
  * Mapa:
  *   1. Painel
@@ -56,7 +56,7 @@ export function PartyPanel() {
 const ACTIVE_CARD_CLASS = 'border-2 border-tinta bg-jornal p-2';
 const BENCH_CARD_CLASS = 'border-2 border-tinta bg-jornal-escuro p-2';
 
-// Figura, nome, nível, XP, dano e o botão de entrar ou sair da comitiva
+// Figura, nome, nível, XP, dano, dom e o botão de entrar ou sair da comitiva
 function PartyCard({ card }: { card: PartyCardView }) {
   const togglePartyMember = useGameStore((store) => store.togglePartyMember);
   const xpText = `${formatNumber(card.xp)} de ${formatNumber(card.xpToNextLevel)} de XP`;
@@ -84,6 +84,12 @@ function PartyCard({ card }: { card: PartyCardView }) {
       <p className="text-xs">
         {formatDecimal(card.damagePerHit)} de dano a cada {formatDecimal(card.attackInterval)} s
       </p>
+      {card.gift !== null && (
+        <p className={card.isInParty ? 'text-xs font-bold' : 'text-xs'}>
+          Dom: {card.gift.name}. {card.gift.description}{' '}
+          {card.isInParty ? 'Valendo agora.' : 'Vale quando está na comitiva.'}
+        </p>
+      )}
 
       <Button
         className="mt-2 w-full"

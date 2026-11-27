@@ -16,6 +16,7 @@ import {
   EXPEDITION_MAPS,
   EXPEDITION_PREPARATIONS,
   SPECIALS,
+  GIFTS,
   TILES,
   UPGRADES,
   ZONES,
@@ -155,6 +156,19 @@ describe('golpes especiais', () => {
           }
         }
       }
+    }
+  });
+});
+
+describe('dons', () => {
+  it('um dom por encantado, com nome, texto e bônus positivo', () => {
+    const owners = GIFTS.map((gift) => gift.encantadoId);
+    expect([...owners].sort()).toEqual(ENCANTADOS.map((encantado) => encantado.id).sort());
+
+    for (const gift of GIFTS) {
+      expect(gift.name.length).toBeGreaterThan(0);
+      expect(gift.description.length).toBeGreaterThan(0);
+      expect(gift.bonus).toBeGreaterThan(0);
     }
   });
 });

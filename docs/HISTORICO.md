@@ -2,6 +2,43 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 27/11/2026: dom de cada encantado (Passo 5 do Caminho 2)
+
+Cada encantado ganhou um dom, que vale enquanto ele está na comitiva. Com isso, montar a
+comitiva passa a ser escolher o que se quer, e não só o maior dano (diagnóstico do estudo da
+comitiva).
+
+| Encantado | Dom | O que faz |
+|---|---|---|
+| Saci | Ligeireza | +10% de velocidade de ataque da comitiva |
+| Curupira | Dono da mata | +15% de chance de Oferenda |
+| Iara | Brilho do rio | +15% de Patacas |
+| Caipora | Faro de caça | +15% de chance de Rastro |
+| Boitatá | Fogo que guarda | +20% de dano contra chefes |
+
+Regras:
+
+- O dom é um fator próprio, (1 + dom), que multiplica o resto (melhorias, sinergias, amuletos).
+  Os de Rastro e de Oferenda multiplicam essas chances no fim, como o juazeiro.
+- Vale onde a comitiva estiver. Como a comitiva inteira sai no revezamento, os dons valem também
+  na expedição (a Ligeireza do Saci deixa o golpe comum mais rápido, o Faro de caça da Caipora
+  deixa as pegadas mais frequentes). A garantia da clareira também conta com eles.
+- Na aba "Comitiva", cada cartão mostra o dom, em negrito e com "Valendo agora" para quem está na
+  comitiva.
+
+Os números são o ponto de partida, a calibrar no passo 6.
+
+Arquivos:
+
+- `src/data/gifts.ts` (novo): `GIFTS`, um dom por encantado.
+- `src/domain/types.ts`: `GiftStat` e `GiftDef`.
+- `src/domain/catalog.ts`: `findGift`.
+- `src/domain/modifiers.ts`: `sumGiftBonuses` e os dons na conta de `getModifiers`.
+- `src/store/selectors.ts`: o dom no cartão da comitiva (`GiftView`).
+- `src/components/party/PartyPanel.tsx`: a linha "Dom" em cada cartão.
+- Testes: um dom por encantado (`tests/data.test.ts`), cada dom só com ele na comitiva
+  (`tests/domain.test.ts`), a linha na aba (`tests/GameScreen.test.tsx`).
+
 ## 27/11/2026: revezamento na expedição (Passo 4 do Caminho 2)
 
 A comitiva inteira sai na expedição, um encantado em campo por vez. Decisão da usuária, a partir

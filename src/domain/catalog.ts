@@ -24,6 +24,7 @@ import {
   EXPEDITION_MAPS,
   EXPEDITION_PREPARATIONS,
   SPECIALS,
+  GIFTS,
   TILES,
   UPGRADES,
   ZONES,
@@ -37,6 +38,7 @@ import type {
   ExpeditionMapDef,
   ExpeditionPreparationDef,
   SpecialDef,
+  GiftDef,
   ItemDef,
   JuazeiroNodeDef,
   Rarity,
@@ -59,6 +61,7 @@ const ZONES_BY_ID = indexById(ZONES);
 const EXPEDITION_MAPS_BY_ID = indexById(EXPEDITION_MAPS);
 const EXPEDITION_PREPARATIONS_BY_ID = indexById(EXPEDITION_PREPARATIONS);
 const SPECIALS_BY_ENCANTADO = new Map(SPECIALS.map((special) => [special.encantadoId, special]));
+const GIFTS_BY_ENCANTADO = new Map(GIFTS.map((gift) => [gift.encantadoId, gift]));
 const EXPEDITION_LOOT_BY_MAP = new Map(EXPEDITION_LOOT.map((loot) => [loot.mapId, loot]));
 const TILES_BY_SYMBOL = new Map(TILES.map((tile) => [tile.symbol, tile]));
 
@@ -229,6 +232,11 @@ export function getSpecial(encantadoId: string): SpecialDef {
 
 export function hasSpecial(encantadoId: string): boolean {
   return SPECIALS_BY_ENCANTADO.has(encantadoId);
+}
+
+// Dom de um encantado (src/data/gifts.ts), ou null se ele não tiver
+export function findGift(encantadoId: string): GiftDef | null {
+  return GIFTS_BY_ENCANTADO.get(encantadoId) ?? null;
 }
 
 /**

@@ -59,6 +59,7 @@ import {
   isAmuletMaxed,
 } from '../domain/amulets';
 import {
+  findGift,
   getAmuletBase,
   getAmuletRarity,
   getEncantado,
@@ -184,6 +185,13 @@ export interface PartyCardView {
   attackInterval: number; // em segundos
   isInParty: boolean;
   canToggle: boolean; // se o botão de entrar ou sair da comitiva vale agora
+  gift: GiftView | null; // o dom dele (src/data/gifts.ts), que vale na comitiva
+}
+
+// O dom de um encantado
+export interface GiftView {
+  name: string;
+  description: string;
 }
 
 export interface SynergyView {
@@ -600,8 +608,15 @@ function buildPartyCards(snapshot: GameSnapshot): PartyCardView[] {
       attackInterval: getAttackInterval(definition, modifiers),
       isInParty,
       canToggle: isInParty ? canLeave : hasRoom,
+      gift: buildGiftView(owned.id),
     };
   });
+}
+
+// Nome e texto do dom de um encantado, ou null sem dom
+function buildGiftView(encantadoId: string): GiftView | null {
+  const gift = findGift(encantadoId);
+  return gift === null ? null : { name: gift.name, description: gift.description };
 }
 
 // Todas as sinergias, com quantos da origem estão na comitiva e se o bônus está valendo

@@ -171,6 +171,8 @@ Para começar do zero, use "Apagar tudo" no cabeçalho.
 | 12 | Abrir a aba "Almanaque" | Aparecem Caipora e Boitatá, cada um com a quadra de cordel e a lista do que o pacto pede. O Boitatá mostra "Só fecha de noite". |
 | 13 | Juntar 3 Rastros e 5 de mel silvestre. O jeito rápido é uma expedição (pegadas no chão). Só na clareira leva uns 15 minutos. | Aparece um número vermelho na aba "Almanaque" e o botão "Fechar pacto" da Caipora acende. |
 | 14 | Clicar em "Fechar pacto" | A Caipora entra na comitiva: surge uma segunda barra de ataque embaixo da capa e um segundo cartão na aba "Comitiva". |
+| 14a | Na aba "Comitiva", ler a linha "Dom" de cada cartão | Cada encantado tem um dom: Saci "Ligeireza" (+10% de velocidade de ataque), Curupira "Dono da mata" (+15% de chance de Oferenda), Iara "Brilho do rio" (+15% de Patacas), Caipora "Faro de caça" (+15% de chance de Rastro), Boitatá "Fogo que guarda" (+20% de dano contra chefes). Quem está na comitiva mostra o dom em negrito com "Valendo agora". Quem está fora diz "Vale quando está na comitiva". |
+| 14b | Com o Saci na comitiva, tirar e chamar de volta outro encantado e olhar o "a cada X s" do Saci | Tirar o Saci da comitiva deixa os outros um pouco mais lentos (o "a cada X s" sobe cerca de 10%). |
 | 15 | Na aba "Comitiva", clicar em "Tirar da comitiva" em um dos dois | Ele sai e a barra dele some. O botão do outro fica apagado, porque a comitiva não pode ficar vazia. "Chamar para a comitiva" traz de volta. |
 
 ### Salvamento
