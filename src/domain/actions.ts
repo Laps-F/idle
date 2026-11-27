@@ -61,6 +61,27 @@ export function togglePartyMember(state: GameState, encantadoId: string): GameSt
     : addToParty(state, encantadoId);
 }
 
+/**
+ * Põe um encantado da comitiva em primeiro lugar. É quem sai na próxima expedição.
+ *
+ * A ordem dos outros se mantém. Na clareira a ordem não muda nada.
+ *
+ * @param state Estado do jogo. Não é alterado.
+ * @param encantadoId Encantado que já está na comitiva.
+ * @returns Estado com a comitiva reordenada, ou null se ele não está na comitiva, já é o
+ *          primeiro ou há expedição em andamento (quem saiu não troca no meio).
+ */
+export function setPartyLeader(state: GameState, encantadoId: string): GameState | null {
+  const index = state.party.indexOf(encantadoId);
+
+  if (index <= 0 || state.expedition !== null) {
+    return null;
+  }
+
+  const others = state.party.filter((memberId) => memberId !== encantadoId);
+  return { ...state, party: [encantadoId, ...others] };
+}
+
 // Sai da comitiva, desde que não seja o último. A barra de ataque dele é descartada.
 function removeFromParty(state: GameState, encantadoId: string): GameState | null {
   const isLastMember = state.party.length <= 1;

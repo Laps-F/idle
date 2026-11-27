@@ -18,6 +18,7 @@ import {
   goToStage,
   grantGold,
   setAutoProgress,
+  setPartyLeader,
   togglePartyMember,
 } from '../src/domain/actions';
 import { getEnemy, getUpgrade } from '../src/domain/catalog';
@@ -294,6 +295,31 @@ describe('ações da pessoa', () => {
     const backToOne = withCaipora === null ? null : togglePartyMember(withCaipora, 'caipora');
     expect(backToOne?.party).toEqual(['saci']);
     expect(backToOne?.combat.attackProgress.caipora).toBeUndefined();
+  });
+
+  it('põe um encantado da comitiva em primeiro, mantendo a ordem dos outros', () => {
+    const alone = createGameWith('saci');
+    const roster = {
+      ...alone.roster,
+      caipora: createOwnedEncantado('caipora'),
+      iara: createOwnedEncantado('iara'),
+    };
+    const trio = deepFreeze({ ...alone, roster, party: ['saci', 'caipora', 'iara'] });
+    const onExpedition = {
+      ...trio,
+      expedition: {
+        mapId: 'beira-da-mata',
+        encantadoId: 'saci',
+        loot: [],
+        trails: {},
+        preparationId: null,
+      },
+    };
+
+    expect(setPartyLeader(trio, 'iara')?.party).toEqual(['iara', 'saci', 'caipora']);
+    expect(setPartyLeader(trio, 'saci')).toBeNull(); // já é o primeiro
+    expect(setPartyLeader(trio, 'boitata')).toBeNull(); // não está na comitiva
+    expect(setPartyLeader(onExpedition, 'iara')).toBeNull(); // quem saiu não troca no meio
   });
 
   it('desafia o chefe só com a contagem fechada', () => {

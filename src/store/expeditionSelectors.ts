@@ -74,8 +74,16 @@ export interface ExpeditionPreparationView {
   canAfford: boolean;
 }
 
+// Um encantado da comitiva, para escolher quem sai primeiro
+export interface PartyLeaderOptionView {
+  id: string;
+  name: string;
+  isLeader: boolean;
+}
+
 export interface ExpeditionListView {
   leaderName: string | null; // null sem comitiva
+  partyMembers: PartyLeaderOptionView[]; // na ordem da comitiva; o primeiro é quem sai
   leaderMaxHp: number;
   durationSeconds: number;
   completionBonus: number; // de 0 a 1
@@ -295,6 +303,11 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
       ),
     })),
     preparations: buildPreparations(snapshot),
+    partyMembers: snapshot.party.map((id, index) => ({
+      id,
+      name: getEncantado(id).name,
+      isLeader: index === 0,
+    })),
   };
 }
 

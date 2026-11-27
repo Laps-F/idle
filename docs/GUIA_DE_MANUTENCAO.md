@@ -233,6 +233,7 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | O que a cena recebe para começar (mapa, quem sai, pegadas, chance de Rastro, modificadores) | `src/domain/expedition.ts`, `getSceneSetup` |
 | Modificadores da partida (preparo hoje; bênçãos e esquiva depois), pagar e conferir o preparo | `src/domain/expeditionModifiers.ts` |
 | Partir com preparo (paga as Oferendas) | `src/domain/expedition.ts`, `startExpedition` |
+| Quem sai primeiro (pôr um encantado em primeiro na comitiva) | `src/domain/actions.ts`, `setPartyLeader`; botões em `ExpeditionsPanel.tsx`, `LeaderPicker` |
 | Entrega dos Rastros da bolsa na volta (sem passar do pacto) | `src/domain/expeditionLoot.ts`, `rewardExpeditionBag` |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |

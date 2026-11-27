@@ -93,6 +93,7 @@ export interface GameActions {
   // Jogo. Devolvem true quando a ação foi aplicada.
   chooseStarter: (encantadoId: string) => boolean;
   togglePartyMember: (encantadoId: string) => boolean;
+  setPartyLeader: (encantadoId: string) => boolean; // quem sai primeiro na expedição
   buyUpgrade: (upgradeId: string) => boolean;
   sealPact: (encantadoId: string) => boolean;
   setAutoProgress: (enabled: boolean) => void;

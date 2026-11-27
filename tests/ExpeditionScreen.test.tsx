@@ -16,6 +16,7 @@ import type { Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../src/App';
+import { createOwnedEncantado } from '../src/domain/state';
 import { useGameStore } from '../src/store/useGameStore';
 
 let host: HTMLDivElement;
@@ -80,6 +81,25 @@ describe('aba Expedições da clareira', () => {
     expect(host.querySelector('canvas')).not.toBeNull();
     expect(host.textContent).toContain('Quem saiu: Saci');
     expect(host.textContent).toContain('Visagens na bolsa: 0');
+  });
+});
+
+describe('quem sai primeiro', () => {
+  it('troca quem sai pela aba, e quem sai é quem aparece no mapa', async () => {
+    const state = useGameStore.getState();
+    useGameStore.setState({
+      roster: { ...state.roster, iara: createOwnedEncantado('iara') },
+      party: ['saci', 'iara'],
+    });
+    await mount();
+    expect(host.textContent).toContain('Quem sai: Saci');
+
+    await click('Iara');
+    expect(useGameStore.getState().party).toEqual(['iara', 'saci']);
+    expect(host.textContent).toContain('Quem sai: Iara');
+
+    await click('Partir para Beira da Mata');
+    expect(useGameStore.getState().expedition?.encantadoId).toBe('iara');
   });
 });
 

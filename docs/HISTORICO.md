@@ -2,6 +2,20 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 27/11/2026: escolher quem sai primeiro (Passo 1 do Caminho 2)
+
+Até aqui, quem saía em expedição era o primeiro a ter entrado na comitiva, e não havia como
+trocar sem tirar e pôr de volta. O Caminho 2 (a comitiva em campo, estudo em
+`claude/estudo-comitiva.md` no projeto) começa por isso.
+
+- A aba "Expedições" ganhou "Trocar quem sai", com um botão por encantado da comitiva. O marcado
+  é quem sai. Com um só na comitiva, os botões não aparecem.
+- Regra: `setPartyLeader` (`src/domain/actions.ts`) põe o encantado em primeiro e mantém a ordem
+  dos outros. Não vale com expedição em andamento. Na clareira a ordem não muda nada.
+- Ação da store `setPartyLeader` e lista `partyMembers` em `selectExpeditionList`.
+- Testes: `tests/domain.test.ts` e `tests/ExpeditionScreen.test.tsx`.
+- Salvamento: sem mudança (a ordem já era salva em `party`).
+
 ## 26/11/2026: preparos com Oferendas e modificadores da partida (Etapa 5 do Caminho 1)
 
 Primeiro uso das Oferendas depois dos pactos: antes de partir, a pessoa pode pagar um preparo.

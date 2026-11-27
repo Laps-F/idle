@@ -59,6 +59,7 @@ import {
   goToStage,
   grantGold,
   setAutoProgress,
+  setPartyLeader,
   togglePartyMember,
 } from '../domain/actions';
 import {
@@ -273,6 +274,7 @@ type GameplayActions = Pick<
   GameActions,
   | 'chooseStarter'
   | 'togglePartyMember'
+  | 'setPartyLeader'
   | 'buyUpgrade'
   | 'sealPact'
   | 'setAutoProgress'
@@ -287,6 +289,10 @@ function createGameplayActions(set: SetStore, get: GetStore): GameplayActions {
       applyInput(set, get, (state) => chooseStarter(state, encantadoId)),
     togglePartyMember: (encantadoId) =>
       applyInput(set, get, (state) => togglePartyMember(state, encantadoId)),
+
+    // Põe um encantado da comitiva em primeiro: é quem sai na próxima expedição
+    setPartyLeader: (encantadoId) =>
+      applyInput(set, get, (state) => setPartyLeader(state, encantadoId)),
     buyUpgrade: (upgradeId) => applyInput(set, get, (state) => buyUpgrade(state, upgradeId)),
     sealPact: (encantadoId) =>
       applyInput(set, get, (state) => sealPact(state, encantadoId, Date.now())),

@@ -10,13 +10,17 @@
  *
  * Mapa:
  *   1. Aba
- *   2. Preparos
- *   3. Textos
+ *   2. Quem sai
+ *   3. Preparos
+ *   4. Textos
  */
 
 import { useState } from 'react';
 import { selectExpeditionList } from '../../store/expeditionSelectors';
-import type { ExpeditionPreparationView } from '../../store/expeditionSelectors';
+import type {
+  ExpeditionPreparationView,
+  PartyLeaderOptionView,
+} from '../../store/expeditionSelectors';
 import type { NamedAmount } from '../../store/selectors';
 import { useGameStore } from '../../store/useGameStore';
 import { formatDuration, formatNumber, formatPercent } from '../../utils/format';
@@ -32,6 +36,7 @@ const CARD_CLASS = 'space-y-1 border-2 border-tinta bg-jornal p-3';
 export function ExpeditionsPanel() {
   const list = useGameStore(selectExpeditionList);
   const startExpedition = useGameStore((store) => store.startExpedition);
+  const setPartyLeader = useGameStore((store) => store.setPartyLeader);
   const canStart = list.leaderName !== null;
   // Escolha só da tela, até partir. Preparo que deixou de caber no inventário vira "nenhum".
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -54,6 +59,7 @@ export function ExpeditionsPanel() {
           ? `Quem sai: ${list.leaderName}, com ${formatNumber(list.leaderMaxHp)} de vida.`
           : 'Escolha um encantado para começar antes de sair.'}
       </p>
+      <LeaderPicker members={list.partyMembers} onChoose={setPartyLeader} />
       <PreparationPicker
         preparations={list.preparations}
         chosenId={chosen?.id ?? null}
@@ -84,6 +90,40 @@ export function ExpeditionsPanel() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+
+// =============================================================================
+// =============================================================================
+// Q U E M   S A I
+
+interface LeaderPickerProps {
+  members: readonly PartyLeaderOptionView[];
+  onChoose: (id: string) => void;
+}
+
+// Um botão por encantado da comitiva. O marcado é quem sai. Com um só, não aparece.
+function LeaderPicker({ members, onChoose }: LeaderPickerProps) {
+  if (members.length < 2) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Quem sai primeiro">
+      <span className="text-xs">Trocar quem sai:</span>
+      {members.map((member) => (
+        <Button
+          key={member.id}
+          size="small"
+          variant={member.isLeader ? 'solid' : 'outline'}
+          aria-pressed={member.isLeader}
+          onClick={() => onChoose(member.id)}
+        >
+          {member.name}
+        </Button>
+      ))}
     </div>
   );
 }
