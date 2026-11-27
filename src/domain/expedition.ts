@@ -127,7 +127,14 @@ export function startExpedition(
     return null;
   }
 
-  const expedition = { mapId, encantadoId, loot: [], trails: {}, preparationId, activeSeconds: 0 };
+  const expedition = {
+    mapId,
+    encantadoId,
+    loot: [],
+    trails: {},
+    preparationId,
+    activeSeconds: 0,
+  };
   return { ...paid, expedition };
 }
 
