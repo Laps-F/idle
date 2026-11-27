@@ -48,7 +48,11 @@ export function ExpeditionsPanel() {
         Saia da clareira com o primeiro encantado da comitiva. As visagens perseguem e batem, e as
         ondas ficam mais fortes com o tempo. Volte pela passagem quando quiser: a bolsa vem
         inteira, mesmo se você cair. Quem aguenta {formatDuration(list.durationSeconds)} ganha{' '}
-        {formatPercent(list.completionBonus)} a mais. A clareira continua rendendo enquanto isso.
+        {formatPercent(list.completionBonus)} a mais.
+      </p>
+      <p className="text-sm">
+        Enquanto a comitiva está fora, a clareira para. Na volta, a bolsa rende pelo menos as
+        Patacas e o XP que a clareira teria rendido no mesmo tempo, mesmo se você cair.
       </p>
       <p className="text-sm">
         O nível das visagens acompanha a força de quem sai. Quanto mais forte a comitiva fica na

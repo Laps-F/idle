@@ -11,7 +11,8 @@ Estado atual: o jogo tem duas partes.
 
 - **Clareira** (a parte idle): a comitiva luta sozinha por estágios, com uma zona (Mata
   Atlântica), cinco encantados, melhorias, pactos, amuletos, Rebrota com o juazeiro, salvamento e
-  progresso offline. Ela rende sempre, com o jogo aberto ou fechado.
+  progresso offline. Ela rende com o jogo aberto ou fechado, mas só com a comitiva na clareira:
+  durante uma expedição, ela para.
 - **Expedições** (a parte ativa, em protótipo): da aba "Expedições", um encantado sai por um mapa
   visto de cima. As visagens perseguem e batem, e as ondas ficam mais fortes com o tempo. Os
   golpes são projéteis: o comum sai sozinho na visagem mais perto, e o especial sai na tecla
@@ -164,10 +165,12 @@ escondidas. O desenho fica com o React e com CSS.
 
 ### Clareira e expedição
 
-A clareira (o combate por estágios) roda em todo tick, com o jogo aberto ou fechado. Durante uma
-expedição, o mesmo tick também anda com a cena do mapa (`src/store/expeditionSession.ts` chama
-`src/domain/expeditionScene.ts`), e o
-laço passa a rodar a cada 16 ms para a personagem andar suave.
+A clareira (o combate por estágios) roda em todo tick sem expedição, com o jogo aberto ou fechado.
+Durante uma expedição, o tick anda só com a cena do mapa (`src/store/expeditionSession.ts` chama
+`src/domain/expeditionScene.ts`), a clareira fica parada (também com a expedição pausada) e o
+laço passa a rodar a cada 16 ms para a personagem andar suave. Na volta, a garantia da clareira
+(`src/domain/expeditionGuarantee.ts`) paga pelo menos as Patacas e o XP que a clareira teria
+rendido no tempo andado.
 
 - As visagens derrotadas no mapa vão para a bolsa (`src/domain/expedition.ts`). A bolsa é salva.
   A cena (onde estão as visagens, a vida) não é.

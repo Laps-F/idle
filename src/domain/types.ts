@@ -394,6 +394,7 @@ export interface ExpeditionState {
   loot: ExpeditionLoot[];
   trails: Record<string, number>; // Rastros das pegadas pegas, por encantado, entregues na volta
   preparationId: string | null; // preparo pago ao partir (src/data/expeditionPreparations.ts)
+  activeSeconds: number; // tempo em que a expedição andou, sem as pausas (para a garantia)
 }
 
 /*
@@ -553,5 +554,9 @@ export interface ExpeditionReport {
   kills: number; // visagens na bolsa
   bonusKills: number; // visagens extras do bônus de quem aguentou até o fim
   preparationId: string | null; // preparo usado nesta expedição
-  summary: SimulationSummary;
+  summary: SimulationSummary; // tudo o que rendeu, já com a garantia
+  clearingGold: number; // Patacas que a clareira teria rendido no mesmo tempo
+  clearingXp: number; // XP que a clareira teria rendido no mesmo tempo
+  guaranteeGold: number; // Patacas pagas pela garantia (zero se a bolsa já passou)
+  guaranteeXp: number; // XP pago pela garantia
 }

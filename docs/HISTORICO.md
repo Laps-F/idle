@@ -2,6 +2,54 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 27/11/2026: clareira parada durante a expedição e garantia da clareira (Passo 2 do Caminho 2)
+
+Decisão da usuária: a clareira só rende com a comitiva na clareira. Durante a expedição ela para,
+inclusive com a expedição pausada. Em troca, a garantia de que a expedição vale a pena.
+
+Regras:
+
+- **Expedição em andamento:** o tick anda só com a cena do mapa. A clareira não rende nada.
+- **Expedição pausada** (aba escondida, outra janela, tecla P, ausência longa com a cena na
+  memória): nada anda, nem a cena nem a clareira. Só a marca de tempo segue. Uma ausência longa
+  nessa situação não rende e não abre a janela de boas-vindas.
+- **Recarga no meio:** a expedição termina "interrompida" no último instante salvo, com a
+  garantia pelo tempo andado (salvo em `activeSeconds`). A ausência depois disso rende na
+  clareira, como antes, porque a comitiva já voltou.
+- **Garantia da clareira:** na volta, o jogo simula a clareira pelo tempo que a expedição andou
+  (sem as pausas), numa cópia do estado e com sorteio de semente própria. A bolsa rende pelo
+  menos essas Patacas e esse XP, em qualquer desfecho. A diferença entra como "Garantia da
+  clareira". A garantia não devolve estágios, Oferendas nem amuletos.
+- **Janela da volta:** mostra "Na clareira, esse tempo renderia N Patacas" e, conforme o caso,
+  "A expedição rendeu X vezes isso" ou a linha da garantia.
+
+Ponto a acompanhar: o saque do Caminho 1 foi calibrado com a clareira rodando junto (a expedição
+rendia de 1 a 1,3 vez a clareira, em cima dela). Com a clareira parada, uma expedição mediana fica
+perto do piso. A meta (cerca de 2 vezes a clareira, 3 ou mais para quem conclui) entra no passo
+de calibragem do Caminho 2, depois do revezamento.
+
+Arquivos:
+
+- `src/domain/expeditionGuarantee.ts` (novo): `getClearingReference`.
+- `src/domain/expeditionLoot.ts`: `rewardExpeditionBag` aceita o piso (`floor`) e devolve o que a
+  garantia pagou; `payGuarantee`.
+- `src/domain/expedition.ts`: `finishExpedition` calcula a referência e preenche o relatório;
+  `startExpedition` começa `activeSeconds` em zero.
+- `src/domain/types.ts`: `ExpeditionState.activeSeconds`; `ExpeditionReport.clearingGold`,
+  `clearingXp`, `guaranteeGold` e `guaranteeXp`.
+- `src/store/useGameStore.ts`: o `tick` anda com a clareira ou com a expedição, nunca as duas.
+- `src/store/expeditionSession.ts`: `runExpeditionTick` grava a marca de tempo e o tempo andado
+  (também pausada); `holdExpeditionDuringAbsence` não deixa a ausência render com a cena na
+  memória; `endExpedition` usa o tempo salvo numa recarga.
+- `src/store/saveManager.ts`: confere `activeSeconds` (salvamento de antes abre com zero). A
+  versão continua 5.
+- `src/store/expeditionSelectors.ts` e `src/components/modals/ExpeditionReportModal.tsx`:
+  comparação com a clareira e a garantia.
+- Textos: `ExpeditionsPanel.tsx`, `ExpeditionCanvas.tsx` (aviso de pausa) e `ExpeditionScreen.tsx`.
+- Testes: `tests/expedition.test.ts` (bloco "garantia da clareira") e `tests/store.test.ts`
+  (clareira parada, pausa e ausência sem render, garantia na volta, recarga no meio).
+- Documentação: guia de manutenção, `README.md` e `docs/COMO_TESTAR.md` (passos 12a, 12e a 12h).
+
 ## 27/11/2026: escolher quem sai primeiro (Passo 1 do Caminho 2)
 
 Até aqui, quem saía em expedição era o primeiro a ter entrado na comitiva, e não havia como

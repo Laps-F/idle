@@ -732,6 +732,7 @@ describe('expedições e salvamento da versão 5', () => {
       loot: [],
       trails: {},
       preparationId: null,
+      activeSeconds: 0,
     });
     expect(state.expeditionScene?.trailTargets).toEqual([{ encantadoId: 'caipora', remaining: 3 }]);
     expect(state.expeditionScene?.playerHp).toBe(BALANCE.playerBaseHp);
@@ -752,17 +753,37 @@ describe('expedições e salvamento da versão 5', () => {
     expect(state.expeditionScene?.modifiers.footprintRate).toBe(2);
   });
 
-  it('anda na expedição e a clareira continua rendendo ao mesmo tempo', async () => {
+  it('anda na expedição, a clareira fica parada e o tempo andado fica salvo', async () => {
     const useGameStore = await openExpedition();
-    const startX = useGameStore.getState().expeditionScene?.playerX ?? 0;
+    const before = useGameStore.getState();
+    const startX = before.expeditionScene?.playerX ?? 0;
 
     useGameStore.getState().setMoveInput({ moveX: 1, moveY: 0 });
     runTicks(useGameStore, 100);
 
     const state = useGameStore.getState();
     expect(state.expeditionScene?.playerX).toBeGreaterThan(startX);
-    expect(state.stats.totalKills).toBeGreaterThan(0);
-    expect(state.gold).toBeGreaterThan(0);
+    // A clareira não andou: o combate de estágios está igual ao da partida
+    expect(state.combat).toEqual(before.combat);
+    expect(state.killsInStage).toBe(before.killsInStage);
+    expect(state.expedition?.activeSeconds).toBeCloseTo(
+      state.expeditionScene?.elapsedSeconds ?? -1,
+      6,
+    );
+    expect(state.lastSaveTimestamp).toBe(Date.now());
+  });
+
+  it('na volta, a garantia paga pelo menos o que a clareira renderia no mesmo tempo', async () => {
+    const useGameStore = await openExpedition();
+    runTicks(useGameStore, 300); // 30 segundos de expedição, sem andar
+
+    const goldBefore = useGameStore.getState().gold;
+    useGameStore.getState().leaveExpedition();
+    const report = useGameStore.getState().expeditionReport;
+
+    expect(report?.clearingGold).toBeGreaterThan(0);
+    expect(report?.summary.gold).toBeGreaterThanOrEqual((report?.clearingGold ?? 0) - 1e-9);
+    expect(useGameStore.getState().gold).toBeCloseTo(goldBefore + (report?.summary.gold ?? 0), 6);
   });
 
   it('entrega a bolsa ao voltar e abre o relatório', async () => {
@@ -774,6 +795,7 @@ describe('expedições e salvamento da versão 5', () => {
         loot: [{ enemyId: 'visagem-da-neblina', level: 1, count: 5 }],
         trails: {},
         preparationId: null,
+        activeSeconds: 0,
       },
     });
     const goldBefore = useGameStore.getState().gold;
@@ -789,7 +811,7 @@ describe('expedições e salvamento da versão 5', () => {
     expect(state.leaveExpedition()).toBe(false);
   });
 
-  it('pausa a expedição, sem perder nada, numa ausência com a cena na memória', async () => {
+  it('pausa a expedição numa ausência com a cena na memória, e a ausência não rende', async () => {
     const useGameStore = await openExpedition();
     runTicks(useGameStore, 20);
     const sceneBefore = useGameStore.getState().expeditionScene;
@@ -801,7 +823,9 @@ describe('expedições e salvamento da versão 5', () => {
     expect(state.isExpeditionPaused).toBe(true);
     expect(state.expeditionScene?.elapsedSeconds).toBe(sceneBefore?.elapsedSeconds);
     expect(state.expeditionReport).toBeNull();
-    expect(state.offlineReport?.summary.kills).toBeGreaterThan(0);
+    // A comitiva está fora: a clareira não rende a ausência
+    expect(state.offlineReport).toBeNull();
+    expect(state.lastSaveTimestamp).toBe(Date.now());
   });
 
   it('pausada, a cena não anda, e ao continuar só conta o tempo depois da volta', async () => {
@@ -825,7 +849,7 @@ describe('expedições e salvamento da versão 5', () => {
     expect(stillPaused.expeditionScene?.elapsedSeconds).toBe(elapsedAtPause);
     expect(stillPaused.moveInput).toEqual({ moveX: 0, moveY: 0 });
     expect(stillPaused.isSpecialPending).toBe(false);
-    expect(stillPaused.stats.totalKills).toBeGreaterThan(killsAtPause); // a clareira rendeu
+    expect(stillPaused.stats.totalKills).toBe(killsAtPause); // pausada, a clareira também para
 
     useGameStore.getState().resumeExpedition();
     runTicks(useGameStore, 10);
@@ -880,6 +904,33 @@ describe('expedições e salvamento da versão 5', () => {
     runTicks(useGameStore, 1);
     expect(useGameStore.getState().expedition).toBeNull();
     expect(useGameStore.getState().expeditionReport?.kills).toBe(3);
+  });
+
+  it('recarga no meio: garantia pelo tempo salvo, e a ausência rende na clareira', async () => {
+    const saved = {
+      ...versionFourState,
+      version: 5,
+      world: undefined,
+      lastSaveTimestamp: Date.now() - ONE_HOUR_MS,
+      expedition: {
+        mapId: 'beira-da-mata',
+        encantadoId: 'iara',
+        loot: [],
+        trails: {},
+        preparationId: null,
+        activeSeconds: 120,
+      },
+    };
+    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify({ state: saved, version: 5 }));
+    const useGameStore = await openGame();
+    useGameStore.getState().tick(Date.now());
+
+    const state = useGameStore.getState();
+    expect(state.expedition).toBeNull();
+    expect(state.expeditionReport?.outcome).toBe('interrompida');
+    expect(state.expeditionReport?.seconds).toBe(120);
+    expect(state.expeditionReport?.guaranteeGold).toBeGreaterThan(0);
+    expect(state.offlineReport?.summary.kills).toBeGreaterThan(0);
   });
 
   it('entrega os Rastros das pegadas da bolsa salva, sem os que não existem', async () => {

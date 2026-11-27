@@ -105,11 +105,14 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
 | 12 | Recarregar a página no meio de uma expedição | A clareira abre com "Expedição interrompida" e a bolsa entregue. |
-| 12a | Partir, trocar para outra aba por uns segundos e voltar | O mapa está coberto pelo aviso "Pausado". O tempo, a vida e as visagens não mudaram enquanto você estava fora, mas as Patacas subiram (a clareira rende). |
+| 12a | Partir, trocar para outra aba por uns segundos e voltar | O mapa está coberto pelo aviso "Pausado". O tempo, a vida, as visagens e as Patacas não mudaram enquanto você estava fora (a clareira também fica parada). |
 | 12b | Com o aviso na tela, apertar espaço | O aviso some e o jogo continua, sem soltar o projétil especial. Shift, Ctrl, Alt ou Tab sozinhos não continuam. |
 | 12c | Clicar em outra janela do computador e voltar | Pausou do mesmo jeito. Um clique no mapa continua. |
 | 12d | Apertar P | Pausa na hora. Qualquer tecla continua. |
-| 12e | Pausar, deixar a aba escondida por mais de 2 minutos e voltar | A expedição continua lá, pausada, com a bolsa. Na volta à clareira aparece também a janela de boas-vindas com o que a clareira rendeu. |
+| 12e | Pausar, deixar a aba escondida por mais de 2 minutos e voltar | A expedição continua lá, pausada, com a bolsa. A ausência não rende nada na clareira, e não aparece janela de boas-vindas. |
+| 12f | Partir, ficar uns 30 segundos sem fazer nada e voltar | Durante a expedição, as Patacas do cabeçalho não sobem. Na janela da volta aparece "Na clareira, esse tempo renderia N Patacas" e a linha "Garantia da clareira", completando até esse valor. |
+| 12g | Fazer uma expedição boa (muitas visagens) e voltar | A janela diz "A expedição rendeu X vezes isso", sem linha de garantia. |
+| 12h | Recarregar a página no meio de uma expedição | Além de "Expedição interrompida", a garantia vale pelo tempo que a expedição andou, e a ausência depois da recarga rende na clareira, como sempre. |
 
 ### Ajustes de teste
 

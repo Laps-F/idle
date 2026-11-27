@@ -41,6 +41,7 @@ export function ExpeditionReportModal() {
   return (
     <Modal title={TITLES[report.outcome]} onClose={dismiss}>
       <p className="text-sm">{describeOutcome(report)}</p>
+      <p className="mt-2 text-sm">{describeComparison(report)}</p>
       <dl className="mt-3 border-t-2 border-tinta text-sm">
         {getGains(report).map((gain) => (
           <div key={gain.label} className={GAIN_ROW_CLASS}>
@@ -88,6 +89,26 @@ function describeOutcome(report: ExpeditionReportView): string {
   }
 }
 
+// Quanto a expedição rendeu perto do que a clareira teria rendido no mesmo tempo
+function describeComparison(report: ExpeditionReportView): string {
+  const clearing = `Na clareira, esse tempo renderia ${formatNumber(report.clearingGold)} Patacas.`;
+
+  if (report.guaranteeGold > 0) {
+    return `${clearing} A bolsa ficou abaixo, e a garantia completou a diferença.`;
+  }
+  if (report.clearingGold > 0) {
+    const times = report.gold / report.clearingGold;
+    return `${clearing} A expedição rendeu ${formatMultiplier(times)} isso.`;
+  }
+  return clearing;
+}
+
+// "1,8 vez" ou "3 vezes"
+function formatMultiplier(times: number): string {
+  const rounded = Math.round(times * 10) / 10;
+  return `${formatNumber(rounded)} ${rounded < 2 ? 'vez' : 'vezes'}`;
+}
+
 // Uma linha por tipo de ganho. Linhas zeradas ficam de fora.
 function getGains(report: ExpeditionReportView): Gain[] {
   const gains: Gain[] = [
@@ -106,6 +127,14 @@ function getGains(report: ExpeditionReportView): Gain[] {
     { label: 'Patacas', value: `+${formatNumber(report.gold)}` },
     { label: 'XP para cada encantado da comitiva', value: `+${formatNumber(report.xp)}` },
   );
+
+  if (report.guaranteeGold > 0 || report.guaranteeXp > 0) {
+    const parts = [
+      report.guaranteeGold > 0 ? `+${formatNumber(report.guaranteeGold)} Patacas` : '',
+      report.guaranteeXp > 0 ? `+${formatNumber(report.guaranteeXp)} XP` : '',
+    ].filter((part) => part !== '');
+    gains.push({ label: 'Garantia da clareira (já somada)', value: parts.join(' e ') });
+  }
 
   if (report.amuletsFound > 0) {
     gains.push({ label: 'Amuletos encontrados', value: formatNumber(report.amuletsFound) });

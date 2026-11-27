@@ -3,8 +3,8 @@
  * Arquivo: src/components/expedition/ExpeditionScreen.tsx
  * O que faz: a tela da expedição, que fica no lugar da clareira enquanto há
  * uma expedição em andamento (src/App.tsx decide). Monta o cabeçalho, o mapa
- * no canvas e o painel do lado, e liga o teclado. A clareira continua
- * rendendo por baixo: as Patacas do cabeçalho seguem subindo.
+ * no canvas e o painel do lado, e liga o teclado. A clareira fica parada
+ * enquanto isso: o que ela teria rendido volta como garantia, na volta.
  *
  * Árvore de componentes:
  *
@@ -53,7 +53,7 @@ export default function ExpeditionScreen() {
         <p className="font-display text-2xl leading-none">
           Encantados
           <span className="ml-2 align-middle font-sans text-sm font-bold">
-            em expedição (a clareira continua rendendo)
+            em expedição (a clareira está parada)
           </span>
         </p>
         <div className={ROW_CLASS}>

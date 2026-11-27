@@ -200,6 +200,8 @@ export function runExpeditionTick(
     return;
   }
   if (get().isExpeditionPaused) {
+    // Pausada, nada anda: nem a cena, nem a clareira. Só a marca de tempo segue.
+    set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
     return;
   }
 
@@ -211,8 +213,10 @@ export function runExpeditionTick(
   const hasEvents = isTabActive && step.events.length > 0;
 
   const withLoot = addTrailsToLoot(addKillsToLoot(current, step.kills), step.trails);
+  const next = withActiveSeconds(withLoot, step.scene.elapsedSeconds, now);
 
-  commitState(set, current, withLoot, {
+  commitState(set, current, next, {
+    tickCount: get().tickCount + 1,
     expeditionScene: step.scene,
     sceneEvents: hasEvents ? step.events : NO_SCENE_EVENTS,
     isSpecialPending: false,
@@ -244,7 +248,8 @@ export function endExpedition(
     return false;
   }
 
-  const seconds = get().expeditionScene?.elapsedSeconds ?? 0;
+  // Sem cena (recarga no meio), vale o tempo salvo na própria expedição
+  const seconds = get().expeditionScene?.elapsedSeconds ?? current.expedition.activeSeconds;
   const result = finishExpedition(current, outcome, seconds, {
     startTimestamp: timestamp,
     random: Math.random,
@@ -266,16 +271,18 @@ export function endExpedition(
  * offlineThresholdSeconds desde o último tick).
  *
  * Com a cena ainda na memória (aba escondida por muito tempo, computador
- * dormindo), a expedição fica pausada esperando a pessoa. Sem cena (a página foi
+ * dormindo), a expedição fica pausada esperando a pessoa, e a ausência não rende
+ * (a clareira só rende com a comitiva na clareira). Sem cena (a página foi
  * recarregada ou o jogo foi fechado), a bolsa é entregue como "interrompida", no
- * instante do último tick.
+ * instante do último tick, e quem chamou deixa a clareira render a ausência.
  *
  * @param set Função de gravação da store.
  * @param get Função de leitura da store.
+ * @param now Instante atual em ms, para a marca de tempo da ausência que não rende.
  *
  * Caso de borda: sem expedição em andamento, não faz nada.
  */
-export function holdExpeditionDuringAbsence(set: SetStore, get: GetStore): void {
+export function holdExpeditionDuringAbsence(set: SetStore, get: GetStore, now: number): void {
   if (get().expedition === null) {
     return;
   }
@@ -283,8 +290,16 @@ export function holdExpeditionDuringAbsence(set: SetStore, get: GetStore): void 
   if (get().expeditionScene === null) {
     endExpedition(set, get, 'interrompida', get().lastSaveTimestamp);
   } else {
-    set(PAUSED_SESSION);
+    // A comitiva está fora: a ausência não rende na clareira, só passa
+    set({ ...PAUSED_SESSION, lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
   }
+}
+
+// Guarda na expedição o tempo andado (para a garantia numa recarga) e a marca de tempo
+function withActiveSeconds(state: GameState, activeSeconds: number, now: number): GameState {
+  const { expedition } = state;
+  const updated = expedition === null ? null : { ...expedition, activeSeconds };
+  return { ...state, expedition: updated, lastSaveTimestamp: now };
 }
 
 // Cena do começo da expedição que acabou de partir. Null não acontece depois de startExpedition.

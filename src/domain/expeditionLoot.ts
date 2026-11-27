@@ -31,8 +31,10 @@ import { getGoldReward, getXpReward } from './formulas';
 import {
   createRewardContext,
   getCurrentModifiers,
+  grantGold,
   grantKill,
   grantTrail,
+  grantXpToParty,
   isTrailStillNeeded,
   rollAmulet,
   rollItemDrops,
@@ -47,11 +49,17 @@ import type { ExpeditionLootDef, GameState, MapKill, SimulationResult } from './
 // =============================================================================
 // E N T R E G A   D A   B O L S A
 
-// O que a bolsa entrega: as visagens (com as de bônus) e os Rastros das pegadas
+// O que a bolsa entrega: as visagens (com as de bônus), os Rastros das pegadas e o piso
 export interface ExpeditionBag {
   mapId: string;
   kills: readonly MapKill[];
   trails: Readonly<Record<string, number>>;
+  floor?: { gold: number; xp: number }; // garantia da clareira. Ausente: nenhum piso.
+}
+
+// Resultado da entrega, com o que a garantia pagou
+export interface ExpeditionBagResult extends SimulationResult {
+  guarantee: { gold: number; xp: number };
 }
 
 /**
@@ -68,19 +76,24 @@ export interface ExpeditionBag {
  * @returns Estado novo, resumo do que rendeu e os eventos (se pedidos).
  * @throws Error se o mapa não tiver saque (o teste de dados impede).
  *
- * Casos de borda: bolsa vazia devolve o mesmo "state" recebido, com o resumo
- * zerado. Rastro de quem já fechou o pacto ou já juntou o bastante não é
+ * Garantia: com "floor", se as Patacas ou o XP da bolsa ficarem abaixo do piso,
+ * a diferença é paga no fim (src/domain/expeditionGuarantee.ts).
+ *
+ * Casos de borda: bolsa vazia e sem piso devolve o mesmo "state" recebido, com o
+ * resumo zerado. Rastro de quem já fechou o pacto ou já juntou o bastante não é
  * entregue. Todas as visagens usam o mesmo instante.
  */
 export function rewardExpeditionBag(
   state: GameState,
   bag: ExpeditionBag,
   options: SimulationOptions,
-): SimulationResult {
+): ExpeditionBagResult {
   const hasTrails = Object.values(bag.trails).some((amount) => amount > 0);
+  const floor = bag.floor ?? { gold: 0, xp: 0 };
+  const hasFloor = floor.gold > 0 || floor.xp > 0;
 
-  if (bag.kills.length === 0 && !hasTrails) {
-    return { state, summary: createEmptySummary(), events: [] };
+  if (bag.kills.length === 0 && !hasTrails && !hasFloor) {
+    return { state, summary: createEmptySummary(), events: [], guarantee: { gold: 0, xp: 0 } };
   }
 
   const loot = getExpeditionLoot(bag.mapId);
@@ -90,8 +103,28 @@ export function rewardExpeditionBag(
     grantExpeditionKill(context, loot, kill);
   }
   grantBagTrails(context, bag.trails);
+  const guarantee = payGuarantee(context, floor);
 
-  return toResult(context);
+  return { ...toResult(context), guarantee };
+}
+
+// O que faltou para o piso: Patacas e XP pagos de uma vez, depois da bolsa
+function payGuarantee(
+  context: RewardContext,
+  floor: { gold: number; xp: number },
+): { gold: number; xp: number } {
+  const gold = Math.max(0, floor.gold - context.summary.gold);
+  const xp = Math.max(0, floor.xp - context.summary.xp);
+
+  if (gold > 0) {
+    grantGold(context, gold);
+  }
+  if (xp > 0) {
+    context.summary.xp += xp;
+    grantXpToParty(context, xp);
+  }
+
+  return { gold, xp };
 }
 
 // Os Rastros das pegadas, um por um, sem passar do que o pacto pede

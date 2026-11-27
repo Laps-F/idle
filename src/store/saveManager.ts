@@ -731,7 +731,9 @@ function sanitizeExpedition(
     typeof raw.preparationId === 'string' && hasExpeditionPreparation(raw.preparationId)
       ? raw.preparationId
       : null;
-  return { mapId, encantadoId, loot, trails, preparationId };
+  // Tempo de expedição andado; salvamento de antes da garantia não tem: conta zero
+  const activeSeconds = toNumber(raw.activeSeconds, 0, 0);
+  return { mapId, encantadoId, loot, trails, preparationId, activeSeconds };
 }
 
 // Uma linha da bolsa: visagem que existe, nível e contagem inteiros e positivos

@@ -95,13 +95,16 @@ sorteio, navegador ou console, ou aparecer `any`. Roda junto com `npm test`.
 
 ## 2. O caminho de um tick
 
-O jogo tem duas partes que andam no mesmo tick:
+O jogo tem duas partes, e o tick anda com uma de cada vez:
 
-- **Clareira**: o combate por estágios, que rende sempre, com o jogo aberto ou fechado.
+- **Clareira**: o combate por estágios, com o jogo aberto ou fechado. Só rende com a comitiva
+  na clareira, ou seja, sem expedição em andamento.
 - **Expedição**: a parte ativa. Só existe enquanto há uma em andamento (campo `expedition` do
-  estado salvo). Anda por cima da clareira, sem parar a clareira.
+  estado salvo). Enquanto ela existe, a clareira fica parada, inclusive com a expedição pausada.
+  Na volta, a garantia da clareira paga pelo menos o que a clareira teria rendido no tempo
+  andado (`src/domain/expeditionGuarantee.ts`).
 
-### Clareira (todo tick)
+### Clareira (todo tick sem expedição)
 
 1. `src/store/gameLoop.ts` chama `tick(Date.now())` a cada 100 ms (16 ms durante a expedição).
 2. `tick`, em `src/store/useGameStore.ts`, mede o tempo desde `lastSaveTimestamp`.
@@ -144,7 +147,7 @@ essas ações às outras e chama o passo dentro do `tick`.
    números que sobem.
 
 **Pausa.** Com `isExpeditionPaused` (campo de sessão, não salvo), `runExpeditionTick` não anda
-com a cena: tempo, ondas, recargas, visagens e projéteis param, e a clareira continua. Pausa ao
+com a cena: tempo, ondas, recargas, visagens e projéteis param, e a clareira também. Pausa ao
 esconder a aba e ao trocar de janela (`src/store/gameLoop.ts`), pela tecla P e numa ausência com
 a cena ainda na memória (`holdExpeditionDuringAbsence`). Só continua pela pessoa: qualquer tecla
 (`useExpeditionKeyboard.ts`) ou um clique no aviso (`ExpeditionCanvas.tsx`), que chamam
@@ -234,6 +237,11 @@ personagem olha (`facingX`, `facingY`) e atravessa as visagens. Todos somem ao b
 | Modificadores da partida (preparo hoje; bênçãos e esquiva depois), pagar e conferir o preparo | `src/domain/expeditionModifiers.ts` |
 | Partir com preparo (paga as Oferendas) | `src/domain/expedition.ts`, `startExpedition` |
 | Quem sai primeiro (pôr um encantado em primeiro na comitiva) | `src/domain/actions.ts`, `setPartyLeader`; botões em `ExpeditionsPanel.tsx`, `LeaderPicker` |
+| Clareira parada durante a expedição (o que o tick anda) | `src/store/useGameStore.ts`, `tick`; `src/store/expeditionSession.ts`, `runExpeditionTick` e `holdExpeditionDuringAbsence` |
+| Garantia da clareira: quanto a clareira teria rendido | `src/domain/expeditionGuarantee.ts`, `getClearingReference` |
+| Garantia da clareira: pagar a diferença na volta | `src/domain/expeditionLoot.ts`, `payGuarantee` (chamado por `rewardExpeditionBag`) |
+| Tempo de expedição andado, salvo para a garantia numa recarga | `ExpeditionState.activeSeconds`, gravado em `runExpeditionTick` |
+| Comparação com a clareira e a garantia na janela da volta | `src/components/modals/ExpeditionReportModal.tsx`, `describeComparison` |
 | Entrega dos Rastros da bolsa na volta (sem passar do pacto) | `src/domain/expeditionLoot.ts`, `rewardExpeditionBag` |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
 | Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |

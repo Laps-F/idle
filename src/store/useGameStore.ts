@@ -23,12 +23,12 @@
  *
  * Clareira e expedição: o combate por estágios (a clareira) roda em todo
  * tick, com o jogo aberto ou fechado. Quando há expedição em andamento, o
- * mesmo tick também anda com a cena do mapa e guarda as derrotas na bolsa
- * (src/store/expeditionSession.ts). A bolsa só vira
- * Patacas, XP e quedas na volta (finishExpedition). A expedição não roda com
- * o jogo fechado nem pausada: com a aba escondida ela pausa e espera, e só uma
- * recarga no meio dela entrega a bolsa como "interrompida". A clareira rende
- * a ausência como sempre.
+ * tick anda só com a cena do mapa e guarda as derrotas na bolsa
+ * (src/store/expeditionSession.ts): a clareira para, porque a comitiva está
+ * fora. A bolsa só vira Patacas, XP e quedas na volta (finishExpedition), com
+ * a garantia de pelo menos o que a clareira teria rendido. A expedição não
+ * roda com o jogo fechado nem pausada: com a aba escondida ela pausa e espera,
+ * e só uma recarga no meio dela entrega a bolsa como "interrompida".
  *
  * É aqui, e não no domínio, que o relógio (Date.now) e o sorteio (Math.random)
  * são lidos. O domínio recebe os dois por parâmetro.
@@ -188,11 +188,13 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
      * - Jogo aberto em outra aba: nada acontece.
      * - Os eventos de combate só são entregues em intervalos de até 1 segundo.
      *   Acima disso a aba estava em segundo plano e não há o que animar.
-     * - Com expedição em andamento, o jogo aberto também anda com a cena do mapa,
-     *   menos quando ela está pausada. Numa ausência no meio dela, a cena que
-     *   ainda está na memória (aba escondida, computador dormindo) fica pausada
-     *   esperando a pessoa. Sem cena (a página foi recarregada), a bolsa é
-     *   entregue como "interrompida". Depois disso a clareira rende a ausência.
+     * - Com expedição em andamento, a clareira não rende (a comitiva está fora):
+     *   só a cena do mapa anda, e nem ela quando está pausada. Numa ausência no
+     *   meio da expedição, a cena que ainda está na memória (aba escondida,
+     *   computador dormindo) fica pausada esperando a pessoa, e a ausência não
+     *   rende. Sem cena (a página foi recarregada), a bolsa é entregue como
+     *   "interrompida" no último instante salvo, e a clareira rende a ausência
+     *   a partir dali, porque a comitiva já voltou.
      */
     tick: (now = Date.now()) => {
       const elapsedSeconds = (now - get().lastSaveTimestamp) / MS_PER_SECOND;
@@ -203,11 +205,17 @@ function createSimulationActions(set: SetStore, get: GetStore): SimulationAction
       if (elapsedSeconds < 0) {
         set({ lastSaveTimestamp: now, tickCount: get().tickCount + 1 });
       } else if (elapsedSeconds > BALANCE.offlineThresholdSeconds) {
-        holdExpeditionDuringAbsence(set, get);
-        runOfflineTick(set, get, now);
+        holdExpeditionDuringAbsence(set, get, now);
+
+        if (get().expedition === null) {
+          runOfflineTick(set, get, now);
+        }
       } else if (elapsedSeconds > 0) {
-        runOnlineTick(set, get, now, elapsedSeconds);
-        runExpeditionTick(set, get, now, elapsedSeconds);
+        if (get().expedition === null) {
+          runOnlineTick(set, get, now, elapsedSeconds);
+        } else {
+          runExpeditionTick(set, get, now, elapsedSeconds);
+        }
       }
     },
 

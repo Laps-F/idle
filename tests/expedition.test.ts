@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../src/data';
 import { chooseStarter } from '../src/domain/actions';
 import { getEnemy, getExpeditionLoot, getExpeditionMap } from '../src/domain/catalog';
+import { getClearingReference } from '../src/domain/expeditionGuarantee';
 import { rewardExpeditionBag } from '../src/domain/expeditionLoot';
 import {
   canAffordPreparation,
@@ -43,6 +44,7 @@ import {
   getXpReward,
 } from '../src/domain/formulas';
 import { getModifiers } from '../src/domain/modifiers';
+import { advanceSimulation } from '../src/domain/simulation';
 import { isWalkablePosition } from '../src/domain/sceneGeometry';
 import { createInitialState } from '../src/domain/state';
 import type {
@@ -164,6 +166,7 @@ function createGameOnExpedition(): GameState {
       ],
       trails: {},
       preparationId: null,
+      activeSeconds: 0,
     },
   });
 }
@@ -445,6 +448,7 @@ describe('partir, bolsa e volta', () => {
       loot: [],
       trails: {},
       preparationId: null,
+      activeSeconds: 0,
     });
     expect(started === null ? null : startExpedition(started, FIRST_MAP)).toBeNull();
   });
@@ -484,8 +488,9 @@ describe('partir, bolsa e volta', () => {
   it('quem aguenta até o fim ganha visagens de bônus', () => {
     const game = createGameOnExpedition();
     const options = { startTimestamp: 0, random: createSeededRandom(5) };
-    const plain = finishExpedition(game, 'voltou', 300, options);
-    const complete = finishExpedition(game, 'concluida', 300, {
+    // Tempo zero: sem garantia da clareira, para comparar só a bolsa
+    const plain = finishExpedition(game, 'voltou', 0, options);
+    const complete = finishExpedition(game, 'concluida', 0, {
       ...options,
       random: createSeededRandom(5),
     });
@@ -500,6 +505,76 @@ describe('partir, bolsa e volta', () => {
 
     expect(result.state).toBe(game);
     expect(result.report).toBeNull();
+  });
+});
+
+describe('garantia da clareira', () => {
+  const now = 1_800_000_000_000;
+
+  it('a referência é o que a clareira renderia no mesmo tempo, sem mexer no estado', () => {
+    const game = deepFreeze(createGame());
+    const reference = getClearingReference(game, 300, now);
+    const clearing = advanceSimulation(game, 300, {
+      startTimestamp: now - 300_000,
+      random: createSeededRandom(now),
+    });
+
+    expect(reference.gold).toBeGreaterThan(0);
+    expect(reference).toEqual({ gold: clearing.summary.gold, xp: clearing.summary.xp });
+    expect(getClearingReference(game, 0, now)).toEqual({ gold: 0, xp: 0 });
+    expect(getClearingReference({ ...game, party: [] }, 300, now)).toEqual({ gold: 0, xp: 0 });
+  });
+
+  it('bolsa fraca: a garantia completa até o que a clareira renderia, em qualquer desfecho', () => {
+    const game = createGameOnExpedition(); // 6 visagens fracas na bolsa
+    const reference = getClearingReference(game, 300, now);
+
+    for (const outcome of ['caiu', 'voltou', 'interrompida'] as const) {
+      const result = finishExpedition(game, outcome, 300, {
+        startTimestamp: now,
+        random: createSeededRandom(2),
+      });
+      const report = result.report;
+
+      expect(report?.clearingGold).toBeCloseTo(reference.gold, 6);
+      expect(report?.guaranteeGold).toBeGreaterThan(0);
+      expect(report?.summary.gold).toBeCloseTo(reference.gold, 6);
+      expect(report?.summary.xp).toBeCloseTo(reference.xp, 6);
+      expect(result.state.gold).toBeCloseTo(game.gold + reference.gold, 6);
+    }
+  });
+
+  it('bolsa boa: a garantia não paga nada, e o relatório mostra a comparação', () => {
+    const rich = {
+      ...createGameOnExpedition(),
+      expedition: {
+        mapId: FIRST_MAP,
+        encantadoId: 'saci',
+        loot: [{ enemyId: 'vulto-da-capoeira', level: 30, count: 20 }],
+        trails: {},
+        preparationId: null,
+        activeSeconds: 60,
+      },
+    };
+    const result = finishExpedition(rich, 'voltou', 60, {
+      startTimestamp: now,
+      random: createSeededRandom(2),
+    });
+
+    expect(result.report?.guaranteeGold).toBe(0);
+    expect(result.report?.guaranteeXp).toBe(0);
+    expect(result.report?.summary.gold).toBeGreaterThan(result.report?.clearingGold ?? 0);
+  });
+
+  it('a bolsa entrega o piso mesmo vazia', () => {
+    const game = createGame();
+    const bag = { mapId: FIRST_MAP, kills: [], trails: {}, floor: { gold: 50, xp: 20 } };
+    const options = { startTimestamp: 0, random: createSeededRandom(1) };
+    const result = rewardExpeditionBag(game, bag, options);
+
+    expect(result.guarantee).toEqual({ gold: 50, xp: 20 });
+    expect(result.state.gold).toBe(game.gold + 50);
+    expect(result.summary.xp).toBe(20);
   });
 });
 
@@ -667,6 +742,7 @@ describe('pegadas de Rastro', () => {
         loot: [],
         trails: { caipora: 1 },
         preparationId: null,
+        activeSeconds: 0,
       },
     };
     const withPact = { ...game, trails: { caipora: 3 } };

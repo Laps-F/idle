@@ -164,6 +164,10 @@ export interface ExpeditionReportView {
   levelUps: NamedAmount[];
   amuletsFound: number;
   preparationName: string | null; // preparo usado, ou null
+  clearingGold: number; // o que a clareira teria rendido no mesmo tempo
+  clearingXp: number;
+  guaranteeGold: number; // o que a garantia pagou (zero se a bolsa já passou)
+  guaranteeXp: number;
 }
 
 // Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota e dano)
@@ -352,6 +356,10 @@ function buildExpeditionReport(snapshot: GameSnapshot): ExpeditionReportView | n
     levelUps: toNamedAmounts(summary.levelUps, encantadoName),
     amuletsFound: summary.amuletsFound,
     preparationName: getPreparationName(report.preparationId),
+    clearingGold: report.clearingGold,
+    clearingXp: report.clearingXp,
+    guaranteeGold: report.guaranteeGold,
+    guaranteeXp: report.guaranteeXp,
   };
 }
 

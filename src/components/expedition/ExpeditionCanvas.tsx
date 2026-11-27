@@ -136,7 +136,7 @@ function PauseNotice() {
     >
       <p className="font-display text-3xl leading-none">Pausado</p>
       <p className="text-sm">
-        O tempo, as visagens e as recargas pararam. A clareira continua rendendo.
+        O tempo, as visagens e as recargas pararam. A clareira também está parada.
       </p>
       <button type="button" className={PAUSE_BUTTON_CLASS}>
         Continuar (qualquer tecla ou clique)

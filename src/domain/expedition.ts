@@ -32,6 +32,7 @@ import { getEncantado, getExpeditionMap, getZone, hasExpeditionMap } from './cat
 import { getDayPhase, matchesClock } from './clock';
 import { getAttackDamage, getAttackInterval, getExpeditionMaxHp } from './formulas';
 import { getModifiers } from './modifiers';
+import { getClearingReference } from './expeditionGuarantee';
 import { rewardExpeditionBag } from './expeditionLoot';
 import { getRunModifiers, payPreparation } from './expeditionModifiers';
 import { isTrailStillNeeded } from './rewards';
@@ -126,7 +127,7 @@ export function startExpedition(
     return null;
   }
 
-  const expedition = { mapId, encantadoId, loot: [], trails: {}, preparationId };
+  const expedition = { mapId, encantadoId, loot: [], trails: {}, preparationId, activeSeconds: 0 };
   return { ...paid, expedition };
 }
 
@@ -277,11 +278,15 @@ function addKill(loot: ExpeditionLoot[], kill: MapKill): ExpeditionLoot[] {
  * Fórmula do bônus: com "concluida", entram piso(visagens × expeditionCompletionBonus)
  * visagens extras, repetindo a bolsa na ordem em que foi juntada.
  *
+ * Garantia da clareira: a bolsa rende pelo menos as Patacas e o XP que a clareira
+ * teria rendido em "seconds" (src/domain/expeditionGuarantee.ts), em qualquer
+ * desfecho.
+ *
  * Função pura: não altera "state".
  *
  * @param state Estado com a expedição em andamento. Não é alterado.
  * @param outcome Como a expedição terminou. Só "concluida" dá bônus.
- * @param seconds Quanto tempo a expedição durou (vai para o relatório).
+ * @param seconds Quanto tempo a expedição andou, sem as pausas (relatório e garantia).
  * @param options Instante da entrega e sorteio das quedas (Oferendas, Rastros, amuletos).
  * @returns Estado sem expedição, com o saque entregue, e o relatório da volta.
  *
@@ -307,7 +312,13 @@ export function finishExpedition(
   const bonusKills = Array.from({ length: bonusCount }, (_, index) => kills[index % kills.length])
     .filter((kill): kill is MapKill => kill !== undefined);
   const allKills = [...kills, ...bonusKills];
-  const bag = { mapId: expedition.mapId, kills: allKills, trails: expedition.trails };
+  const reference = getClearingReference(state, seconds, options.startTimestamp);
+  const bag = {
+    mapId: expedition.mapId,
+    kills: allKills,
+    trails: expedition.trails,
+    floor: reference,
+  };
   const result = rewardExpeditionBag(state, bag, options);
 
   return {
@@ -320,6 +331,10 @@ export function finishExpedition(
       bonusKills: bonusKills.length,
       preparationId: expedition.preparationId,
       summary: result.summary,
+      clearingGold: reference.gold,
+      clearingXp: reference.xp,
+      guaranteeGold: result.guarantee.gold,
+      guaranteeXp: result.guarantee.xp,
     },
   };
 }

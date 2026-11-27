@@ -313,6 +313,7 @@ describe('ações da pessoa', () => {
         loot: [],
         trails: {},
         preparationId: null,
+        activeSeconds: 0,
       },
     };
 
