@@ -96,7 +96,7 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 7 | Olhar o cabeçalho durante a expedição | As Patacas não sobem: a clareira fica parada enquanto a comitiva está fora. |
 | 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. Cada encostada tira uma parte maior da vida. |
 | 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força média de quem sai (a comitiva inteira). O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
-| 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. Com umas 15 visagens, as Patacas ficam perto do que a clareira rende em 5 minutos. |
+| 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. A janela compara com a clareira: com umas 15 a 20 visagens, a bolsa costuma render perto de 2 vezes o que a clareira renderia no mesmo tempo. |
 | 9b | Na aba "Expedições", ler a linha "Pegadas" de cada mapa | De dia aparece "Caipora (faltam 3)". À noite aparece também o Boitatá. Depois de fechar os dois pactos, "nenhum encantado precisa de Rastro agora". |
 | 9c | Partir e esperar uns 10 segundos | Surge um bloco laranja pequeno escrito "Pegada: Caipora", longe da personagem. A cada uns 20 segundos surge outra, no máximo 2 no chão. Às vezes uma visagem derrotada deixa uma pegada onde caiu. |
 | 9d | Passar por cima da pegada | Sobe "+1 Rastro", a pegada some e "Rastros" no painel de cima e em "Rastros na bolsa" sobe 1. Na volta, a janela mostra os Rastros e o Almanaque soma, sem passar do que o pacto pede. |
@@ -114,7 +114,8 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 | 9i | Escolher um preparo e clicar nele de novo | A escolha é desfeita e partir não gasta nada. |
 | 9a | Fazer algumas expedições no Brejo Escuro | De vez em quando a bolsa traz brasa viva, que antes só o Corpo-Seco da clareira deixava. Os amuletos caem com mais frequência que na Beira da Mata. |
 | 10 | Partir de novo e deixar a vida de todos zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
-| 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
+| 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (o mesmo número de visagens da bolsa, ou seja, o dobro). A comparação com a clareira costuma passar de 3 vezes. |
+| 11a | Sair com três na comitiva e voltar | Cada visagem da bolsa rende 2,5 vezes o que renderia saindo sozinho (75% a mais por encantado a mais), porque na clareira os três batem juntos. |
 | 12 | Recarregar a página no meio de uma expedição | A clareira abre com "Expedição interrompida" e a bolsa entregue. |
 | 12a | Partir, trocar para outra aba por uns segundos e voltar | O mapa está coberto pelo aviso "Pausado". O tempo, a vida, as visagens e as Patacas não mudaram enquanto você estava fora (a clareira também fica parada). |
 | 12b | Com o aviso na tela, apertar espaço | O aviso some e o jogo continua, sem soltar o golpe especial. Shift, Ctrl, Alt ou Tab sozinhos não continuam. |

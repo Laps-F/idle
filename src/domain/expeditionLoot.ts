@@ -7,9 +7,13 @@
  *
  * O que cada visagem da bolsa rende:
  *   - Patacas: fórmula da clareira no nível da visagem × goldMultiplier do mapa
- *     (com a Bolsa de couro, sinergias, amuletos e Raízes, como na clareira).
+ *     × fator do time (com a Bolsa de couro, sinergias, dons, amuletos e Raízes,
+ *     como na clareira).
  *   - XP para toda a comitiva: fórmula da clareira no nível da visagem ×
- *     xpMultiplier do mapa.
+ *     xpMultiplier do mapa × fator do time.
+ *   - Fator do time: 1 + expeditionTeamLootBonus × (quem saiu − 1). Na clareira
+ *     os três batem juntos e rendem cerca de três vezes; no mapa, um por vez.
+ *     Sem o fator, sair com a comitiva inteira valeria menos que sair sozinho.
  *   - Oferendas: a tabela "drops" do mapa, para qualquer visagem.
  *   - Amuleto: a chance "amuletChance" do mapa, com a força do nível da visagem.
  *   - Rastros: não vêm das visagens. Vêm das pegadas pegas no chão
@@ -26,6 +30,7 @@
  *   1. Entrega da bolsa
  */
 
+import { BALANCE } from '../data/balance';
 import { getEnemy, getExpeditionLoot } from './catalog';
 import { getGoldReward, getXpReward } from './formulas';
 import {
@@ -55,6 +60,7 @@ export interface ExpeditionBag {
   kills: readonly MapKill[];
   trails: Readonly<Record<string, number>>;
   floor?: { gold: number; xp: number }; // garantia da clareira. Ausente: nenhum piso.
+  teamSize?: number; // quantos saíram (fator do time). Ausente: 1.
 }
 
 // Resultado da entrega, com o que a garantia pagou
@@ -98,14 +104,20 @@ export function rewardExpeditionBag(
 
   const loot = getExpeditionLoot(bag.mapId);
   const context = createRewardContext(state, options);
+  const teamFactor = getTeamLootFactor(bag.teamSize ?? 1);
 
   for (const kill of bag.kills) {
-    grantExpeditionKill(context, loot, kill);
+    grantExpeditionKill(context, loot, kill, teamFactor);
   }
   grantBagTrails(context, bag.trails);
   const guarantee = payGuarantee(context, floor);
 
   return { ...toResult(context), guarantee };
+}
+
+// Fator do time: 1 com um só, e expeditionTeamLootBonus a mais por encantado a mais
+export function getTeamLootFactor(teamSize: number): number {
+  return 1 + BALANCE.expeditionTeamLootBonus * Math.max(0, Math.floor(teamSize) - 1);
 }
 
 // O que faltou para o piso: Patacas e XP pagos de uma vez, depois da bolsa
@@ -143,11 +155,13 @@ function grantExpeditionKill(
   context: RewardContext,
   loot: ExpeditionLootDef,
   kill: MapKill,
+  teamFactor: number,
 ): void {
   const modifiers = getCurrentModifiers(context);
   const enemy = getEnemy(kill.enemyId);
-  const gold = getGoldReward(kill.stage, enemy, false, modifiers.gold) * loot.goldMultiplier;
-  const xp = getXpReward(kill.stage, enemy, false) * loot.xpMultiplier;
+  const goldBase = getGoldReward(kill.stage, enemy, false, modifiers.gold);
+  const gold = goldBase * loot.goldMultiplier * teamFactor;
+  const xp = getXpReward(kill.stage, enemy, false) * loot.xpMultiplier * teamFactor;
 
   grantKill(context, enemy.id, false, gold, xp);
   rollItemDrops(context, loot.drops, modifiers);

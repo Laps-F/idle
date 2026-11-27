@@ -135,6 +135,11 @@ const BALANCE_FIELDS = {
     label: 'Bônus de quem aguenta até o fim (0,5 = +50% na bolsa)',
     step: 0.05,
   },
+  expeditionTeamLootBonus: {
+    group: GROUP.expedition,
+    label: 'Saque a mais por encantado a mais que saiu (0,5 = +50%)',
+    step: 0.05,
+  },
   expeditionHitsPerEnemy: {
     group: GROUP.expedition,
     label: 'Golpes que uma visagem aguenta no nível de partida',

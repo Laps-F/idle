@@ -2,6 +2,66 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 27/11/2026: calibragem da expedição (Passo 6 do Caminho 2)
+
+Com a clareira parada durante a expedição, o revezamento e os dons, o saque foi recalibrado para
+as metas do estudo da comitiva: a bolsa render cerca de 2 vezes o que a clareira renderia no
+mesmo tempo, e uma expedição completa, 3 vezes ou mais.
+
+O que mudou:
+
+- **Saque dos mapas** (`src/data/expeditionLoot.ts`): Beira da Mata de 4 para 5 vezes a fórmula
+  da clareira, Brejo Escuro de 5 para 6,5 (Patacas e XP).
+- **Bônus de quem aguenta até o fim** (`expeditionCompletionBonus`): de 50% para 100% a mais de
+  visagens (a bolsa dobra).
+- **Fator do time** (`expeditionTeamLootBonus`, novo, 0,75): cada encantado a mais que saiu soma
+  75% às Patacas e ao XP de cada visagem da bolsa (três saindo: 2,5 vezes). Motivo: na clareira
+  os três batem juntos e rendem cerca de três vezes; no mapa, só um bate por vez. Sem o fator,
+  sair com a comitiva inteira rendia de 0,5 a 0,8 vez a clareira, menos que sair sozinho.
+- **Encostada, ondas e duração:** ficaram como estavam. Com o robô novo, que joga num jogo de
+  verdade (melhorias compradas, nível do encantado), o revezamento não deixou os 5 minutos fáceis
+  demais: sozinho, 24% das expedições chegaram ao fim; com três, 38%. O teste do passo 4 (6 de
+  8) usava um robô e números mais simples.
+- **Robô de calibragem** (`tests/calibration.test.ts`, novo): `npm run calibrate` mede de novo.
+  Não roda no `npm test`.
+
+Medição final (robô, 20 expedições por linha; "bolsa" e "completas" são Patacas da bolsa ÷
+Patacas da clareira no mesmo tempo, antes da garantia, em mediana; "piso" é quantas precisaram
+da garantia):
+
+| Jogo | Quem saiu | Mapa | Tempo | Completas | Visagens | Bolsa | Completas | Piso |
+|---|---|---|---|---|---|---|---|---|
+| 5 min | sozinho | Beira | 165 s | 0/20 | 17 | 2,05 | - | 2 |
+| 5 min | sozinho | Brejo | 158 s | 1/20 | 10 | 2,02 | 0,79 | 2 |
+| 5 min | três | Beira | 239 s | 7/20 | 18 | 2,08 | 1,61 | 1 |
+| 5 min | três | Brejo | 218 s | 6/20 | 12 | 2,42 | 3,17 | 2 |
+| 20 min | sozinho | Beira | 286 s | 8/20 | 20 | 2,87 | 3,50 | 1 |
+| 20 min | sozinho | Brejo | 141 s | 1/20 | 14 | 2,88 | 4,61 | 1 |
+| 20 min | três | Beira | 260 s | 9/20 | 14 | 1,60 | 1,36 | 5 |
+| 20 min | três | Brejo | 287 s | 9/20 | 19 | 2,23 | 2,46 | 2 |
+| 60 min | sozinho | Beira | 274 s | 8/20 | 25 | 2,35 | 2,69 | 0 |
+| 60 min | sozinho | Brejo | 300 s | 11/20 | 18 | 2,44 | 2,80 | 1 |
+| 60 min | três | Beira | 258 s | 8/20 | 23 | 2,09 | 3,36 | 1 |
+| 60 min | três | Brejo | 256 s | 7/20 | 17 | 2,44 | 2,72 | 2 |
+
+Leitura:
+
+- A mediana da bolsa fica entre 1,6 e 2,9 vezes a clareira (perto de 2,2 no geral). A garantia
+  só precisou pagar em 8% das expedições.
+- As completas ficam perto de 3 vezes (de 2,5 a 3,5 quando há várias). O robô completa fugindo
+  mais do que lutando, então mata menos que uma pessoa; jogando de verdade, deve passar disso.
+- Linhas com 1 ou 2 completas são pouco confiáveis (uma expedição só decide a mediana).
+
+Arquivos:
+
+- `src/data/expeditionLoot.ts`: multiplicadores e o cabeçalho com a meta.
+- `src/data/balance.ts` e `src/store/tuning.ts`: `expeditionCompletionBonus` e
+  `expeditionTeamLootBonus` (também nos ajustes).
+- `src/domain/expeditionLoot.ts`: `getTeamLootFactor` e `teamSize` na bolsa.
+- `src/domain/expedition.ts`: a bolsa leva quantos saíram.
+- `tests/calibration.test.ts` (novo) e `package.json` (`npm run calibrate`).
+- `tests/team.test.ts`: o fator do time.
+
 ## 27/11/2026: dom de cada encantado (Passo 5 do Caminho 2)
 
 Cada encantado ganhou um dom, que vale enquanto ele está na comitiva. Com isso, montar a

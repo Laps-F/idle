@@ -15,10 +15,13 @@
  *   - amuletChance é a chance de amuleto por visagem, no lugar de
  *     amuletCommonDropChance. A chance de achado também multiplica.
  *
- * Calibragem (26/11/2026, Etapa 3 do Caminho 1): uma expedição rende de 2 a
- * 28 visagens. Os multiplicadores fazem uma expedição boa render mais ou
- * menos o mesmo que 5 minutos de clareira, em cima do que a clareira já rende
- * enquanto isso. Medição no histórico (docs/HISTORICO.md).
+ * Calibragem (27/11/2026, passo 6 do Caminho 2): com a clareira parada
+ * durante a expedição, a meta é a bolsa render cerca de 2 vezes o que a
+ * clareira renderia no mesmo tempo, e uma expedição completa, 3 vezes ou
+ * mais. O fator do time (expeditionTeamLootBonus, em src/data/balance.ts)
+ * multiplica por cima, quando sai mais de um. Medido com o robô de
+ * tests/calibration.test.ts (npm run calibrate): mediana de 2 a 2,9 vezes,
+ * completas de 2,5 a 3,5 vezes. Tabela no histórico (docs/HISTORICO.md).
  *
  * Todo mapa de src/data/world.ts precisa de uma entrada aqui (tests/data.test.ts).
  */
@@ -32,8 +35,8 @@ import type { ExpeditionLootDef } from '../domain/types';
 export const EXPEDITION_LOOT: ExpeditionLootDef[] = [
   {
     mapId: 'beira-da-mata',
-    goldMultiplier: 4,
-    xpMultiplier: 4,
+    goldMultiplier: 5,
+    xpMultiplier: 5,
     amuletChance: 0.06,
     drops: [
       { itemId: 'mel-silvestre', chance: 0.2, min: 1, max: 2 },
@@ -42,8 +45,8 @@ export const EXPEDITION_LOOT: ExpeditionLootDef[] = [
   },
   {
     mapId: 'brejo-escuro',
-    goldMultiplier: 5,
-    xpMultiplier: 5,
+    goldMultiplier: 6.5,
+    xpMultiplier: 6.5,
     amuletChance: 0.08,
     drops: [
       { itemId: 'cipo-trancado', chance: 0.2, min: 1, max: 2 },

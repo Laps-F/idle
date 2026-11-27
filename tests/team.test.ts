@@ -16,6 +16,7 @@ import {
   getSceneSetup,
   startExpedition,
 } from '../src/domain/expedition';
+import { getTeamLootFactor, rewardExpeditionBag } from '../src/domain/expeditionLoot';
 import { NEUTRAL_RUN_MODIFIERS } from '../src/domain/expeditionModifiers';
 import { getFighterBaseLevel, getTeamBaseLevel } from '../src/domain/expeditionScaling';
 import { advanceScene, createExpeditionScene } from '../src/domain/expeditionScene';
@@ -260,6 +261,21 @@ describe('quem cai', () => {
 
     expect(result.outcome).toBe('caiu');
     expect(getFallenIds(result.scene)).toEqual(['saci', 'iara', 'curupira']);
+  });
+
+  it('cada encantado a mais que saiu soma o bônus do time às Patacas e ao XP da bolsa', () => {
+    expect(getTeamLootFactor(1)).toBe(1);
+    expect(getTeamLootFactor(3)).toBe(1 + 2 * BALANCE.expeditionTeamLootBonus);
+
+    const game = createTrioGame();
+    const kills = [{ enemyId: 'visagem-da-neblina', stage: 5, zoneId: 'mata-atlantica' }];
+    const bag = (teamSize: number) => ({ mapId: FIRST_MAP, kills, trails: {}, teamSize });
+    const options = () => ({ startTimestamp: 0, random: createSeededRandom(3) });
+    const solo = rewardExpeditionBag(game, bag(1), options()).summary;
+    const trio = rewardExpeditionBag(game, bag(3), options()).summary;
+
+    expect(trio.gold).toBeCloseTo(solo.gold * getTeamLootFactor(3), 6);
+    expect(trio.xp).toBeCloseTo(solo.xp * getTeamLootFactor(3), 6);
   });
 
   it('a volta conta no relatório quem saiu e quem caiu', () => {

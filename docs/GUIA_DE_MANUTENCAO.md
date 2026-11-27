@@ -208,6 +208,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Tamanho da comitiva | `src/data/balance.ts` |
 | Duração do dia e do ciclo da lua | `src/data/balance.ts` |
 | Tempo da expedição e bônus de quem aguenta até o fim | `src/data/balance.ts`, `expeditionDurationSeconds` e `expeditionCompletionBonus` |
+| Saque a mais por encantado a mais que saiu (fator do time) | `src/data/balance.ts`, `expeditionTeamLootBonus`; conta em `src/domain/expeditionLoot.ts`, `getTeamLootFactor` |
 | Personagem na expedição: velocidade, vida, alcance, golpe especial padrão | `src/data/balance.ts`, bloco "Expedições: personagem" |
 | Golpe especial de cada encantado: nome, texto, recarga, dano, raio, duração dos efeitos | `src/data/specials.ts`, `SPECIALS` |
 | Quantos golpes uma visagem aguenta no nível de partida (a escala da expedição) | `src/data/balance.ts`, `expeditionHitsPerEnemy` |
@@ -580,13 +581,16 @@ O passo a passo está em [SPRITES.md](SPRITES.md). Em resumo: arquivos em `publi
   `specialProjectileMaxDistance`, em `src/data/balance.ts`.
 - Acertar de longe demais ou de perto demais: `attackRange` e `projectileMaxDistance`.
 - Bolsa rende pouco ou muito: `goldMultiplier`, `xpMultiplier`, `amuletChance` e `drops` do mapa,
-  em `src/data/expeditionLoot.ts`, ou `expeditionCompletionBonus`. O `levelBonus` também muda o
+  em `src/data/expeditionLoot.ts`, `expeditionCompletionBonus` ou `expeditionTeamLootBonus` (só
+  quando sai mais de um). O `levelBonus` também muda o
   saque, porque o nível entra nas fórmulas. A meta medida está no cabeçalho de
   `src/data/expeditionLoot.ts`.
 - Para testar jogando: botão "Ajustes" no cabeçalho, com todos esses números e o nível de quem
   sai em expedição.
-- Para medir sem jogar: monte uma cena com `createExpeditionScene` e chame `advanceScene` em
-  passos de 0,1 s, como no histórico da etapa das expedições.
+- Para medir sem jogar: `npm run calibrate` roda o robô de `tests/calibration.test.ts` (uns 15
+  segundos) e mostra, para jogos de 5, 20 e 60 minutos, sozinho e com três, nos dois mapas:
+  tempo, expedições completas, visagens e quanto a bolsa rendeu perto da clareira. Compare com a
+  tabela do histórico (passo 6 do Caminho 2) depois de mexer nos números.
 
 ### Acrescentar algo ao passo do mapa (uma regra nova na expedição)
 

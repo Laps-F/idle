@@ -9,7 +9,7 @@
  *   - A bolsa nunca se perde: voltar pela passagem, cair ou fechar o jogo
  *     entregam tudo o que foi juntado.
  *   - Quem aguenta até o fim do tempo ganha expeditionCompletionBonus de
- *     visagens extras na bolsa (50% a mais).
+ *     visagens extras na bolsa (hoje, o dobro de visagens).
  *   - A bolsa também guarda os Rastros das pegadas pegas no mapa (addTrailsToLoot).
  *   - A entrega usa o saque próprio do mapa (rewardExpeditionBag, em
  *     expeditionLoot.ts): Patacas, XP para a comitiva, Oferendas e amuletos pela
@@ -345,6 +345,7 @@ export function finishExpedition(
     kills: allKills,
     trails: expedition.trails,
     floor: reference,
+    teamSize: expedition.team.length,
   };
   const result = rewardExpeditionBag(state, bag, options);
 

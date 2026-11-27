@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "calibrate": "vitest run tests/calibration.test.ts --mode calibrate --reporter=verbose",
     "typecheck": "tsc -b"
   },
   "dependencies": {

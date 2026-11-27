@@ -39,6 +39,7 @@ do guia de manutenção.
 npm install
 npm run dev        # abre o jogo em http://localhost:5173 (painel de debug em /?debug)
 npm test           # roda os testes dos dados, do domínio, da store, do painel e da arquitetura
+npm run calibrate  # robô que mede a expedição: tempo, fim e saque perto da clareira (uns 15 s)
 npm run typecheck  # confere as tipagens
 npm run build      # gera a versão final em dist/
 npm run preview    # abre a versão final em http://localhost:4173/idle/, igual ao site
@@ -329,8 +330,8 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSki
 1. Caminho 1 (ligar a clareira e a expedição): pronto. Pausa, escala, saque próprio, pegadas e
    preparos com Oferendas.
 2. Jogar a expedição e decidir se o combate é divertido. Balancear as ondas e os preparos.
-3. Caminho 2 (a comitiva em campo): escolher quem entra primeiro, clareira parada com garantia,
-   golpe especial de cada encantado, revezamento e dons: prontos. Falta a calibragem. Esquiva e
-   bênçãos depois.
+3. Caminho 2 (a comitiva em campo): pronto. Escolher quem entra primeiro, clareira parada com
+   garantia, golpe especial de cada encantado, revezamento, dons e calibragem (`npm run calibrate`
+   mede de novo). Esquiva e bênçãos depois.
 4. Repensar a Rebrota com a clareira e as expedições.
 5. Imagens no lugar dos blocos coloridos (docs/SPRITES.md) e controle na tela para celular.

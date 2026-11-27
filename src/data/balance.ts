@@ -99,7 +99,10 @@ export const BALANCE = {
   expeditionTickIntervalMs: 16, // na expedição o laço roda ~60 vezes por segundo
   sceneMaxStepSeconds: 0.05, // intervalo maior que isso é dividido em passos menores
   expeditionDurationSeconds: 300, // limite de 5 minutos. Quem aguenta até o fim ganha o bônus.
-  expeditionCompletionBonus: 0.5, // fim do tempo: a bolsa rende 50% a mais de visagens
+  expeditionCompletionBonus: 1, // fim do tempo: a bolsa rende o dobro de visagens
+  // Cada encantado a mais que saiu soma isto às Patacas e ao XP de cada visagem da bolsa. Na
+  // clareira os três batem juntos; no mapa, um por vez. Sem isso, sair com três valeria menos.
+  expeditionTeamLootBonus: 0.75,
 
   // Expedições: escala. O nível de partida acompanha o poder de quem sai (expeditionScaling.ts).
   expeditionHitsPerEnemy: 3, // no nível de partida, uma visagem comum aguenta uns 3 golpes
