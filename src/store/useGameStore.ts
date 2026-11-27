@@ -110,6 +110,7 @@ const SESSION_DEFAULTS: SessionState = {
   expeditionScene: null,
   moveInput: NO_INPUT,
   isSpecialPending: false,
+  swapPending: null,
   isExpeditionPaused: false,
   sceneEvents: NO_SCENE_EVENTS,
   expeditionReport: null,

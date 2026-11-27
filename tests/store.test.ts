@@ -730,6 +730,7 @@ describe('expedições e salvamento da versão 5', () => {
     expect(state.expedition).toEqual({
       mapId: 'beira-da-mata',
       encantadoId: 'saci',
+      team: ['saci'],
       loot: [],
       trails: {},
       preparationId: null,
@@ -738,6 +739,35 @@ describe('expedições e salvamento da versão 5', () => {
     expect(state.expeditionScene?.trailTargets).toEqual([{ encantadoId: 'caipora', remaining: 3 }]);
     expect(state.expeditionScene?.playerHp).toBe(BALANCE.playerBaseHp);
     expect(state.startExpedition('brejo-escuro')).toBe(false);
+  });
+
+  it('parte com a comitiva inteira e troca quem está em campo no próximo tick', async () => {
+    const useGameStore = await openGame();
+    useGameStore.getState().chooseStarter('saci');
+    const { roster } = useGameStore.getState();
+    useGameStore.setState({
+      roster: { ...roster, iara: { id: 'iara', level: 1, xp: 0, bond: 0 } },
+      party: ['saci', 'iara'],
+    });
+    expect(useGameStore.getState().startExpedition('beira-da-mata')).toBe(true);
+
+    const started = useGameStore.getState();
+    expect(started.expedition?.team).toEqual(['saci', 'iara']);
+    expect(started.expeditionScene?.team.map((member) => member.encantadoId)).toEqual([
+      'saci',
+      'iara',
+    ]);
+
+    useGameStore.getState().swapFighter(1);
+    expect(useGameStore.getState().swapPending).toBe(1);
+    runTicks(useGameStore, 1);
+    expect(useGameStore.getState().expeditionScene?.activeIndex).toBe(1);
+    expect(useGameStore.getState().swapPending).toBeNull();
+
+    // Pausada, o pedido de troca não vale
+    useGameStore.getState().pauseExpedition();
+    useGameStore.getState().swapFighter(0);
+    expect(useGameStore.getState().swapPending).toBeNull();
   });
 
   it('parte com um preparo: paga as Oferendas e a cena já começa com o efeito', async () => {
@@ -797,6 +827,7 @@ describe('expedições e salvamento da versão 5', () => {
       expedition: {
         mapId: 'beira-da-mata',
         encantadoId: 'saci',
+        team: ['saci'],
         loot: [{ enemyId: 'visagem-da-neblina', level: 1, count: 5 }],
         trails: {},
         preparationId: null,
@@ -902,6 +933,8 @@ describe('expedições e salvamento da versão 5', () => {
     const useGameStore = await openGame();
 
     expect(useGameStore.getState().expedition?.loot).toHaveLength(1);
+    // Salvamento de antes do revezamento: sai só quem entrou em campo
+    expect(useGameStore.getState().expedition?.team).toEqual(['iara']);
     // Salvamento da versão 5 de antes das pegadas e dos preparos: sem "trails" nem
     // "preparationId", abre com a bolsa sem Rastros e sem preparo
     expect(useGameStore.getState().expedition?.trails).toEqual({});

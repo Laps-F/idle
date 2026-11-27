@@ -102,6 +102,10 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
     attackProgress: 0,
     specialCooldown: 0,
     specialCooldownTotal: 6,
+    team: [],
+    activeIndex: 0,
+    swapCooldown: 0,
+    contactBaseHp: 100,
     facingX: 1,
     facingY: 0,
     enemies: [],
@@ -114,10 +118,13 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
 }
 
 // O que a cena precisa para começar, no primeiro mapa e sem pegadas
-function setupFor(fighter: SceneSetup['fighter'], targets: TrailTarget[] = []): SceneSetup {
+function setupFor(
+  fighter: SceneSetup['fighters'][number] | null,
+  targets: TrailTarget[] = [],
+): SceneSetup {
   return {
     mapId: FIRST_MAP,
-    fighter,
+    fighters: fighter === null ? [] : [fighter],
     trailTargets: targets,
     trailChance: 1,
     modifiers: { ...NEUTRAL_RUN_MODIFIERS },
@@ -177,6 +184,7 @@ function createGameOnExpedition(): GameState {
     expedition: {
       mapId: FIRST_MAP,
       encantadoId: 'saci',
+      team: ['saci'],
       loot: [
         { enemyId: 'visagem-da-neblina', level: 1, count: 4 },
         { enemyId: 'vulto-da-capoeira', level: 2, count: 2 },
@@ -242,7 +250,7 @@ describe('movimento e passagem de volta', () => {
   it('anda na velocidade combinada e não altera a cena recebida', () => {
     const scene = createScene();
     const input = deepFreeze({ moveX: 1, moveY: 0, useSpecial: false });
-    const result = advanceScene(scene, null, input, 1, createSeededRandom(1));
+    const result = advanceScene(scene, [], input, 1, createSeededRandom(1));
 
     expect(result.scene.playerX).toBeCloseTo(10.5 + BALANCE.playerSpeed, POSITION_DIGITS);
     expect(result.scene.elapsedSeconds).toBeCloseTo(1, POSITION_DIGITS);
@@ -252,7 +260,7 @@ describe('movimento e passagem de volta', () => {
   it('anda na diagonal com a mesma velocidade', () => {
     const scene = createScene({ playerX: 3.5, playerY: 11.5 });
     const input = { moveX: 1, moveY: 1, useSpecial: false };
-    const result = advanceScene(scene, null, input, 0.25, Math.random);
+    const result = advanceScene(scene, [], input, 0.25, Math.random);
     const walked = Math.hypot(result.scene.playerX - 3.5, result.scene.playerY - 11.5);
 
     expect(walked).toBeCloseTo(BALANCE.playerSpeed * 0.25, POSITION_DIGITS);
@@ -261,7 +269,7 @@ describe('movimento e passagem de volta', () => {
   it('para ao encostar numa árvore', () => {
     const scene = createScene({ playerX: 1.5, playerY: 1.5 });
     const input = { moveX: 0, moveY: -1, useSpecial: false };
-    const result = advanceScene(scene, null, input, 1, Math.random);
+    const result = advanceScene(scene, [], input, 1, Math.random);
 
     expect(result.scene.playerY).toBeGreaterThanOrEqual(1 + BALANCE.bodyRadius);
     expect(result.scene.playerY).toBeLessThan(1.5);
@@ -271,7 +279,7 @@ describe('movimento e passagem de volta', () => {
     // A passagem da Beira da Mata fica na coluna 1, linha 10
     const scene = createScene({ playerX: 2.5, playerY: 10.5 });
     const input = { moveX: -1, moveY: 0, useSpecial: false };
-    const result = advanceScene(scene, null, input, 1, createSeededRandom(2));
+    const result = advanceScene(scene, [], input, 1, createSeededRandom(2));
 
     expect(result.outcome).toBe('voltou');
     expect(result.scene.elapsedSeconds).toBeLessThan(1);
@@ -279,15 +287,15 @@ describe('movimento e passagem de volta', () => {
 
   it('não faz nada com tempo zero ou inválido', () => {
     const scene = createScene();
-    expect(advanceScene(scene, null, STOPPED, 0, Math.random).scene).toBe(scene);
-    expect(advanceScene(scene, null, STOPPED, Number.NaN, Math.random).scene).toBe(scene);
+    expect(advanceScene(scene, [], STOPPED, 0, Math.random).scene).toBe(scene);
+    expect(advanceScene(scene, [], STOPPED, Number.NaN, Math.random).scene).toBe(scene);
   });
 });
 
 describe('visagens', () => {
   it('perseguem quem chega perto', () => {
     const scene = createScene({ enemies: [createEnemy(13.5, 11.5)] });
-    const result = advanceScene(scene, null, STOPPED, 0.5, createSeededRandom(1));
+    const result = advanceScene(scene, [], STOPPED, 0.5, createSeededRandom(1));
     const expectedX = 13.5 - BALANCE.enemyChaseSpeed * 0.5;
 
     expect(result.scene.enemies[0]?.x).toBeCloseTo(expectedX, POSITION_DIGITS);
@@ -295,15 +303,15 @@ describe('visagens', () => {
 
   it('não perseguem quem está longe', () => {
     const scene = createScene({ enemies: [createEnemy(20.5, 11.5)] });
-    const result = advanceScene(scene, null, STOPPED, 0.5, createSeededRandom(1));
+    const result = advanceScene(scene, [], STOPPED, 0.5, createSeededRandom(1));
     expect(result.scene.enemies[0]?.x).toBe(20.5);
   });
 
   it('batem ao encostar, no máximo uma vez por recarga', () => {
     const scene = createScene({ enemies: [createEnemy(11, 11.5)] });
-    const first = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(1));
-    const soon = advanceScene(first.scene, null, STOPPED, 0.5, createSeededRandom(1));
-    const later = advanceScene(soon.scene, null, STOPPED, 0.6, createSeededRandom(1));
+    const first = advanceScene(scene, [], STOPPED, 0.05, createSeededRandom(1));
+    const soon = advanceScene(first.scene, [], STOPPED, 0.5, createSeededRandom(1));
+    const later = advanceScene(soon.scene, [], STOPPED, 0.6, createSeededRandom(1));
 
     expect(first.scene.playerHp).toBe(93);
     expect(first.scene.hurtSeconds).toBeGreaterThan(0);
@@ -314,7 +322,7 @@ describe('visagens', () => {
 
   it('a expedição termina como "caiu" quando a vida zera', () => {
     const scene = createScene({ playerHp: 5, enemies: [createEnemy(11, 11.5)] });
-    const result = advanceScene(scene, STRONG_FIGHTER, STOPPED, 1, createSeededRandom(1));
+    const result = advanceScene(scene, [STRONG_FIGHTER], STOPPED, 1, createSeededRandom(1));
 
     expect(result.outcome).toBe('caiu');
     expect(result.scene.playerHp).toBe(0);
@@ -323,7 +331,7 @@ describe('visagens', () => {
   it('as ondas trazem visagens cada vez mais fortes', () => {
     const map = getExpeditionMap(FIRST_MAP);
     const scene = createScene({ spawnTimer: 0.01, elapsedSeconds: 125 });
-    const result = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(4));
+    const result = advanceScene(scene, [], STOPPED, 0.05, createSeededRandom(4));
 
     expect(result.scene.enemies).toHaveLength(1);
     expect(result.scene.enemies[0]?.level).toBe(getMapStartLevel(1, map) + 2);
@@ -333,7 +341,7 @@ describe('visagens', () => {
 
   it('a expedição termina como "concluida" no fim do tempo', () => {
     const scene = createScene({ elapsedSeconds: BALANCE.expeditionDurationSeconds - 0.01 });
-    const result = advanceScene(scene, null, STOPPED, 1, createSeededRandom(1));
+    const result = advanceScene(scene, [], STOPPED, 1, createSeededRandom(1));
 
     expect(result.outcome).toBe('concluida');
   });
@@ -354,8 +362,8 @@ describe('golpes e projéteis', () => {
     // A visagem fica a 3,5 ladrilhos: o projétil leva alguns passos para chegar
     const enemy = createEnemy(14, 11.5, { level: 3, damage: 0 });
     const scene = createScene({ attackProgress: 1, enemies: [enemy] });
-    const fired = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.05, createSeededRandom(1));
-    const landed = advanceScene(fired.scene, STRONG_FIGHTER, STOPPED, 0.5, createSeededRandom(1));
+    const fired = advanceScene(scene, [STRONG_FIGHTER], STOPPED, 0.05, createSeededRandom(1));
+    const landed = advanceScene(fired.scene, [STRONG_FIGHTER], STOPPED, 0.5, createSeededRandom(1));
 
     expect(fired.scene.projectiles).toHaveLength(1);
     expect(fired.scene.projectiles[0]?.directionX).toBe(1);
@@ -370,7 +378,7 @@ describe('golpes e projéteis', () => {
 
   it('não atira em visagem fora do alcance e deixa a barra cheia esperando', () => {
     const scene = createScene({ attackProgress: 1, enemies: [createTarget(1, 15.5, 11.5)] });
-    const result = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.05, createSeededRandom(1));
+    const result = advanceScene(scene, [STRONG_FIGHTER], STOPPED, 0.05, createSeededRandom(1));
 
     expect(result.scene.projectiles).toEqual([]);
     expect(result.scene.attackProgress).toBe(1);
@@ -379,7 +387,7 @@ describe('golpes e projéteis', () => {
   it('o projétil comum para na primeira visagem que acerta', () => {
     const enemies = [createTarget(1, 12.5, 11.5), createTarget(2, 13.5, 11.5)];
     const scene = createScene({ attackProgress: 1, enemies });
-    const result = advanceScene(scene, weakFighter, STOPPED, 0.5, createSeededRandom(1));
+    const result = advanceScene(scene, [weakFighter], STOPPED, 0.5, createSeededRandom(1));
 
     expect(result.scene.enemies.map((enemy) => enemy.hp)).toEqual([98, 100]);
   });
@@ -388,8 +396,8 @@ describe('golpes e projéteis', () => {
     const enemies = [createTarget(1, 12.5, 11.5), createTarget(2, 13.5, 11.5)];
     const scene = createScene({ enemies });
     const special = { ...STOPPED, useSpecial: true };
-    const first = advanceScene(scene, fireFighter, special, 0.5, createSeededRandom(1));
-    const again = advanceScene(first.scene, fireFighter, special, 0.05, createSeededRandom(1));
+    const first = advanceScene(scene, [fireFighter], special, 0.5, createSeededRandom(1));
+    const again = advanceScene(first.scene, [fireFighter], special, 0.05, createSeededRandom(1));
 
     expect(first.scene.enemies.map((enemy) => enemy.hp)).toEqual([
       100 - specialDamage,
@@ -402,9 +410,9 @@ describe('golpes e projéteis', () => {
   it('o especial segue a última direção em que a personagem andou', () => {
     const scene = createScene();
     const up = { moveX: 0, moveY: -1, useSpecial: false };
-    const walked = advanceScene(scene, fireFighter, up, 0.05, createSeededRandom(1));
+    const walked = advanceScene(scene, [fireFighter], up, 0.05, createSeededRandom(1));
     const special = { ...STOPPED, useSpecial: true };
-    const fired = advanceScene(walked.scene, fireFighter, special, 0.05, createSeededRandom(1));
+    const fired = advanceScene(walked.scene, [fireFighter], special, 0.05, createSeededRandom(1));
 
     expect(walked.scene.facingY).toBe(-1);
     expect(fired.scene.projectiles[0]?.directionY).toBe(-1);
@@ -415,8 +423,8 @@ describe('golpes e projéteis', () => {
     const special = { ...STOPPED, useSpecial: true };
     // A linha 0 da Beira da Mata é toda de árvores
     const wallScene = createScene({ playerX: 1.5, playerY: 1.5, facingX: 0, facingY: -1 });
-    const wall = advanceScene(wallScene, fireFighter, special, 0.2, createSeededRandom(1));
-    const open = advanceScene(createScene(), fireFighter, special, 1, createSeededRandom(1));
+    const wall = advanceScene(wallScene, [fireFighter], special, 0.2, createSeededRandom(1));
+    const open = advanceScene(createScene(), [fireFighter], special, 1, createSeededRandom(1));
 
     expect(wall.scene.projectiles).toEqual([]);
     expect(open.scene.projectiles).toEqual([]);
@@ -464,6 +472,7 @@ describe('partir, bolsa e volta', () => {
     expect(started?.expedition).toEqual({
       mapId: FIRST_MAP,
       encantadoId: 'saci',
+      team: ['saci'],
       loot: [],
       trails: {},
       preparationId: null,
@@ -569,6 +578,7 @@ describe('garantia da clareira', () => {
       expedition: {
         mapId: FIRST_MAP,
         encantadoId: 'saci',
+        team: ['saci'],
         loot: [{ enemyId: 'vulto-da-capoeira', level: 30, count: 20 }],
         trails: {},
         preparationId: null,
@@ -668,7 +678,7 @@ describe('pegadas de Rastro', () => {
 
   it('surge uma pegada longe da personagem quando o tempo chega, e o que falta desce', () => {
     const scene = createScene({ trailTargets: [caipora], footprintTimer: 0.01 });
-    const result = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(2));
+    const result = advanceScene(scene, [], STOPPED, 0.05, createSeededRandom(2));
     const footprint = result.scene.footprints[0];
     const distance = Math.hypot(
       (footprint?.x ?? 0) - scene.playerX,
@@ -689,13 +699,13 @@ describe('pegadas de Rastro', () => {
       footprintTimer: 0,
       footprintIntervalSeconds: 1,
     });
-    const result = advanceScene(scene, null, STOPPED, 10, createSeededRandom(2));
+    const result = advanceScene(scene, [], STOPPED, 10, createSeededRandom(2));
     const crowded = createScene({
       trailTargets: [{ encantadoId: 'caipora', remaining: 10 }],
       footprintTimer: 0,
       footprintIntervalSeconds: 1,
     });
-    const full = advanceScene(crowded, null, STOPPED, 10, createSeededRandom(2));
+    const full = advanceScene(crowded, [], STOPPED, 10, createSeededRandom(2));
 
     expect(result.scene.footprints).toHaveLength(1);
     expect(result.scene.trailTargets[0]?.remaining).toBe(0);
@@ -704,7 +714,7 @@ describe('pegadas de Rastro', () => {
 
   it('sem ninguém precisando de Rastro, nenhuma pegada surge', () => {
     const scene = createScene({ footprintTimer: 0, footprintIntervalSeconds: 1 });
-    const result = advanceScene(scene, null, STOPPED, 10, createSeededRandom(2));
+    const result = advanceScene(scene, [], STOPPED, 10, createSeededRandom(2));
 
     expect(result.scene.footprints).toEqual([]);
     expect(result.trails).toEqual([]);
@@ -713,7 +723,7 @@ describe('pegadas de Rastro', () => {
   it('passar por cima pega a pegada: vira Rastro no passo e some do chão', () => {
     const footprint = { uid: 1, encantadoId: 'caipora', x: 10.8, y: 11.5 };
     const scene = createScene({ footprints: [footprint] });
-    const result = advanceScene(scene, null, STOPPED, 0.05, createSeededRandom(1));
+    const result = advanceScene(scene, [], STOPPED, 0.05, createSeededRandom(1));
 
     expect(result.trails).toEqual(['caipora']);
     expect(result.scene.footprints).toEqual([]);
@@ -728,7 +738,7 @@ describe('pegadas de Rastro', () => {
   it('com sorte, a visagem derrotada deixa uma pegada onde caiu', () => {
     const enemy = createEnemy(12.5, 11.5);
     const scene = createScene({ trailTargets: [caipora], attackProgress: 1, enemies: [enemy] });
-    const result = advanceScene(scene, STRONG_FIGHTER, STOPPED, 0.5, lucky);
+    const result = advanceScene(scene, [STRONG_FIGHTER], STOPPED, 0.5, lucky);
 
     const defeat = result.events.find((event) => event.type === 'defeat');
 
@@ -758,6 +768,7 @@ describe('pegadas de Rastro', () => {
       expedition: {
         mapId: FIRST_MAP,
         encantadoId: 'saci',
+        team: ['saci'],
         loot: [],
         trails: { caipora: 1 },
         preparationId: null,
@@ -856,12 +867,12 @@ describe('preparos com Oferendas', () => {
   it('a cena usa os modificadores: velocidade, dano recebido e teto de visagens', () => {
     const fast = createScene({ modifiers: { ...NEUTRAL_RUN_MODIFIERS, playerSpeed: 2 } });
     const right = { moveX: 1, moveY: 0, useSpecial: false };
-    const moved = advanceScene(fast, null, right, 0.5, createSeededRandom(1));
+    const moved = advanceScene(fast, [], right, 0.5, createSeededRandom(1));
     const fragile = createScene({
       modifiers: { ...NEUTRAL_RUN_MODIFIERS, damageTaken: 2 },
       enemies: [createEnemy(10.9, 11.5, { damage: 7 })],
     });
-    const hurt = advanceScene(fragile, null, STOPPED, 0.05, createSeededRandom(1));
+    const hurt = advanceScene(fragile, [], STOPPED, 0.05, createSeededRandom(1));
     const crowded = createScene({
       modifiers: getRunModifiers('favo-no-toco'),
       spawnTimer: 0,
@@ -869,7 +880,7 @@ describe('preparos com Oferendas', () => {
         createEnemy(20.5, 5.5, { uid: index + 1 }),
       ),
     });
-    const spawned = advanceScene(crowded, null, STOPPED, 0.05, createSeededRandom(1));
+    const spawned = advanceScene(crowded, [], STOPPED, 0.05, createSeededRandom(1));
 
     expect(moved.scene.playerX).toBeCloseTo(10.5 + BALANCE.playerSpeed, POSITION_DIGITS);
     expect(hurt.scene.playerHp).toBe(fragile.playerHp - 14);
@@ -884,7 +895,7 @@ describe('preparos com Oferendas', () => {
     const scene = createScene({ modifiers: getRunModifiers('brasa-no-bornal'), enemies: [target] });
     const fighter = { ...STRONG_FIGHTER, encantadoId: 'boitata', damage: 2 };
     const special = { ...STOPPED, useSpecial: true };
-    const result = advanceScene(scene, fighter, special, 0.5, createSeededRandom(1));
+    const result = advanceScene(scene, [fighter], special, 0.5, createSeededRandom(1));
 
     expect(result.scene.enemies[0]?.hp).toBe(1000 - 2 * BOITATA_PROJECTILE.damageMultiplier * 2);
     // O especial sai no primeiro pedaço do passo e a recarga já anda no resto dele

@@ -702,8 +702,8 @@ function sanitizeAttackProgress(raw: unknown, party: readonly string[]): Record<
 }
 
 
-// Expedição em andamento: mapa e encantado que existem, e a bolsa conferida linha a linha
-// (visagens e Rastros das pegadas)
+// Expedição em andamento: mapa e encantados que existem (quem entrou primeiro e quem saiu
+// junto), e a bolsa conferida linha a linha (visagens e Rastros das pegadas)
 function sanitizeExpedition(
   raw: unknown,
   roster: Record<string, OwnedEncantado>,
@@ -733,7 +733,24 @@ function sanitizeExpedition(
       : null;
   // Tempo de expedição andado; salvamento de antes da garantia não tem: conta zero
   const activeSeconds = toNumber(raw.activeSeconds, 0, 0);
-  return { mapId, encantadoId, loot, trails, preparationId, activeSeconds };
+  const team = sanitizeTeam(raw.team, encantadoId, roster);
+  return { mapId, encantadoId, team, loot, trails, preparationId, activeSeconds };
+}
+
+// Quem saiu: encantados conquistados, sem repetir, até o tamanho da comitiva, com quem entrou
+// em campo primeiro na frente. Salvamento de antes do revezamento não tem: sai só ele.
+function sanitizeTeam(
+  raw: unknown,
+  encantadoId: string,
+  roster: Readonly<Record<string, unknown>>,
+): string[] {
+  const others = Array.isArray(raw)
+    ? raw.filter(
+        (id): id is string =>
+          typeof id === 'string' && id !== encantadoId && roster[id] !== undefined,
+      )
+    : [];
+  return [encantadoId, ...new Set(others)].slice(0, BALANCE.maxPartySize);
 }
 
 // Uma linha da bolsa: visagem que existe, nível e contagem inteiros e positivos

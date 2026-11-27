@@ -310,6 +310,7 @@ describe('ações da pessoa', () => {
       expedition: {
         mapId: 'beira-da-mata',
         encantadoId: 'saci',
+        team: ['saci'],
         loot: [],
         trails: {},
         preparationId: null,

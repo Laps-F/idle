@@ -2,8 +2,9 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/store/expeditionSession.ts
  * O que faz: a parte da store que cuida da expedição: as ações de partir,
- * andar, golpe especial, pausar e voltar, o passo do mapa dentro do tick, o que
- * fazer com a expedição numa ausência e a entrega da bolsa na volta. As regras
+ * andar, golpe especial, trocar quem está em campo, pausar e voltar, o passo
+ * do mapa dentro do tick, o que fazer com a expedição numa ausência e a
+ * entrega da bolsa na volta. As regras
  * ficam em src/domain/expedition.ts e src/domain/expeditionScene.ts. Aqui só se
  * liga a entrada à regra e se grava.
  *
@@ -23,11 +24,12 @@ import {
   addKillsToLoot,
   addTrailsToLoot,
   finishExpedition,
-  getExpeditionFighter,
+  getExpeditionFighters,
   getSceneSetup,
   startExpedition,
 } from '../domain/expedition';
 import { advanceScene, createExpeditionScene } from '../domain/expeditionScene';
+import { getFallenIds } from '../domain/expeditionTeam';
 import { pickGameState } from '../domain/state';
 import type { ExpeditionOutcome, ExpeditionScene, GameState } from '../domain/types';
 import { applyInput, commitState, NO_INPUT, NO_SCENE_EVENTS } from './storeTools';
@@ -43,6 +45,7 @@ const PAUSED_SESSION: Partial<SessionState> = {
   isExpeditionPaused: true,
   moveInput: NO_INPUT,
   isSpecialPending: false,
+  swapPending: null,
 };
 
 export type ExpeditionActions = Pick<
@@ -51,6 +54,7 @@ export type ExpeditionActions = Pick<
   | 'leaveExpedition'
   | 'setMoveInput'
   | 'triggerSpecial'
+  | 'swapFighter'
   | 'pauseExpedition'
   | 'resumeExpedition'
   | 'dismissExpeditionReport'
@@ -60,7 +64,7 @@ export type ExpeditionActions = Pick<
 export function createExpeditionActions(set: SetStore, get: GetStore): ExpeditionActions {
   return {
     /**
-     * Parte em expedição com o primeiro encantado da comitiva e monta a cena do mapa.
+     * Parte em expedição com a comitiva (o primeiro entra em campo) e monta a cena do mapa.
      *
      * @param mapId Mapa da expedição (src/data/world.ts).
      * @param preparationId Opcional. Preparo pago com Oferendas ao partir
@@ -77,6 +81,7 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
           expeditionScene: createSceneFor(next),
           moveInput: NO_INPUT,
           isSpecialPending: false,
+          swapPending: null,
           isExpeditionPaused: false,
           sceneEvents: NO_SCENE_EVENTS,
           expeditionReport: null,
@@ -117,10 +122,22 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
     },
 
     /**
+     * Pede para pôr em campo quem está nesta posição entre os que saíram (tecla 1, 2 ou 3).
+     * A troca vale no próximo tick, se der (src/domain/expeditionTeam.ts). Pausada, não pede.
+     *
+     * @param index Posição em quem saiu: 0 é a tecla 1.
+     */
+    swapFighter: (index) => {
+      if (get().expedition !== null && !get().isExpeditionPaused && Number.isInteger(index)) {
+        set({ swapPending: index });
+      }
+    },
+
+    /**
      * Pausa a cena do mapa: tempo, ondas, recargas, visagens e projéteis param.
      *
      * Chamada ao esconder a aba, ao trocar de janela (src/store/gameLoop.ts) e pela
-     * tecla P. A clareira continua rendendo. Antes de pausar, o jogo é simulado
+     * tecla P. A clareira também fica parada. Antes de pausar, o jogo é simulado
      * até agora, para a pausa valer a partir deste instante.
      *
      * Casos de borda: sem expedição, sem cena, já pausada ou com o jogo aberto em
@@ -142,8 +159,8 @@ export function createExpeditionActions(set: SetStore, get: GetStore): Expeditio
     /**
      * Continua a expedição pausada. A cena volta a andar no próximo tick.
      *
-     * Antes de continuar, o jogo é simulado até agora (só a clareira anda, porque a
-     * cena está pausada). Assim o próximo passo da cena mede só o tempo depois da volta.
+     * Antes de continuar, o tick corre até agora (nada anda, porque a cena está pausada,
+     * só a marca de tempo). Assim o próximo passo da cena mede só o tempo depois da volta.
      *
      * Casos de borda: sem expedição pausada ou com o jogo aberto em outra aba, não faz nada.
      */
@@ -206,9 +223,13 @@ export function runExpeditionTick(
   }
 
   const current = pickGameState(get());
-  const input = { ...get().moveInput, useSpecial: get().isSpecialPending };
-  const fighter = getExpeditionFighter(current, now);
-  const step = advanceScene(scene, fighter, input, elapsedSeconds, Math.random);
+  const input = {
+    ...get().moveInput,
+    useSpecial: get().isSpecialPending,
+    swapTo: get().swapPending,
+  };
+  const fighters = getExpeditionFighters(current, now);
+  const step = advanceScene(scene, fighters, input, elapsedSeconds, Math.random);
   const isTabActive = elapsedSeconds <= BALANCE.maxSecondsWithEvents;
   const hasEvents = isTabActive && step.events.length > 0;
 
@@ -220,6 +241,7 @@ export function runExpeditionTick(
     expeditionScene: step.scene,
     sceneEvents: hasEvents ? step.events : NO_SCENE_EVENTS,
     isSpecialPending: false,
+    swapPending: null,
   });
 
   if (step.outcome !== null) {
@@ -249,16 +271,17 @@ export function endExpedition(
   }
 
   // Sem cena (recarga no meio), vale o tempo salvo na própria expedição
-  const seconds = get().expeditionScene?.elapsedSeconds ?? current.expedition.activeSeconds;
-  const result = finishExpedition(current, outcome, seconds, {
-    startTimestamp: timestamp,
-    random: Math.random,
-  });
+  const scene = get().expeditionScene;
+  const seconds = scene?.elapsedSeconds ?? current.expedition.activeSeconds;
+  const fallen = scene === null ? [] : getFallenIds(scene);
+  const options = { startTimestamp: timestamp, random: Math.random };
+  const result = finishExpedition(current, outcome, seconds, options, fallen);
 
   commitState(set, current, result.state, {
     expeditionScene: null,
     moveInput: NO_INPUT,
     isSpecialPending: false,
+    swapPending: null,
     isExpeditionPaused: false,
     sceneEvents: NO_SCENE_EVENTS,
     expeditionReport: result.report,

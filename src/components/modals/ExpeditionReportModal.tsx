@@ -80,8 +80,10 @@ function describeOutcome(report: ExpeditionReportView): string {
   switch (report.outcome) {
     case 'concluida':
       return `Você aguentou ${duration} em ${place} e a bolsa veio com bônus.`;
-    case 'caiu':
-      return `Você caiu depois de ${duration} em ${place}, mas a bolsa veio inteira.`;
+    case 'caiu': {
+      const who = report.teamNames.length > 1 ? 'Todos caíram' : 'Você caiu';
+      return `${who} depois de ${duration} em ${place}, mas a bolsa veio inteira.`;
+    }
     case 'voltou':
       return `Você voltou de ${place} depois de ${duration}, com a bolsa inteira.`;
     case 'interrompida':
@@ -117,6 +119,11 @@ function getGains(report: ExpeditionReportView): Gain[] {
 
   if (report.preparationName !== null) {
     gains.unshift({ label: 'Preparo', value: report.preparationName });
+  }
+
+  // Com a expedição em "caiu" todos caíram, e a frase de cima já diz isso
+  if (report.fallenNames.length > 0 && report.outcome !== 'caiu') {
+    gains.unshift({ label: 'Caíram no caminho', value: report.fallenNames.join(', ') });
   }
 
   if (report.bonusKills > 0) {

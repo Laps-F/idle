@@ -45,7 +45,9 @@ export function ExpeditionsPanel() {
   return (
     <div className="space-y-3">
       <p className="text-sm">
-        Saia da clareira com o primeiro encantado da comitiva. As visagens perseguem e batem, e as
+        A comitiva sai junta e reveza no mapa: um em campo por vez, e as teclas 1, 2 e 3 trocam.
+        Quem cai fica fora, e a expedição só acaba quando todos caem. As visagens perseguem e
+        batem, e as
         ondas ficam mais fortes com o tempo. Volte pela passagem quando quiser: a bolsa vem
         inteira, mesmo se você cair. Quem aguenta {formatDuration(list.durationSeconds)} ganha{' '}
         {formatPercent(list.completionBonus)} a mais.
@@ -55,14 +57,25 @@ export function ExpeditionsPanel() {
         Patacas e o XP que a clareira teria rendido no mesmo tempo, mesmo se você cair.
       </p>
       <p className="text-sm">
-        O nível das visagens acompanha a força de quem sai. Quanto mais forte a comitiva fica na
-        clareira, mais fortes são as visagens e mais a bolsa rende.
+        O nível das visagens acompanha a força média de quem sai. Quanto mais forte a comitiva fica
+        na clareira, mais fortes são as visagens e mais a bolsa rende. Levar alguém fraco para
+        treinar deixa as visagens mais duras para ele.
       </p>
       <p className="text-sm font-bold">
         {canStart
-          ? `Quem sai: ${list.leaderName}, com ${formatNumber(list.leaderMaxHp)} de vida.`
+          ? `Entra em campo primeiro: ${list.leaderName}, com ${formatNumber(list.leaderMaxHp)}` +
+            ' de vida.'
           : 'Escolha um encantado para começar antes de sair.'}
       </p>
+      {list.relayMembers.length > 0 && (
+        <p className="text-xs">
+          Revezam com ele:{' '}
+          {list.relayMembers
+            .map((member) => `${member.name} (tecla ${member.key}, ${member.specialName})`)
+            .join(' e ')}
+          .
+        </p>
+      )}
       {list.leaderSpecial !== null && (
         <p className="text-xs">
           Golpe especial (espaço): <strong>{list.leaderSpecial.name}</strong>.{' '}
@@ -115,15 +128,19 @@ interface LeaderPickerProps {
   onChoose: (id: string) => void;
 }
 
-// Um botão por encantado da comitiva. O marcado é quem sai. Com um só, não aparece.
+// Um botão por encantado da comitiva. O marcado entra em campo primeiro. Com um só, não aparece.
 function LeaderPicker({ members, onChoose }: LeaderPickerProps) {
   if (members.length < 2) {
     return null;
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Quem sai primeiro">
-      <span className="text-xs">Trocar quem sai:</span>
+    <div
+      className="flex flex-wrap items-center gap-2"
+      role="group"
+      aria-label="Quem entra primeiro"
+    >
+      <span className="text-xs">Trocar quem entra primeiro:</span>
       {members.map((member) => (
         <Button
           key={member.id}

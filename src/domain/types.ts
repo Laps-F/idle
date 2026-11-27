@@ -390,7 +390,8 @@ export interface ExpeditionLoot {
 // O que da expedição é salvo: aonde foi, quem foi e a bolsa. O resto só vive com o jogo aberto
 export interface ExpeditionState {
   mapId: string;
-  encantadoId: string; // quem saiu em expedição (o primeiro da comitiva na hora de partir)
+  encantadoId: string; // quem entrou em campo primeiro (o primeiro da comitiva ao partir)
+  team: string[]; // quem saiu, na ordem da comitiva (team[0] é encantadoId). Revezam no mapa.
   loot: ExpeditionLoot[];
   trails: Record<string, number>; // Rastros das pegadas pegas, por encantado, entregues na volta
   preparationId: string | null; // preparo pago ao partir (src/data/expeditionPreparations.ts)
@@ -438,8 +439,8 @@ export interface SceneFootprint {
 // O que a cena precisa para começar (createExpeditionScene)
 export interface SceneSetup {
   mapId: string;
-  // null: vida base e nível 1. O encantado decide a recarga do golpe especial.
-  fighter: Pick<ExpeditionFighter, 'encantadoId' | 'maxHp' | 'damage'> | null;
+  // Quem sai, na ordem em que revezam (o primeiro entra em campo). Vazio: vida base e nível 1.
+  fighters: Pick<ExpeditionFighter, 'encantadoId' | 'maxHp' | 'damage'>[];
   trailTargets: TrailTarget[]; // de quem as pegadas podem ser. Vazio: nenhuma pegada.
   trailChance: number; // multiplicador de chance de Rastro de quem sai (1: normal)
   modifiers: RunModifiers; // preparo (e, depois, bênçãos) desta partida
@@ -528,6 +529,22 @@ export interface ExpeditionScene {
   footprintIntervalSeconds: number; // intervalo entre pegadas, já com a chance de Rastro
   nextFootprintUid: number;
   modifiers: RunModifiers; // o que muda nesta partida (preparo). Fixo do começo ao fim.
+  // Revezamento (src/domain/expeditionTeam.ts). Os campos player* e special* acima são os de
+  // quem está em campo. Fora de advanceScene, team[activeIndex] está sempre em dia com eles.
+  team: SceneTeamMember[]; // quem saiu, na ordem das teclas 1, 2 e 3
+  activeIndex: number; // quem está em campo agora
+  swapCooldown: number; // segundos até poder trocar de novo
+  contactBaseHp: number; // vida usada no dano da encostada: a média da vida de quem saiu
+}
+
+// Um encantado que saiu na expedição, em campo ou esperando a vez
+export interface SceneTeamMember {
+  encantadoId: string;
+  hp: number;
+  maxHp: number;
+  specialCooldown: number; // a recarga anda também fora de campo
+  specialCooldownTotal: number;
+  isDown: boolean; // caiu: fica fora até o fim da expedição
 }
 
 // Um projétil voando pelo mapa. Só existe com o jogo aberto, não é salvo.
@@ -547,11 +564,13 @@ export interface SceneProjectile {
   burnSeconds: number;
 }
 
-// O que a pessoa está fazendo: direção (cada eixo de -1 a 1) e se pediu o golpe especial
+// O que a pessoa está fazendo: direção (cada eixo de -1 a 1), se pediu o golpe especial e
+// se pediu para trocar quem está em campo (posição em team, ou null/ausente para não trocar)
 export interface ExpeditionInput {
   moveX: number;
   moveY: number;
   useSpecial: boolean;
+  swapTo?: number | null;
 }
 
 // Quem anda e bate no mapa, com os números já calculados
@@ -577,7 +596,9 @@ export type SceneEvent =
   | { type: 'hurt'; x: number; y: number; damage: number }
   | { type: 'trail'; x: number; y: number; encantadoId: string }
   | { type: 'special'; x: number; y: number; encantadoId: string; radius: number }
-  | { type: 'heal'; x: number; y: number; amount: number };
+  | { type: 'heal'; x: number; y: number; amount: number }
+  | { type: 'swap'; x: number; y: number; encantadoId: string } // entrou em campo
+  | { type: 'fall'; x: number; y: number; encantadoId: string }; // caiu e saiu de campo
 
 // O que um passo da cena devolve. "outcome" vem preenchido quando a expedição acabou.
 export interface SceneStepResult {
@@ -596,6 +617,8 @@ export interface ExpeditionReport {
   kills: number; // visagens na bolsa
   bonusKills: number; // visagens extras do bônus de quem aguentou até o fim
   preparationId: string | null; // preparo usado nesta expedição
+  team: string[]; // quem saiu
+  fallen: string[]; // quem caiu no caminho (todos, quando a expedição termina em "caiu")
   summary: SimulationSummary; // tudo o que rendeu, já com a garantia
   clearingGold: number; // Patacas que a clareira teria rendido no mesmo tempo
   clearingXp: number; // XP que a clareira teria rendido no mesmo tempo

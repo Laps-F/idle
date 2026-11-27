@@ -130,7 +130,7 @@ describe('efeito no jogo', () => {
     const fighter = game === null ? null : getExpeditionFighter(game, 0);
     const setup = {
       mapId: 'beira-da-mata',
-      fighter,
+      fighters: fighter === null ? [] : [fighter],
       trailTargets: [],
       trailChance: 1,
       modifiers: getRunModifiers(null),

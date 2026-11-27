@@ -115,6 +115,10 @@ export const BALANCE = {
   // cada encantado (dano, recarga e efeitos) fica em src/data/specials.ts.
   specialDamageMultiplier: 4, // o projétil padrão vale 4 golpes comuns
   specialCooldownSeconds: 6,
+  // Revezamento: quem sai vai junto (até 3), um em campo por vez, trocando pelas teclas 1, 2 e 3
+  swapCooldownSeconds: 3, // tempo entre duas trocas
+  // Quem entra no lugar de quem caiu fica este tempo sem levar golpe, para não cair junto
+  fallInvulnerableSeconds: 1,
 
   // Expedições: projéteis. O comum vai na visagem mais perto e para no primeiro que acerta.
   // O especial (Rastro de fogo e o padrão) vai para o lado em que a personagem anda e

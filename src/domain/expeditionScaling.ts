@@ -16,6 +16,10 @@
  *     acima do nível de partida. Por isso a vida maior de um encantado mais
  *     forte não deixa a expedição mais fácil: a resistência vai vir dos
  *     preparos e, depois, da esquiva e das bênçãos.
+ *   - Com o revezamento (27/11/2026, Caminho 2), quem sai são até três. O
+ *     nível de partida sai da média do dano dos três, e a encostada, da média
+ *     da vida. Levar um encantado fraco para treinar tem custo: as visagens
+ *     ficam mais duras para ele e cada encostada tira uma parte maior da vida.
  *
  * Funções puras, sem estado.
  *
@@ -29,6 +33,33 @@ import type { EnemyDef, ExpeditionMapDef } from './types';
 
 // Folga para o arredondamento do logaritmo não perder um nível exato
 const LEVEL_EPSILON = 1e-9;
+
+// Média de uma lista de números. Lista vazia: zero.
+function getAverage(values: readonly number[]): number {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+/**
+ * Nível de partida de quem sai junto: o de getFighterBaseLevel, pela média do dano.
+ *
+ * @param fighters Quem sai (só o dano conta).
+ * @returns Nível de partida, no mínimo 1. Ninguém: nível 1.
+ */
+export function getTeamBaseLevel(fighters: readonly { damage: number }[]): number {
+  return getFighterBaseLevel(getAverage(fighters.map((fighter) => fighter.damage)));
+}
+
+/**
+ * Vida usada no dano da encostada (getEnemyContactDamage): a média da vida de quem sai.
+ *
+ * @param fighters Quem sai (só a vida conta).
+ * @returns A média, ou playerBaseHp sem ninguém.
+ */
+export function getTeamContactHp(fighters: readonly { maxHp: number }[]): number {
+  return fighters.length === 0
+    ? BALANCE.playerBaseHp
+    : getAverage(fighters.map((fighter) => fighter.maxHp));
+}
 
 // =============================================================================
 // =============================================================================

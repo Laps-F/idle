@@ -82,32 +82,38 @@ entrar no lugar (lista em [SPRITES.md](SPRITES.md)).
 
 | # | O que fazer | O que deve acontecer |
 |---|---|---|
-| 1 | Olhar a lateral esquerda | A primeira aba é "Expedições". Ela diz quem sai (o primeiro da comitiva) e com quanta vida, e lista "Beira da Mata" e "Brejo Escuro". |
+| 1 | Olhar a lateral esquerda | A primeira aba é "Expedições". Ela diz quem entra em campo primeiro (o primeiro da comitiva) e com quanta vida, quem reveza com ele e com que tecla, e lista "Beira da Mata" e "Brejo Escuro". |
 | 2 | Clicar em "Partir para Beira da Mata" | A clareira dá lugar ao mapa. Em cima do mapa aparecem a vida, o golpe especial, o tempo que falta (5 minutos) e a bolsa. A personagem é o bloco amarelo, dentro de um círculo claro (o alcance do golpe). |
 | 3 | Apertar as setas ou W, A, S e D | A personagem anda nas quatro direções e na diagonal. Para ao encostar em árvore ou água. A página não rola. |
 | 4 | Chegar perto das visagens (blocos vermelhos) | Elas vêm atrás de você, mais devagar do que você anda. Encostando, batem: sobe um número vermelho, a personagem pisca e a vida cai. |
 | 5 | Deixar uma visagem dentro do círculo | Quando a barra amarela embaixo da personagem enche, sai um quadradinho claro (o projétil) na direção da visagem. Ao acertar, sobe o número do dano. A visagem derrotada some e a bolsa soma 1. |
 | 6 | Com o Saci, chegar perto de visagens e apertar espaço | Redemoinho: um anel azul abre em volta, as visagens perto são empurradas para longe (sobe o dano), e a personagem fica meio apagada por 1 segundo, sem levar golpe nesse tempo. A barra do golpe especial esvazia e enche de novo em 6 segundos. |
-| 6a | Na aba "Expedições", olhar a linha "Golpe especial (espaço)" | Mostra o golpe de quem sai, o que ele faz e a recarga. Passando o mouse em cada botão de "Trocar quem sai" aparece o golpe daquele encantado. Durante a expedição, o painel ao lado do mapa mostra o golpe também. |
+| 6a | Na aba "Expedições", olhar a linha "Golpe especial (espaço)" | Mostra o golpe de quem sai, o que ele faz e a recarga. Passando o mouse em cada botão de "Trocar quem entra primeiro" aparece o golpe daquele encantado. Durante a expedição, o painel ao lado do mapa mostra o golpe também. |
 | 6b | Sair com o Curupira, deixar visagens se aproximarem e apertar espaço | Pés virados: as visagens perto ganham um "?" e passam 3 segundos passeando, sem perseguir nem bater. Recarga de 8 segundos. |
 | 6c | Sair com a Iara, levar uns golpes e apertar espaço | Canto da Iara: sobe um número verde e a vida volta 25% da máxima, sem passar dela. Recarga de 10 segundos. |
 | 6d | Sair com a Caipora, apertar espaço com visagens perto | Assobio: as visagens perto ficam azuladas e andam bem mais devagar por 4 segundos. Se alguém ainda precisa de Rastro, surge uma pegada no mapa. Recarga de 8 segundos. |
 | 6e | Sair com o Boitatá, andar para um lado e apertar espaço | Rastro de fogo: sai o projétil azul para o lado em que você andou, atravessa as visagens, e as acertadas ficam alaranjadas embaixo e perdem vida por 3 segundos. Recarga de 6 segundos. |
 | 7 | Olhar o cabeçalho durante a expedição | As Patacas não sobem: a clareira fica parada enquanto a comitiva está fora. |
 | 8 | Ficar 1 ou 2 minutos | Chegam mais visagens, mais rápido, e o número ao lado do nome delas (o nível) sobe a cada minuto. Cada encostada tira uma parte maior da vida. |
-| 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força de quem sai. O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
+| 8a | Voltar, comprar melhorias ou subir o nível do encantado e olhar a aba "Expedições" de novo | O nível ao lado de cada mapa sobe junto com a força média de quem sai (a comitiva inteira). O Brejo Escuro fica sempre 1 nível acima da Beira da Mata. Na expedição, uma visagem comum continua aguentando uns 3 golpes. |
 | 9 | Voltar pelo bloco roxo "← Clareira" (ou pelo botão "Voltar para a clareira agora") | A clareira volta e abre a janela "De volta à clareira", com as visagens da bolsa, as Patacas, o XP e o que caiu. Com umas 15 visagens, as Patacas ficam perto do que a clareira rende em 5 minutos. |
 | 9b | Na aba "Expedições", ler a linha "Pegadas" de cada mapa | De dia aparece "Caipora (faltam 3)". À noite aparece também o Boitatá. Depois de fechar os dois pactos, "nenhum encantado precisa de Rastro agora". |
 | 9c | Partir e esperar uns 10 segundos | Surge um bloco laranja pequeno escrito "Pegada: Caipora", longe da personagem. A cada uns 20 segundos surge outra, no máximo 2 no chão. Às vezes uma visagem derrotada deixa uma pegada onde caiu. |
 | 9d | Passar por cima da pegada | Sobe "+1 Rastro", a pegada some e "Rastros" no painel de cima e em "Rastros na bolsa" sobe 1. Na volta, a janela mostra os Rastros e o Almanaque soma, sem passar do que o pacto pede. |
-| 9j | Com dois ou mais na comitiva, clicar num nome em "Trocar quem sai" na aba "Expedições" | "Quem sai" muda para ele, e é ele que aparece no mapa ao partir. Com um só na comitiva, os botões não aparecem. |
+| 9j | Com dois ou mais na comitiva, clicar num nome em "Trocar quem entra primeiro" na aba "Expedições" | "Entra em campo primeiro" muda para ele, e é ele que aparece no mapa ao partir. Com um só na comitiva, os botões não aparecem. |
+| 9k | Com três na comitiva, partir e olhar embaixo do mapa | Uma faixa mostra os três, cada um com a tecla, a vida e a barra azul do golpe. Quem está em campo tem um contorno amarelo. No fim da faixa, a barra da troca. O painel ao lado diz "Em campo: ..." e a tecla de cada um. |
+| 9l | Apertar 2 (ou 2 do teclado numérico) | Quem estava na posição 2 entra em campo: a figura muda, a vida em cima do mapa passa a ser a dele, o golpe especial é o dele e um anel azul pequeno abre em volta. A barra da troca esvazia e enche em 3 segundos. Apertar 1 logo depois não faz nada. |
+| 9m | Usar o golpe especial, trocar e esperar | A barra azul do golpe de quem saiu de campo continua enchendo na faixa de baixo. Voltando para ele, o golpe já pode estar pronto. |
+| 9n | Deixar quem está em campo cair | Sobe "Caiu!" em vermelho, ele aparece apagado com "(caiu)" na faixa, e o próximo entra sozinho, meio apagado por 1 segundo (sem levar golpe). A tecla de quem caiu não faz mais nada. |
+| 9o | Deixar todos caírem | Só quando o último cai abre "A comitiva te trouxe de volta", com "Todos caíram depois de...". |
+| 9p | Voltar pela passagem depois que alguém caiu | A janela da volta mostra a linha "Caíram no caminho" com o nome. |
 | 9e | Na aba "Expedições", olhar "Preparo (opcional)" sem Oferendas | Os três preparos aparecem apagados, com o custo e quanto você tem ("Custa 3 Mel silvestre (você tem 0)"). |
 | 9f | Juntar 3 de mel silvestre, clicar em "Favo no toco" e partir | O botão de partir passa a dizer "Partir para ... com Favo no toco". Ao partir, o mel cai 3, chegam mais visagens e mais depressa, e o painel ao lado do mapa mostra "Preparo: Favo no toco". A janela da volta também mostra o preparo. |
 | 9g | Partir com "Trilha de cipó" (3 de cipó) | As pegadas surgem duas vezes mais rápido (a primeira uns 5 segundos depois de partir). |
 | 9h | Partir com "Brasa no bornal" (1 brasa viva, do Corpo-Seco ou do Brejo Escuro) | O golpe especial tira o dobro (no empurrão do Saci e na labareda do Boitatá) e a barra dele enche um terço mais rápido (com o Saci, em 4 segundos em vez de 6). |
 | 9i | Escolher um preparo e clicar nele de novo | A escolha é desfeita e partir não gasta nada. |
 | 9a | Fazer algumas expedições no Brejo Escuro | De vez em quando a bolsa traz brasa viva, que antes só o Corpo-Seco da clareira deixava. Os amuletos caem com mais frequência que na Beira da Mata. |
-| 10 | Partir de novo e deixar a vida zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
+| 10 | Partir de novo e deixar a vida de todos zerar | Abre "A comitiva te trouxe de volta". A bolsa vem inteira, sem bônus. |
 | 11 | Aguentar os 5 minutos | Abre "Expedição completa", com a linha "Visagens de bônus" (metade a mais). |
 | 12 | Recarregar a página no meio de uma expedição | A clareira abre com "Expedição interrompida" e a bolsa entregue. |
 | 12a | Partir, trocar para outra aba por uns segundos e voltar | O mapa está coberto pelo aviso "Pausado". O tempo, a vida, as visagens e as Patacas não mudaram enquanto você estava fora (a clareira também fica parada). |

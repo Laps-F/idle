@@ -51,10 +51,19 @@ function ExpeditionSection() {
   return (
     <section className={SECTION_CLASS} aria-label="Expedição">
       <h2 className={TITLE_CLASS}>{hud.mapName}</h2>
-      <p className="text-sm">Quem saiu: {hud.leaderName}</p>
+      <p className="text-sm">Em campo: {hud.activeName}</p>
       <p className="text-sm">
         Golpe especial: <strong>{hud.special.name}</strong>. {hud.special.description}
       </p>
+      {hud.team.length > 1 && (
+        <ul className="text-sm" aria-label="Quem saiu">
+          {hud.team.map((member) => (
+            <li key={member.key}>
+              Tecla {member.key}: {member.name} ({member.specialName})
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="text-sm">Visagens na bolsa: {formatNumber(hud.lootCount)}</p>
       <p className="text-sm">Rastros na bolsa: {formatNumber(hud.trailCount)}</p>
       <p className="text-sm">Preparo: {hud.preparationName ?? 'nenhum'}</p>
@@ -74,8 +83,13 @@ function HowToPlaySection() {
         <li>Ande com as setas ou com W, A, S e D.</li>
         <li>O projétil comum sai sozinho na visagem mais perto, dentro do círculo.</li>
         <li>
-          Espaço solta o golpe especial de quem saiu (está logo acima). Cada encantado tem o seu,
-          e todos precisam recarregar. Os que atiram saem para o lado em que você anda.
+          Espaço solta o golpe especial de quem está em campo (está logo acima). Cada encantado
+          tem o seu, e todos precisam recarregar. Os que atiram saem para o lado em que você anda.
+        </li>
+        <li>
+          A comitiva sai junta, um em campo por vez. As teclas 1, 2 e 3 trocam quem está em campo
+          (uma troca a cada 3 segundos). Cada um tem a própria vida, e o golpe de quem espera
+          continua recarregando. Quem cai fica fora, e o próximo entra sozinho.
         </li>
         <li>As visagens perseguem e batem ao encostar. Fuja, elas são mais lentas.</li>
         <li>

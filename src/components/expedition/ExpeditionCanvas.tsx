@@ -219,6 +219,31 @@ function toEffect(event: SceneEventView): MapEffect[] {
           ringRadius: Math.max(event.radius, SPECIAL_RING_MIN_RADIUS),
         },
       ];
+    case 'swap':
+      // Entrou em campo: um anel pequeno em volta (o nome aparece no painel ao lado)
+      return [
+        {
+          x: event.x,
+          y: event.y,
+          text: '',
+          color: EFFECT_COLORS.ring,
+          isBig: false,
+          ageSeconds: 0,
+          ringRadius: SPECIAL_RING_MIN_RADIUS,
+        },
+      ];
+    case 'fall':
+      return [
+        {
+          x: event.x,
+          y: event.y - 0.6,
+          text: 'Caiu!',
+          color: EFFECT_COLORS.hurt,
+          isBig: true,
+          ageSeconds: 0,
+          ringRadius: 0,
+        },
+      ];
     case 'defeat':
       return [];
   }

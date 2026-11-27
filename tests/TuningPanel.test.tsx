@@ -112,7 +112,10 @@ describe('painel Ajustes', () => {
     const labels = [...document.querySelectorAll('[role=dialog] li > span:first-child')].map(
       (span) => span.textContent,
     );
-    expect(labels).toEqual(['Recarga do golpe especial padrão (s)']);
+    expect(labels).toEqual([
+      'Recarga da troca de quem está em campo (s)',
+      'Recarga do golpe especial padrão (s)',
+    ]);
   });
 
   it('o atalho muda o nível do primeiro da comitiva', async () => {

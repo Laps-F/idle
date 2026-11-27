@@ -53,38 +53,55 @@ import type {
 // Q U E M   S A I   E M   E X P E D I Ç Ã O
 
 /**
- * Os números de quem anda e bate na expedição.
+ * Os números de quem sai e reveza na expedição.
  *
- * Durante a expedição é o encantado que partiu. Fora dela, é o primeiro da
- * comitiva (quem partiria agora). Dano, velocidade e crítico saem das mesmas
- * fórmulas da clareira, com melhorias, sinergias, amuletos e Raízes. A vida
- * cresce com o nível do encantado (getExpeditionMaxHp).
+ * Durante a expedição são os encantados que partiram (expedition.team). Fora
+ * dela, é a comitiva (quem partiria agora), na ordem dela. Dano, velocidade e
+ * crítico saem das mesmas fórmulas da clareira, com melhorias, sinergias,
+ * amuletos e Raízes. A vida cresce com o nível do encantado (getExpeditionMaxHp).
  *
  * @param state Estado do jogo.
  * @param timestamp Instante atual em ms. Decide se valem as sinergias de dia ou de noite.
+ * @returns Um por encantado, na ordem do revezamento. Vazio sem ninguém para sair.
+ *
+ * Caso de borda: quem não está mais no roster (salvamento estranho) fica de fora.
+ */
+export function getExpeditionFighters(state: GameState, timestamp: number): ExpeditionFighter[] {
+  const ids = state.expedition?.team ?? state.party;
+  const modifiers = getModifiers(state, getDayPhase(timestamp));
+
+  return ids.flatMap((encantadoId) => {
+    const owned = state.roster[encantadoId];
+
+    if (owned === undefined) {
+      return [];
+    }
+
+    const encantado = getEncantado(encantadoId);
+    return [
+      {
+        encantadoId,
+        damage: getAttackDamage(encantado, owned.level, modifiers, false),
+        attackInterval: getAttackInterval(encantado, modifiers),
+        critChance: modifiers.critChance,
+        maxHp: getExpeditionMaxHp(owned.level),
+      },
+    ];
+  });
+}
+
+/**
+ * Os números de quem entra em campo primeiro (o primeiro de getExpeditionFighters).
+ *
+ * @param state Estado do jogo.
+ * @param timestamp Instante atual em ms.
  * @returns Os números, ou null sem ninguém para sair.
  */
 export function getExpeditionFighter(
   state: GameState,
   timestamp: number,
 ): ExpeditionFighter | null {
-  const encantadoId = state.expedition?.encantadoId ?? state.party[0];
-  const owned = encantadoId === undefined ? undefined : state.roster[encantadoId];
-
-  if (encantadoId === undefined || owned === undefined) {
-    return null;
-  }
-
-  const encantado = getEncantado(encantadoId);
-  const modifiers = getModifiers(state, getDayPhase(timestamp));
-
-  return {
-    encantadoId,
-    damage: getAttackDamage(encantado, owned.level, modifiers, false),
-    attackInterval: getAttackInterval(encantado, modifiers),
-    critChance: modifiers.critChance,
-    maxHp: getExpeditionMaxHp(owned.level),
-  };
+  return getExpeditionFighters(state, timestamp)[0] ?? null;
 }
 
 
@@ -98,10 +115,10 @@ export function canStartExpedition(state: GameState, mapId: string): boolean {
 }
 
 /**
- * Parte em expedição com o primeiro encantado da comitiva e, se pedido, um preparo.
+ * Parte em expedição com a comitiva inteira (revezamento) e, se pedido, um preparo.
  *
- * A clareira continua rendendo enquanto isso: nada do combate por estágios muda.
- * O preparo é pago na hora, com Oferendas (src/domain/expeditionModifiers.ts).
+ * O primeiro da comitiva entra em campo; os outros esperam a vez. A clareira para
+ * enquanto isso. O preparo é pago na hora, com Oferendas (src/domain/expeditionModifiers.ts).
  *
  * @param state Estado do jogo. Não é alterado.
  * @param mapId Mapa da expedição.
@@ -130,6 +147,7 @@ export function startExpedition(
   const expedition = {
     mapId,
     encantadoId,
+    team: [...state.party],
     loot: [],
     trails: {},
     preparationId,
@@ -157,7 +175,7 @@ export function getSceneSetup(state: GameState, timestamp: number): SceneSetup |
 
   return {
     mapId: expedition.mapId,
-    fighter: getExpeditionFighter(state, timestamp),
+    fighters: getExpeditionFighters(state, timestamp),
     trailTargets: getTrailTargets(state, expedition.mapId, timestamp),
     trailChance: getModifiers(state, getDayPhase(timestamp)).trailChance,
     modifiers: getRunModifiers(expedition.preparationId),
@@ -295,6 +313,7 @@ function addKill(loot: ExpeditionLoot[], kill: MapKill): ExpeditionLoot[] {
  * @param outcome Como a expedição terminou. Só "concluida" dá bônus.
  * @param seconds Quanto tempo a expedição andou, sem as pausas (relatório e garantia).
  * @param options Instante da entrega e sorteio das quedas (Oferendas, Rastros, amuletos).
+ * @param fallen Quem caiu no caminho (para o relatório). Padrão: ninguém.
  * @returns Estado sem expedição, com o saque entregue, e o relatório da volta.
  *
  * Casos de borda: sem expedição em andamento, devolve o mesmo estado e relatório null.
@@ -305,6 +324,7 @@ export function finishExpedition(
   outcome: ExpeditionOutcome,
   seconds: number,
   options: SimulationOptions,
+  fallen: readonly string[] = [],
 ): { state: GameState; report: ExpeditionReport | null } {
   const { expedition } = state;
 
@@ -337,6 +357,8 @@ export function finishExpedition(
       kills: kills.length,
       bonusKills: bonusKills.length,
       preparationId: expedition.preparationId,
+      team: [...expedition.team],
+      fallen: [...fallen],
       summary: result.summary,
       clearingGold: reference.gold,
       clearingXp: reference.xp,

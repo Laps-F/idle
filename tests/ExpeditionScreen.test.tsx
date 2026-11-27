@@ -72,7 +72,7 @@ afterEach(async () => {
 describe('aba Expedições da clareira', () => {
   it('mostra quem sai e os mapas, e troca para a tela da expedição ao partir', async () => {
     await mount();
-    expect(host.textContent).toContain('Quem sai: Saci, com 100 de vida.');
+    expect(host.textContent).toContain('Entra em campo primeiro: Saci, com 100 de vida.');
     expect(host.textContent).toContain('Golpe especial (espaço): Redemoinho.');
     expect(host.textContent).toContain('Brejo Escuro');
 
@@ -80,7 +80,7 @@ describe('aba Expedições da clareira', () => {
 
     expect(useGameStore.getState().expedition?.mapId).toBe('beira-da-mata');
     expect(host.querySelector('canvas')).not.toBeNull();
-    expect(host.textContent).toContain('Quem saiu: Saci');
+    expect(host.textContent).toContain('Em campo: Saci');
     expect(host.textContent).toContain('Golpe especial: Redemoinho.');
     expect(host.textContent).toContain('Visagens na bolsa: 0');
   });
@@ -94,15 +94,18 @@ describe('quem sai primeiro', () => {
       party: ['saci', 'iara'],
     });
     await mount();
-    expect(host.textContent).toContain('Quem sai: Saci');
+    expect(host.textContent).toContain('Entra em campo primeiro: Saci');
+    expect(host.textContent).toContain('Revezam com ele: Iara (tecla 2, Canto da Iara).');
 
     await click('Iara');
     expect(useGameStore.getState().party).toEqual(['iara', 'saci']);
-    expect(host.textContent).toContain('Quem sai: Iara');
+    expect(host.textContent).toContain('Entra em campo primeiro: Iara');
     expect(host.textContent).toContain('Canto da Iara');
 
     await click('Partir para Beira da Mata');
     expect(useGameStore.getState().expedition?.encantadoId).toBe('iara');
+    expect(useGameStore.getState().expedition?.team).toEqual(['iara', 'saci']);
+    expect(host.textContent).toContain('Tecla 2: Saci (Redemoinho)');
   });
 });
 
@@ -147,7 +150,7 @@ describe('tela da expedição', () => {
     }
   });
 
-  it('transforma as teclas em direção e o espaço em golpe especial', async () => {
+  it('transforma as teclas em direção, o espaço em especial e 1, 2 e 3 em troca', async () => {
     useGameStore.getState().startExpedition('beira-da-mata');
     await mount();
 
@@ -157,6 +160,11 @@ describe('tela da expedição', () => {
 
     await press('keydown', 'Space');
     expect(useGameStore.getState().isSpecialPending).toBe(true);
+
+    await press('keydown', 'Digit2');
+    expect(useGameStore.getState().swapPending).toBe(1);
+    await press('keydown', 'Numpad3');
+    expect(useGameStore.getState().swapPending).toBe(2);
 
     await act(async () => window.dispatchEvent(new Event('blur')));
     expect(useGameStore.getState().moveInput).toEqual({ moveX: 0, moveY: 0 });

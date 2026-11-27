@@ -2,6 +2,61 @@
 
 O que mudou em cada etapa e em quais arquivos. A entrada mais nova fica em cima.
 
+## 27/11/2026: revezamento na expedição (Passo 4 do Caminho 2)
+
+A comitiva inteira sai na expedição, um encantado em campo por vez. Decisão da usuária, a partir
+do estudo da comitiva: revezamento, e quem cai fica fora.
+
+Regras:
+
+- **Quem sai:** a comitiva toda, na ordem dela (até 3). O primeiro entra em campo; o botão
+  "Trocar quem entra primeiro" escolhe quem começa.
+- **Troca:** teclas 1, 2 e 3 (em cima das letras ou no teclado numérico), uma troca a cada 3
+  segundos (`swapCooldownSeconds`). Cada um tem a própria vida e o próprio golpe especial. Quem
+  entra começa com a barra do golpe comum vazia. O golpe de quem espera a vez continua
+  recarregando, então dá para trocar para soltar o golpe de outro.
+- **Quem cai:** fica fora até o fim. O próximo de pé entra sozinho, com 1 segundo sem levar golpe
+  (`fallInvulnerableSeconds`), para não cair junto. A expedição só termina em "caiu" quando todos
+  caem. A Iara cura quem está em campo, mas não levanta quem caiu.
+- **Escala:** o nível de partida sai da média do dano de quem sai, e a encostada, da média da
+  vida. Levar um encantado fraco para treinar deixa as visagens mais duras para ele.
+- **Na tela:** faixa embaixo do mapa com os três (tecla, vida, recarga do golpe, quem está em
+  campo e quem caiu) e a barra da troca; "Em campo" e a tecla de cada um no painel ao lado;
+  "Caiu!" quando alguém cai; a janela da volta diz quem caiu no caminho.
+- **Salvamento:** a expedição guarda `team`. Salvamento de antes abre com só quem tinha saído. A
+  versão continua 5.
+
+Medido com um robô simples (foge das visagens, solta o golpe com visagem perto, troca com a vida
+abaixo de 35%), Beira da Mata, 8 sementes: sozinho, 1 de 8 aguentou os 5 minutos; com três, 4
+sem trocar e 6 trocando, com mais visagens na bolsa. Como o estudo previa, três vidas deixam a
+meta de 5 minutos fácil. O ajuste (encostada, ondas ou duração) entra no passo 6, de calibragem.
+
+Arquivos:
+
+- `src/domain/expeditionTeam.ts` (novo): `createTeam`, `syncActiveMember`, `updateBench`,
+  `canSwapTo`, `swapTo`, `replaceFallen` e `getFallenIds`.
+- `src/domain/types.ts`: `ExpeditionState.team`; `ExpeditionScene.team`, `activeIndex`,
+  `swapCooldown` e `contactBaseHp`; `SceneTeamMember`; `SceneSetup.fighters` (no lugar de
+  `fighter`); `ExpeditionInput.swapTo`; eventos `swap` e `fall`; `ExpeditionReport.team` e
+  `fallen`.
+- `src/domain/expeditionScene.ts`: `advanceScene` recebe os números de quem saiu; a troca pedida
+  acontece no começo do passo; quem cai dá lugar ao próximo; a encostada usa `contactBaseHp`.
+- `src/domain/expeditionScaling.ts`: `getTeamBaseLevel` e `getTeamContactHp`.
+- `src/domain/expedition.ts`: `getExpeditionFighters`; `startExpedition` leva a comitiva;
+  `finishExpedition` recebe quem caiu.
+- `src/data/balance.ts` e `src/store/tuning.ts`: `swapCooldownSeconds` e
+  `fallInvulnerableSeconds`, também nos ajustes.
+- `src/store/expeditionSession.ts`, `types.ts`, `useGameStore.ts`: ação `swapFighter` e campo de
+  sessão `swapPending`.
+- `src/store/saveManager.ts`: `sanitizeTeam`.
+- `src/store/expeditionSelectors.ts`: faixa do time no quadro, quem reveza na aba, quem está em
+  campo no painel, quem saiu e quem caiu no relatório.
+- `src/components/`: teclas 1, 2 e 3 (`useExpeditionKeyboard.ts`), faixa do time
+  (`mapRenderer.ts`), eventos de troca e queda (`ExpeditionCanvas.tsx`), textos da aba, do painel
+  e da janela da volta.
+- Testes: `tests/team.test.ts` (novo); `advanceScene` com lista nos testes de cena; troca na
+  store, no teclado e na aba.
+
 ## 27/11/2026: golpe especial de cada encantado (Passo 3 do Caminho 2)
 
 Cada encantado passou a ter um golpe especial próprio na expedição (tecla espaço), puxado do

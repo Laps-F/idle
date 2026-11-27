@@ -76,6 +76,7 @@ const HUD_BACKGROUND = 'rgba(27, 22, 18, 0.75)';
 const LABEL_FONT = '9px sans-serif';
 const NAME_FONT = 'bold 11px sans-serif';
 const HUD_FONT = 'bold 14px sans-serif';
+const TEAM_STRIP_HEIGHT = 44; // faixa de baixo com quem saiu
 
 // Um número que nasce num ponto do mapa, sobe e some aos poucos
 export interface MapEffect {
@@ -280,7 +281,7 @@ function drawPlayer(context: CanvasRenderingContext2D, frame: SceneFrame, camera
   const size = FIGURE_SIZE * TILE_PX;
   const left = toScreen(frame.playerX, camera.left) - size / 2;
   const top = toScreen(frame.playerY, camera.top) - size / 2;
-  const sprite = getPlayerSprite(frame.leaderId);
+  const sprite = getPlayerSprite(frame.activeId);
 
   // No Redemoinho, a personagem fica meio sumida
   context.globalAlpha = frame.isInvulnerable ? 0.4 : 1;
@@ -379,6 +380,42 @@ function drawHud(context: CanvasRenderingContext2D, frame: SceneFrame): void {
   const loot = formatNumber(frame.lootCount);
   const bagText = `Bolsa: ${loot} · Rastros: ${formatNumber(frame.trailCount)}`;
   drawHudText(context, bagText, VIEW_WIDTH_PX - 12, 30, 'right');
+
+  if (frame.team.length > 1) {
+    drawTeamStrip(context, frame);
+  }
+}
+
+// Faixa de baixo: quem saiu, com a tecla, a vida e a recarga do golpe de cada um
+function drawTeamStrip(context: CanvasRenderingContext2D, frame: SceneFrame): void {
+  const top = VIEW_HEIGHT_PX - TEAM_STRIP_HEIGHT;
+  const slotWidth = 220;
+
+  context.fillStyle = HUD_BACKGROUND;
+  context.fillRect(0, top, VIEW_WIDTH_PX, TEAM_STRIP_HEIGHT);
+
+  frame.team.forEach((member, index) => {
+    const left = 12 + index * (slotWidth + 16);
+    const name = `${member.key} ${member.name}`;
+    const label = member.isDown ? `${name} (caiu)` : name;
+
+    context.globalAlpha = member.isDown ? 0.4 : 1;
+    if (member.isActive) {
+      context.strokeStyle = ATTACK_COLOR;
+      context.lineWidth = 2;
+      context.strokeRect(left - 6, top + 4, slotWidth + 12, TEAM_STRIP_HEIGHT - 8);
+    }
+    drawHudText(context, label, left, top + 20);
+    drawBar(context, left, top + 26, slotWidth, member.hpFraction, HP_COLOR, 6);
+    drawBar(context, left, top + 34, slotWidth, member.specialReadiness, SPECIAL_COLOR, 3);
+    context.globalAlpha = 1;
+  });
+
+  const swapLeft = 12 + frame.team.length * (slotWidth + 16);
+  const swapLabel = frame.swapReadiness >= 1 ? 'Troca pronta' : 'Troca';
+  drawHudText(context, swapLabel, swapLeft, top + 20);
+  const swapWidth = VIEW_WIDTH_PX - swapLeft - 12;
+  drawBar(context, swapLeft, top + 26, swapWidth, frame.swapReadiness, ATTACK_COLOR, 6);
 }
 
 // Texto do painel, claro sobre o fundo escuro

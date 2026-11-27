@@ -49,6 +49,10 @@ function createScene(changes: Partial<ExpeditionScene> = {}): ExpeditionScene {
     attackProgress: 0,
     specialCooldown: 0,
     specialCooldownTotal: 6,
+    team: [],
+    activeIndex: 0,
+    swapCooldown: 0,
+    contactBaseHp: 100,
     facingX: 1,
     facingY: 0,
     enemies: [],
@@ -113,7 +117,7 @@ describe('recarga do golpe especial', () => {
     for (const encantadoId of ['saci', 'iara', 'curupira']) {
       const setup = {
         mapId: FIRST_MAP,
-        fighter: { encantadoId, maxHp: 100, damage: 1 },
+        fighters: [{ encantadoId, maxHp: 100, damage: 1 }],
         trailTargets: [],
         trailChance: 1,
         modifiers: { ...NEUTRAL_RUN_MODIFIERS },
@@ -127,9 +131,9 @@ describe('recarga do golpe especial', () => {
 
   it('a recarga é a do golpe de quem está em campo, encurtada pela brasa', () => {
     const iara = fighterFor('iara');
-    const normal = advanceScene(createScene(), iara, SPECIAL, 0.05, createSeededRandom(1));
+    const normal = advanceScene(createScene(), [iara], SPECIAL, 0.05, createSeededRandom(1));
     const brasa = createScene({ modifiers: getRunModifiers('brasa-no-bornal') });
-    const short = advanceScene(brasa, iara, SPECIAL, 0.05, createSeededRandom(1));
+    const short = advanceScene(brasa, [iara], SPECIAL, 0.05, createSeededRandom(1));
     const cooldown = getSpecial('iara').cooldownSeconds;
 
     expect(normal.scene.specialCooldownTotal).toBeCloseTo(cooldown, 6);
@@ -139,7 +143,7 @@ describe('recarga do golpe especial', () => {
 
   it('com o golpe recarregando, apertar espaço não faz nada', () => {
     const scene = createScene({ specialCooldown: 3, playerHp: 10 });
-    const result = advanceScene(scene, fighterFor('iara'), SPECIAL, 0.05, createSeededRandom(1));
+    const result = advanceScene(scene, [fighterFor('iara')], SPECIAL, 0.05, createSeededRandom(1));
 
     expect(result.scene.playerHp).toBe(10);
     expect(result.events.some((event) => event.type === 'special')).toBe(false);
@@ -156,7 +160,7 @@ describe('golpe de cada encantado', () => {
     const push = findEffect('saci', 'push');
     const enemy = createEnemy(11, 11.5, { damage: 30 });
     const scene = createScene({ enemies: [enemy] });
-    const result = advanceScene(scene, fighterFor('saci'), SPECIAL, 0.05, createSeededRandom(1));
+    const result = advanceScene(scene, [fighterFor('saci')], SPECIAL, 0.05, createSeededRandom(1));
     const pushed = result.scene.enemies[0];
 
     expect(result.scene.invulnerableSeconds).toBeGreaterThan(0);
@@ -169,8 +173,9 @@ describe('golpe de cada encantado', () => {
       specialCooldown: 5,
       enemies: [createEnemy(10.8, 11.5, { damage: 30 })],
     });
-    const safe = advanceScene(glued, fighterFor('saci'), STOPPED, 0.4, createSeededRandom(1));
-    const after = advanceScene(safe.scene, fighterFor('saci'), STOPPED, 0.3, createSeededRandom(1));
+    const safe = advanceScene(glued, [fighterFor('saci')], STOPPED, 0.4, createSeededRandom(1));
+    const saci = [fighterFor('saci')];
+    const after = advanceScene(safe.scene, saci, STOPPED, 0.3, createSeededRandom(1));
 
     expect(safe.scene.playerHp).toBe(100);
     expect(after.scene.playerHp).toBe(70);
@@ -180,7 +185,7 @@ describe('golpe de cada encantado', () => {
     // A linha 0 da Beira da Mata é toda de árvores: empurrada para cima, a visagem para antes
     const enemy = createEnemy(10.5, 1.6);
     const scene = createScene({ playerX: 10.5, playerY: 2.5, enemies: [enemy] });
-    const result = advanceScene(scene, fighterFor('saci'), SPECIAL, 0.05, createSeededRandom(1));
+    const result = advanceScene(scene, [fighterFor('saci')], SPECIAL, 0.05, createSeededRandom(1));
 
     expect(result.scene.enemies[0]?.y).toBeGreaterThanOrEqual(1);
   });
@@ -190,7 +195,7 @@ describe('golpe de cada encantado', () => {
     const enemy = createEnemy(12, 11.5, { damage: 30, waitSeconds: 100 });
     const scene = createScene({ enemies: [enemy] });
     const fighter = fighterFor('curupira');
-    const result = advanceScene(scene, fighter, SPECIAL, 1, createSeededRandom(1));
+    const result = advanceScene(scene, [fighter], SPECIAL, 1, createSeededRandom(1));
     const confused = result.scene.enemies[0];
 
     // O golpe sai no primeiro pedaço do passo, depois das visagens andarem nele
@@ -203,16 +208,16 @@ describe('golpe de cada encantado', () => {
 
     // Passado o efeito, volta a perseguir
     const random = createSeededRandom(1);
-    const later = advanceScene(result.scene, fighter, STOPPED, confuse.seconds, random);
+    const later = advanceScene(result.scene, [fighter], STOPPED, confuse.seconds, random);
     expect(later.scene.enemies[0]?.x).toBeLessThan(12 - firstStep);
   });
 
   it('Iara: o canto recupera parte da vida, sem passar da vida máxima', () => {
     const { fraction } = findEffect('iara', 'heal');
     const hurt = createScene({ playerHp: 40 });
-    const healed = advanceScene(hurt, fighterFor('iara'), SPECIAL, 0.05, createSeededRandom(1));
+    const healed = advanceScene(hurt, [fighterFor('iara')], SPECIAL, 0.05, createSeededRandom(1));
     const almost = createScene({ playerHp: 95 });
-    const capped = advanceScene(almost, fighterFor('iara'), SPECIAL, 0.05, createSeededRandom(1));
+    const capped = advanceScene(almost, [fighterFor('iara')], SPECIAL, 0.05, createSeededRandom(1));
 
     expect(healed.scene.playerHp).toBeCloseTo(40 + 100 * fraction, 6);
     expect(healed.events).toContainEqual(
@@ -228,7 +233,7 @@ describe('golpe de cada encantado', () => {
     const targets = [{ encantadoId: 'caipora', remaining: 3 }];
     const scene = createScene({ enemies: [near, far], trailTargets: targets });
     const fighter = fighterFor('caipora');
-    const result = advanceScene(scene, fighter, SPECIAL, 0.05, createSeededRandom(1));
+    const result = advanceScene(scene, [fighter], SPECIAL, 0.05, createSeededRandom(1));
     const [slowed, untouched] = result.scene.enemies;
 
     expect(slowed?.slowSeconds).toBeGreaterThan(0);
@@ -239,8 +244,8 @@ describe('golpe de cada encantado', () => {
 
     // Lenta, persegue mais devagar que uma visagem normal
     const normalScene = createScene({ enemies: [createEnemy(13, 11.5)], specialCooldown: 5 });
-    const normal = advanceScene(normalScene, fighter, STOPPED, 0.5, createSeededRandom(1));
-    const slower = advanceScene(result.scene, fighter, STOPPED, 0.5, createSeededRandom(1));
+    const normal = advanceScene(normalScene, [fighter], STOPPED, 0.5, createSeededRandom(1));
+    const slower = advanceScene(result.scene, [fighter], STOPPED, 0.5, createSeededRandom(1));
     const slowStart = slowed?.x ?? 13;
     const normalStep = 13 - (normal.scene.enemies[0]?.x ?? 13);
     const slowStep = slowStart - (slower.scene.enemies[0]?.x ?? slowStart);
@@ -250,7 +255,8 @@ describe('golpe de cada encantado', () => {
 
   it('Caipora: sem ninguém precisando de Rastro, o assobio não faz pegada', () => {
     const scene = createScene();
-    const result = advanceScene(scene, fighterFor('caipora'), SPECIAL, 0.05, createSeededRandom(1));
+    const caipora = [fighterFor('caipora')];
+    const result = advanceScene(scene, caipora, SPECIAL, 0.05, createSeededRandom(1));
 
     expect(result.scene.footprints).toEqual([]);
   });
@@ -260,7 +266,7 @@ describe('golpe de cada encantado', () => {
     const enemies = [createEnemy(12.5, 11.5, { uid: 1 }), createEnemy(13.5, 11.5, { uid: 2 })];
     const scene = createScene({ enemies });
     const fighter = fighterFor('boitata');
-    const hit = advanceScene(scene, fighter, SPECIAL, 0.4, createSeededRandom(1));
+    const hit = advanceScene(scene, [fighter], SPECIAL, 0.4, createSeededRandom(1));
     const hitDamage = 10 * fire.damageMultiplier;
 
     const hpAfterHit = 1000 - hitDamage;
@@ -269,7 +275,7 @@ describe('golpe de cada encantado', () => {
 
     // A queimadura inteira tira burnDps por segundo, durante burnSeconds
     const burnStep = fire.burnSeconds + 1;
-    const burned = advanceScene(hit.scene, fighter, STOPPED, burnStep, createSeededRandom(1));
+    const burned = advanceScene(hit.scene, [fighter], STOPPED, burnStep, createSeededRandom(1));
     const burnTotal = 10 * fire.burnDpsMultiplier * fire.burnSeconds;
 
     for (const enemy of burned.scene.enemies) {
@@ -282,7 +288,7 @@ describe('golpe de cada encantado', () => {
     const burning = { hp: 1, burnSeconds: 2, burnDps: 10, burnTickSeconds: 0.1 };
     const enemy = createEnemy(20, 11.5, burning);
     const scene = createScene({ enemies: [enemy], specialCooldown: 5 });
-    const result = advanceScene(scene, fighterFor('boitata'), STOPPED, 1, createSeededRandom(1));
+    const result = advanceScene(scene, [fighterFor('boitata')], STOPPED, 1, createSeededRandom(1));
 
     expect(result.scene.enemies).toEqual([]);
     expect(result.kills).toHaveLength(1);
@@ -291,7 +297,8 @@ describe('golpe de cada encantado', () => {
   it('encantado sem golpe nos dados solta o projétil padrão', () => {
     const enemy = createEnemy(12.5, 11.5);
     const scene = createScene({ enemies: [enemy] });
-    const result = advanceScene(scene, fighterFor('ninguem'), SPECIAL, 0.4, createSeededRandom(1));
+    const nobody = [fighterFor('ninguem')];
+    const result = advanceScene(scene, nobody, SPECIAL, 0.4, createSeededRandom(1));
 
     expect(result.scene.enemies[0]?.hp).toBe(1000 - 10 * BALANCE.specialDamageMultiplier);
     expect(result.scene.specialCooldownTotal).toBe(BALANCE.specialCooldownSeconds);

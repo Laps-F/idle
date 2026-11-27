@@ -5,7 +5,11 @@
  * anda com a personagem respeitando árvores e água, faz as visagens
  * passearem, perseguirem e baterem, solta as ondas cada vez mais fortes,
  * cuida do golpe automático e do golpe especial, e diz quando a expedição
- * acaba (fim do tempo, vida zerada ou passagem de volta).
+ * acaba (fim do tempo, todos de quem saiu caídos ou passagem de volta).
+ *
+ * Revezamento: quem sai são até três, um em campo por vez (troca pelas teclas
+ * 1, 2 e 3). Quem cai fica fora e o próximo entra. As regras ficam em
+ * src/domain/expeditionTeam.ts.
  *
  * O golpe comum é um projétil que voa na visagem mais perto e para na
  * primeira que acerta. Projétil some ao bater em árvore ou água, ou depois de
@@ -62,7 +66,13 @@ import {
   isConfused,
   updateEnemyStatus,
 } from './expeditionSpecials';
-import { getEnemyContactDamage, getFighterBaseLevel, getWaveLevel } from './expeditionScaling';
+import {
+  getEnemyContactDamage,
+  getTeamBaseLevel,
+  getTeamContactHp,
+  getWaveLevel,
+} from './expeditionScaling';
+import { createTeam, replaceFallen, swapTo, syncActiveMember, updateBench } from './expeditionTeam';
 import { getEnemyMaxHp } from './formulas';
 import {
   getDistance,
@@ -99,13 +109,15 @@ const SECONDS_PER_MINUTE = 60;
 interface StepContext {
   draft: ExpeditionScene;
   map: ExpeditionMapDef;
-  fighter: ExpeditionFighter | null;
+  fighters: readonly ExpeditionFighter[]; // quem saiu, na ordem de draft.team
+  fighter: ExpeditionFighter | null; // quem está em campo (muda ao trocar ou cair)
   random: RandomSource;
   kills: MapKill[];
   trails: string[];
   events: SceneEvent[];
   outcome: ExpeditionOutcome | null;
   isSpecialPending: boolean; // o pedido de golpe especial vale uma vez por chamada
+  swapPending: number | null; // o pedido de troca vale uma vez por chamada
   // Tira vida de uma visagem e cuida da derrota (para os golpes especiais e a queimadura)
   damageEnemy: (enemy: SceneEnemy, damage: number) => void;
 }
@@ -118,28 +130,30 @@ interface StepContext {
 /**
  * Monta a cena do começo de uma expedição.
  *
- * O nível de partida (baseLevel) sai do dano de quem sai e fica fixo durante a
- * expedição inteira (src/domain/expeditionScaling.ts). Se a comitiva ficar mais
- * forte na clareira no meio da expedição, as visagens não mudam. A primeira
+ * O nível de partida (baseLevel) sai da média do dano de quem sai e fica fixo
+ * durante a expedição inteira (src/domain/expeditionScaling.ts). A primeira
  * pegada surge na metade do intervalo normal, para aparecer logo.
  *
- * @param setup Mapa, quem sai (vida e dano), de quem são as pegadas e a chance de
- *              Rastro. Sem quem sai: vida playerBaseHp e nível de partida 1.
+ * @param setup Mapa, quem sai (vida e dano, na ordem do revezamento), de quem são as
+ *              pegadas e a chance de Rastro. Sem quem sai: vida playerBaseHp, nível 1
+ *              e time vazio.
  * @param random Fonte de sorteio para o lugar e o tipo das primeiras visagens.
  * @returns Cena no tempo zero: personagem no início do mapa, olhando para a direita, com a vida
  *          cheia, golpe especial pronto, waveStartEnemies visagens longe dela e nenhuma pegada.
  * @throws Error se o mapa não existir.
  */
 export function createExpeditionScene(setup: SceneSetup, random: RandomSource): ExpeditionScene {
-  const { mapId, fighter } = setup;
+  const { mapId, fighters } = setup;
   const map = getExpeditionMap(mapId);
   const start = toTileCenter(map.start.x, map.start.y);
-  const maxHp = fighter?.maxHp ?? BALANCE.playerBaseHp;
+  const team = createTeam(fighters, setup.modifiers.specialCooldown);
+  const first = team[0];
+  const maxHp = first?.maxHp ?? BALANCE.playerBaseHp;
   const footprintInterval = getFootprintInterval(setup.trailChance * setup.modifiers.footprintRate);
   const context = createContext(
     {
       mapId,
-      baseLevel: getFighterBaseLevel(fighter?.damage ?? 0),
+      baseLevel: getTeamBaseLevel(fighters),
       elapsedSeconds: 0,
       playerX: start.x,
       playerY: start.y,
@@ -149,10 +163,8 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
       invulnerableSeconds: 0,
       attackProgress: 0,
       specialCooldown: 0,
-      specialCooldownTotal: getSpecialCooldown(
-        fighter?.encantadoId ?? '',
-        setup.modifiers.specialCooldown,
-      ),
+      specialCooldownTotal:
+        first?.specialCooldownTotal ?? getSpecialCooldown('', setup.modifiers.specialCooldown),
       facingX: 1,
       facingY: 0,
       enemies: [],
@@ -166,8 +178,12 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
       footprintIntervalSeconds: footprintInterval,
       nextFootprintUid: 1,
       modifiers: { ...setup.modifiers },
+      team,
+      activeIndex: 0,
+      swapCooldown: 0,
+      contactBaseHp: getTeamContactHp(fighters),
     },
-    null,
+    [],
     random,
   );
 
@@ -182,9 +198,11 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
  * Avança a cena da expedição por um intervalo de tempo.
  *
  * Algoritmo: o intervalo é dividido em passos de no máximo sceneMaxStepSeconds.
- * Em cada passo, na ordem: o tempo corre, a personagem anda (com colisão), a
+ * Em cada passo, na ordem: o tempo corre (também as recargas de quem espera a
+ * vez), a troca pedida acontece (se der), a personagem anda (com colisão), a
  * passagem de volta é conferida, as visagens passeiam ou perseguem e batem ao
- * encostar, o projétil especial sai (se pedido e pronto), o projétil comum
+ * encostar, quem caiu dá lugar ao próximo de pé, o golpe especial sai (se
+ * pedido e pronto), o projétil comum
  * sai (se a barra encheu e há visagem no alcance), os projéteis voam e
  * acertam, as ondas trazem visagens novas, as pegadas são pegas ou surgem e o
  * fim do tempo é conferido.
@@ -193,8 +211,10 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
  * Função pura: não altera "scene" nem "input".
  *
  * @param scene Cena de partida. Não é alterada.
- * @param fighter Quem anda e bate. Null: a personagem anda, mas não bate.
- * @param input Direção (cada eixo de -1 a 1) e pedido de golpe especial.
+ * @param fighters Os números de quem saiu, na mesma ordem de scene.team. Quem está em
+ *                 campo é fighters[scene.activeIndex]. Sem ele: a personagem anda, mas
+ *                 não bate.
+ * @param input Direção (cada eixo de -1 a 1), pedido de golpe especial e de troca.
  * @param seconds Quantos segundos de jogo simular.
  * @param random Fonte de sorteio (crítico, passeio e nascimento das visagens).
  * @returns Cena nova, visagens derrotadas, pegadas pegas (um encantado por Rastro),
@@ -203,7 +223,10 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
  * Casos de borda:
  * - "seconds" zero, negativo ou NaN: devolve a mesma cena, sem nada acontecer.
  * - O pedido de golpe especial vale uma vez por chamada. Com o golpe em recarga,
- *   o pedido é ignorado (não fica guardado).
+ *   o pedido é ignorado (não fica guardado). O pedido de troca também: troca
+ *   para quem caiu, para quem já está em campo ou na recarga da troca é ignorada.
+ * - Se todos de quem saiu caem, vale "caiu". Com o time vazio, a primeira vez
+ *   que a vida zera já vale "caiu".
  * - Na diagonal a velocidade é a mesma das quatro direções.
  * - No máximo um disparo automático por passo (até 20 por segundo).
  * - O projétil comum mira onde a visagem estava no disparo. Se ela sair do
@@ -212,7 +235,7 @@ export function createExpeditionScene(setup: SceneSetup, random: RandomSource): 
  */
 export function advanceScene(
   scene: ExpeditionScene,
-  fighter: ExpeditionFighter | null,
+  fighters: readonly ExpeditionFighter[],
   input: ExpeditionInput,
   seconds: number,
   random: RandomSource,
@@ -221,8 +244,9 @@ export function advanceScene(
     return { scene, kills: [], trails: [], events: [], outcome: null };
   }
 
-  const context = createContext(structuredClone(scene), fighter, random);
+  const context = createContext(structuredClone(scene), fighters, random);
   context.isSpecialPending = input.useSpecial;
+  context.swapPending = input.swapTo ?? null;
   let remainingSeconds = seconds;
 
   while (remainingSeconds > SCENE_EPSILON && context.outcome === null) {
@@ -230,6 +254,7 @@ export function advanceScene(
     runStep(context, input, stepSeconds);
     remainingSeconds -= stepSeconds;
   }
+  syncActiveMember(context.draft);
 
   return {
     scene: context.draft,
@@ -249,19 +274,21 @@ export function advanceScene(
 // Contexto de trabalho de um passo, a partir de uma cena que já é cópia
 function createContext(
   draft: ExpeditionScene,
-  fighter: ExpeditionFighter | null,
+  fighters: readonly ExpeditionFighter[],
   random: RandomSource,
 ): StepContext {
   const context: StepContext = {
     draft,
     map: getExpeditionMap(draft.mapId),
-    fighter,
+    fighters,
+    fighter: fighters[draft.activeIndex] ?? null,
     random,
     kills: [],
     trails: [],
     events: [],
     outcome: null,
     isSpecialPending: false,
+    swapPending: null,
     damageEnemy: (enemy, damage) => damageEnemy(context, enemy, damage, false),
   };
   return context;
@@ -274,6 +301,8 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
   draft.hurtSeconds = Math.max(0, draft.hurtSeconds - seconds);
   draft.invulnerableSeconds = Math.max(0, draft.invulnerableSeconds - seconds);
   draft.specialCooldown = Math.max(0, draft.specialCooldown - seconds);
+  updateBench(draft, seconds);
+  swapIfPending(context);
 
   movePlayer(context, input, seconds);
   if (isOnExit(context)) {
@@ -284,7 +313,7 @@ function runStep(context: StepContext, input: ExpeditionInput, seconds: number):
   for (const enemy of draft.enemies) {
     updateEnemy(context, enemy, seconds);
   }
-  if (draft.playerHp <= 0) {
+  if (draft.playerHp <= 0 && !replaceFallen(context)) {
     context.outcome = 'caiu';
     return;
   }
@@ -397,7 +426,7 @@ function spawnEnemy(context: StepContext): void {
     y: spot.y,
     hp: maxHp,
     maxHp,
-    damage: getEnemyContactDamage(draft.playerMaxHp, level, draft.baseLevel, enemyDef),
+    damage: getEnemyContactDamage(draft.contactBaseHp, level, draft.baseLevel, enemyDef),
     hitCooldown: 0,
     targetX: spot.x,
     targetY: spot.y,
@@ -588,6 +617,16 @@ function updateAttack(context: StepContext, seconds: number): void {
     damage: isCrit ? fighter.damage * BALANCE.critMultiplier : fighter.damage,
     isCrit,
   });
+}
+
+// Troca quem está em campo, se pedido e se der (src/domain/expeditionTeam.ts)
+function swapIfPending(context: StepContext): void {
+  const index = context.swapPending;
+  context.swapPending = null;
+
+  if (index !== null) {
+    swapTo(context, index);
+  }
 }
 
 // Golpe especial de quem está em campo (src/domain/expeditionSpecials.ts). Só se pedido e pronto.

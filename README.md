@@ -13,8 +13,8 @@ Estado atual: o jogo tem duas partes.
   Atlântica), cinco encantados, melhorias, pactos, amuletos, Rebrota com o juazeiro, salvamento e
   progresso offline. Ela rende com o jogo aberto ou fechado, mas só com a comitiva na clareira:
   durante uma expedição, ela para.
-- **Expedições** (a parte ativa, em protótipo): da aba "Expedições", um encantado sai por um mapa
-  visto de cima. As visagens perseguem e batem, e as ondas ficam mais fortes com o tempo. O
+- **Expedições** (a parte ativa, em protótipo): da aba "Expedições", a comitiva sai por um mapa
+  visto de cima, um encantado em campo por vez (as teclas 1, 2 e 3 trocam, e quem cai fica fora). As visagens perseguem e batem, e as ondas ficam mais fortes com o tempo. O
   golpe comum é um projétil que sai sozinho na visagem mais perto. Na tecla espaço sai o golpe
   especial, um para cada encantado: o Redemoinho do Saci, os Pés virados do Curupira, o Canto da
   Iara, o Assobio da Caipora e o Rastro de fogo do Boitatá. A bolsa volta inteira, e quem aguenta os 5 minutos ganha um bônus. Dois mapas, sem imagens ainda (cada coisa é um bloco colorido com o nome do arquivo
@@ -80,6 +80,8 @@ src/
     expeditionScene.ts expedições em tempo real: movimento, visagens, ondas, golpes e fim
     expeditionProjectiles.ts  voo e acerto dos projéteis da expedição
     expeditionScaling.ts  escala da expedição: nível pelo poder de quem sai, dano da encostada
+    expeditionTeam.ts  revezamento: trocar quem está em campo, quem cai e quem entra
+    expeditionSpecials.ts  golpe especial de cada encantado e os estados das visagens
     expeditionLoot.ts  saque próprio da expedição: o que cada visagem da bolsa rende
     expeditionFootprints.ts  pegadas de Rastro no mapa: surgir e pegar
     expeditionModifiers.ts  o que muda numa partida (preparos) e o pagamento do preparo
@@ -322,8 +324,8 @@ Os botões de teste usam as ações `debugHitEnemy`, `debugGrantGold`, `debugSki
 1. Caminho 1 (ligar a clareira e a expedição): pronto. Pausa, escala, saque próprio, pegadas e
    preparos com Oferendas.
 2. Jogar a expedição e decidir se o combate é divertido. Balancear as ondas e os preparos.
-3. Caminho 2 (a comitiva em campo): escolher quem sai (pronto), clareira parada com garantia
-   (pronto), golpe especial de cada encantado (pronto). Falta o revezamento de 3 em campo, os dons
-   na clareira e a calibragem. Esquiva e bênçãos depois.
+3. Caminho 2 (a comitiva em campo): escolher quem entra primeiro, clareira parada com garantia,
+   golpe especial de cada encantado e revezamento: prontos. Faltam os dons na clareira e a
+   calibragem. Esquiva e bênçãos depois.
 4. Repensar a Rebrota com a clareira e as expedições.
 5. Imagens no lugar dos blocos coloridos (docs/SPRITES.md) e controle na tela para celular.

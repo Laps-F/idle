@@ -127,16 +127,17 @@ As ações e o passo do mapa ficam em `src/store/expeditionSession.ts`. `useGame
 essas ações às outras e chama o passo dentro do `tick`.
 
 1. A pessoa parte pela aba "Expedições" (`startExpedition`): o estado ganha `expedition` (mapa,
-   quem saiu e a bolsa vazia) e a sessão ganha a cena (`createExpeditionScene`, em
+   quem saiu, `team` com a comitiva inteira, e a bolsa vazia) e a sessão ganha a cena (`createExpeditionScene`, em
    `src/domain/expeditionScene.ts`). `src/App.tsx` troca a clareira pela tela da expedição.
 2. O teclado (`src/components/hooks/useExpeditionKeyboard.ts`) grava a direção em `moveInput`
-   (`setMoveInput`) e o pedido de golpe especial em `isSpecialPending` (`triggerSpecial`).
+   (`setMoveInput`), o pedido de golpe especial em `isSpecialPending` (`triggerSpecial`) e o
+   pedido de troca de quem está em campo em `swapPending` (`swapFighter`, teclas 1, 2 e 3).
 3. Em cada tick, depois da clareira, `runExpeditionTick`:
-   - calcula quem anda e bate (`getExpeditionFighter`, em `src/domain/expedition.ts`) e avança a
-     cena (`advanceScene`), que devolve a cena nova, as visagens derrotadas, os eventos e, se for
+   - calcula os números de quem saiu (`getExpeditionFighters`, em `src/domain/expedition.ts`) e
+     avança a cena (`advanceScene`), que devolve a cena nova, as visagens derrotadas, os eventos e, se for
      o caso, como a expedição terminou;
    - guarda as derrotas na bolsa (`addKillsToLoot`). A bolsa é salva, a cena não.
-4. A expedição termina no fim do tempo (`concluida`), quando a vida zera (`caiu`), na passagem
+4. A expedição termina no fim do tempo (`concluida`), quando todos de quem saiu caem (`caiu`), na passagem
    de volta ou no botão (`voltou`), ou numa recarga no meio dela (`interrompida`).
    `endExpedition` chama `finishExpedition`, que entrega a bolsa pelo saque próprio do mapa
    (`rewardExpeditionBag`, em `src/domain/expeditionLoot.ts`, com a tabela de
@@ -145,6 +146,26 @@ essas ações às outras e chama o passo dentro do `tick`.
 5. `src/components/expedition/ExpeditionCanvas.tsx` desenha a cena a cada quadro do navegador,
    lendo `readSceneFrame` e `selectExpeditionMapView` (`src/store/expeditionSelectors.ts`). Os eventos de `sceneEvents` viram
    números que sobem.
+
+**Revezamento.** A comitiva inteira sai (`expedition.team`), um em campo por vez. A cena guarda
+o time em `team` (vida, vida máxima, recarga do especial e se caiu, de cada um), quem está em
+campo em `activeIndex` e a recarga da troca em `swapCooldown`. Os campos `playerHp`,
+`playerMaxHp`, `specialCooldown` e `specialCooldownTotal` do topo da cena são os de quem está em
+campo: é com eles que o passo trabalha. Ao trocar, quem sai de campo é guardado em `team` e quem
+entra é copiado para o topo; no fim de `advanceScene`, `team[activeIndex]` é posto em dia. As
+regras ficam em `src/domain/expeditionTeam.ts`:
+
+- Troca pela posição (tecla 1 é a posição 0), uma a cada `swapCooldownSeconds`. Troca para quem
+  caiu, para quem já está em campo ou na recarga é ignorada. Quem entra começa com a barra do
+  golpe comum vazia.
+- O golpe especial de quem espera a vez continua recarregando (`updateBench`).
+- Quem cai fica fora até o fim (`isDown`), e o próximo de pé entra sozinho, com
+  `fallInvulnerableSeconds` sem levar golpe. A expedição só termina em `caiu` quando todos caem.
+- O nível de partida sai da média do dano de quem saiu (`getTeamBaseLevel`) e a encostada, da
+  média da vida (`contactBaseHp`, de `getTeamContactHp`), os dois em `expeditionScaling.ts`.
+- `advanceScene` recebe os números de quem saiu na mesma ordem de `team`. Quem está em campo é
+  `fighters[activeIndex]`.
+- O relatório da volta guarda quem saiu e quem caiu (`team` e `fallen`, de `getFallenIds`).
 
 **Pausa.** Com `isExpeditionPaused` (campo de sessão, não salvo), `runExpeditionTick` não anda
 com a cena: tempo, ondas, recargas, visagens e projéteis param, e a clareira também. Pausa ao
@@ -242,7 +263,11 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Estado de um jogo novo, combate contra visagem ou chefe | `src/domain/state.ts` |
 | Mapa, ladrilho de uma coluna e linha, tamanho do mapa, zona por id | `src/domain/catalog.ts` |
 | Vida da personagem na expedição | `src/domain/formulas.ts`, `getExpeditionMaxHp` |
-| Nível de partida pelo dano de quem sai, nível de cada mapa e das ondas, dano da encostada | `src/domain/expeditionScaling.ts` |
+| Nível de partida pela média do dano de quem sai, nível de cada mapa e das ondas, dano da encostada | `src/domain/expeditionScaling.ts` |
+| Revezamento: trocar quem está em campo, recarga das trocas, quem cai e quem entra no lugar | `src/domain/expeditionTeam.ts` |
+| Tempo entre trocas e tempo sem levar golpe de quem entra no lugar de quem caiu | `src/data/balance.ts`, `swapCooldownSeconds` e `fallInvulnerableSeconds` |
+| Teclas da troca (1, 2 e 3) | `src/components/hooks/useExpeditionKeyboard.ts`, `SWAP_KEYS` |
+| Faixa de baixo do mapa com quem saiu (vida, golpe, troca) | `src/components/expedition/mapRenderer.ts`, `drawTeamStrip` |
 | Movimento e colisão da personagem, passagem de volta | `src/domain/expeditionScene.ts`, bloco "Personagem" |
 | Ondas, passeio, perseguição e encostada das visagens | `src/domain/expeditionScene.ts`, bloco "Visagens" |
 | Quando o projétil comum e o especial saem, e para onde | `src/domain/expeditionScene.ts`, bloco "Golpes" |
@@ -255,7 +280,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | O que a cena recebe para começar (mapa, quem sai, pegadas, chance de Rastro, modificadores) | `src/domain/expedition.ts`, `getSceneSetup` |
 | Modificadores da partida (preparo hoje; bênçãos e esquiva depois), pagar e conferir o preparo | `src/domain/expeditionModifiers.ts` |
 | Partir com preparo (paga as Oferendas) | `src/domain/expedition.ts`, `startExpedition` |
-| Quem sai primeiro (pôr um encantado em primeiro na comitiva) | `src/domain/actions.ts`, `setPartyLeader`; botões em `ExpeditionsPanel.tsx`, `LeaderPicker` |
+| Quem entra em campo primeiro (pôr um encantado em primeiro na comitiva) | `src/domain/actions.ts`, `setPartyLeader`; botões em `ExpeditionsPanel.tsx`, `LeaderPicker` |
 | Clareira parada durante a expedição (o que o tick anda) | `src/store/useGameStore.ts`, `tick`; `src/store/expeditionSession.ts`, `runExpeditionTick` e `holdExpeditionDuringAbsence` |
 | Garantia da clareira: quanto a clareira teria rendido | `src/domain/expeditionGuarantee.ts`, `getClearingReference` |
 | Garantia da clareira: pagar a diferença na volta | `src/domain/expeditionLoot.ts`, `payGuarantee` (chamado por `rewardExpeditionBag`) |
@@ -263,7 +288,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Comparação com a clareira e a garantia na janela da volta | `src/components/modals/ExpeditionReportModal.tsx`, `describeComparison` |
 | Entrega dos Rastros da bolsa na volta (sem passar do pacto) | `src/domain/expeditionLoot.ts`, `rewardExpeditionBag` |
 | Ordem das coisas em cada passo e quando a expedição acaba | `src/domain/expeditionScene.ts`, `runStep` |
-| Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighter` |
+| Quem sai em expedição e com que números | `src/domain/expedition.ts`, `getExpeditionFighters` (o primeiro em `getExpeditionFighter`) |
 | Quando dá para partir | `src/domain/expedition.ts`, `canStartExpedition` e `startExpedition` |
 | Como a bolsa junta as visagens | `src/domain/expedition.ts`, `addKillsToLoot` |
 | O bônus de quem aguenta até o fim | `src/domain/expedition.ts`, `finishExpedition` |
@@ -283,7 +308,7 @@ em `updateEnemyStatus`, o valor inicial em `spawnEnemy` (`expeditionScene.ts`) e
 | Campos de sessão da expedição (cena, direção, golpe pedido, pausa, eventos, relatório) | `src/store/types.ts`, `SessionState` |
 | Aba de expedições, painel, janela da volta e leitura de cada quadro | `src/store/expeditionSelectors.ts` |
 | Seletor que reaproveita o resultado, listas com nome | `src/store/selectorTools.ts` |
-| Conferência da expedição salva (mapa, quem saiu, bolsa) | `src/store/saveManager.ts`, `sanitizeExpedition` |
+| Conferência da expedição salva (mapa, quem saiu, bolsa) | `src/store/saveManager.ts`, `sanitizeExpedition` e `sanitizeTeam` |
 | Ligação entre uma ação e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de jogo" |
 | Exportar, importar, apagar tudo, gravar agora | `src/store/useGameStore.ts`, bloco "Ações de salvamento" |
 | Ligação entre uma ação de amuleto e a regra do domínio | `src/store/useGameStore.ts`, bloco "Ações de amuletos" |

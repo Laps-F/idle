@@ -2,8 +2,9 @@
  * Encantados - idle de coleção com folclore brasileiro
  * Arquivo: src/components/hooks/useExpeditionKeyboard.ts
  * O que faz: liga o teclado à expedição. As setas ou W, A, S e D viram a
- * direção em que a personagem anda (setMoveInput) e a barra de espaço pede o
- * golpe especial (triggerSpecial).
+ * direção em que a personagem anda (setMoveInput), a barra de espaço pede o
+ * golpe especial (triggerSpecial) e as teclas 1, 2 e 3 (em cima das letras ou
+ * no teclado numérico) pedem para trocar quem está em campo (swapFighter).
  *
  * Pausa: a tecla P pausa a expedição. Com ela pausada (pela tecla, pela aba
  * escondida ou por outra janela), qualquer tecla continua. A tecla que continua
@@ -30,6 +31,16 @@ const SPECIAL_KEY = 'Space';
 
 // Tecla que pausa a expedição
 const PAUSE_KEY = 'KeyP';
+
+// Teclas que põem em campo cada um de quem saiu: a posição dele (0 é a tecla 1)
+const SWAP_KEYS: Record<string, number> = {
+  Digit1: 0,
+  Digit2: 1,
+  Digit3: 2,
+  Numpad1: 0,
+  Numpad2: 1,
+  Numpad3: 2,
+};
 
 // Teclas que, sozinhas, não continuam a expedição pausada
 const MODIFIER_KEYS = new Set([
@@ -66,6 +77,7 @@ const KEY_DIRECTIONS: Record<string, { x: number; y: number }> = {
 export function useExpeditionKeyboard(): void {
   const setMoveInput = useGameStore((store) => store.setMoveInput);
   const triggerSpecial = useGameStore((store) => store.triggerSpecial);
+  const swapFighter = useGameStore((store) => store.swapFighter);
   const pauseExpedition = useGameStore((store) => store.pauseExpedition);
   const resumeExpedition = useGameStore((store) => store.resumeExpedition);
 
@@ -103,6 +115,8 @@ export function useExpeditionKeyboard(): void {
       } else if (event.code === SPECIAL_KEY) {
         event.preventDefault();
         triggerSpecial();
+      } else if (event.code in SWAP_KEYS) {
+        swapFighter(SWAP_KEYS[event.code] ?? 0);
       } else if (event.code in KEY_DIRECTIONS) {
         event.preventDefault();
         pressed.add(event.code);
@@ -131,7 +145,7 @@ export function useExpeditionKeyboard(): void {
       window.removeEventListener('blur', releaseAll);
       releaseAll();
     };
-  }, [setMoveInput, triggerSpecial, pauseExpedition, resumeExpedition]);
+  }, [setMoveInput, triggerSpecial, swapFighter, pauseExpedition, resumeExpedition]);
 }
 
 // Diz se a tecla foi apertada dentro de uma caixa de texto

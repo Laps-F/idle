@@ -32,12 +32,12 @@ import {
 import {
   countLoot,
   countTrails,
-  getExpeditionFighter,
+  getExpeditionFighters,
   getTrailTargets,
 } from '../domain/expedition';
 import { canAffordPreparation } from '../domain/expeditionModifiers';
 import { getSpecialCooldown } from '../domain/expeditionSpecials';
-import { getFighterBaseLevel, getMapStartLevel } from '../domain/expeditionScaling';
+import { getMapStartLevel, getTeamBaseLevel } from '../domain/expeditionScaling';
 import type { ExpeditionOutcome, ExpeditionScene, SceneEvent } from '../domain/types';
 import { createStableSelector, toNamedAmounts } from './selectorTools';
 import type { NamedAmount } from './selectorTools';
@@ -93,8 +93,9 @@ export interface SpecialView {
 }
 
 export interface ExpeditionListView {
-  leaderName: string | null; // null sem comitiva
-  partyMembers: PartyLeaderOptionView[]; // na ordem da comitiva; o primeiro é quem sai
+  leaderName: string | null; // quem entra em campo primeiro; null sem comitiva
+  partyMembers: PartyLeaderOptionView[]; // na ordem da comitiva; o primeiro entra em campo
+  relayMembers: TeamKeyView[]; // quem sai junto e espera a vez (tecla 2 e 3)
   leaderMaxHp: number;
   leaderSpecial: SpecialView | null; // null sem comitiva
   durationSeconds: number;
@@ -103,14 +104,33 @@ export interface ExpeditionListView {
   preparations: ExpeditionPreparationView[];
 }
 
+// Um encantado de quem saiu, com a tecla que põe ele em campo
+export interface TeamKeyView {
+  key: string; // '1', '2' ou '3'
+  name: string;
+  specialName: string;
+}
+
 // Painel ao lado do mapa durante a expedição
 export interface ExpeditionHudView {
   mapName: string;
-  leaderName: string;
-  special: SpecialView;
+  activeName: string; // quem está em campo agora
+  special: SpecialView; // golpe de quem está em campo
+  team: TeamKeyView[]; // quem saiu, na ordem das teclas
   lootCount: number; // visagens na bolsa
   trailCount: number; // Rastros das pegadas na bolsa
   preparationName: string | null; // preparo desta expedição, ou null
+}
+
+// Um de quem saiu, no quadro atual (faixa de baixo do mapa)
+export interface SceneTeamFrame {
+  encantadoId: string;
+  key: string; // tecla que põe em campo
+  name: string;
+  hpFraction: number; // de 0 a 1
+  specialReadiness: number; // de 0 a 1; a recarga anda também fora de campo
+  isActive: boolean;
+  isDown: boolean;
 }
 
 // Uma visagem no quadro atual
@@ -147,7 +167,7 @@ export interface SceneProjectileFrame {
 // Tudo que o canvas desenha num quadro. Muda a cada tick, então não passa pelo React.
 export interface SceneFrame {
   mapId: string;
-  leaderId: string;
+  activeId: string; // quem está em campo (a figura da personagem)
   playerX: number;
   playerY: number;
   hpFraction: number; // de 0 a 1
@@ -157,6 +177,8 @@ export interface SceneFrame {
   isInvulnerable: boolean; // no Redemoinho do Saci: nenhuma encostada tira vida
   attackProgress: number; // de 0 a 1
   specialReadiness: number; // de 0 (acabou de usar) a 1 (pronto)
+  team: SceneTeamFrame[]; // quem saiu. Vazio na cena sem time.
+  swapReadiness: number; // de 0 (acabou de trocar) a 1 (dá para trocar)
   secondsLeft: number; // até o fim do tempo da expedição
   lootCount: number;
   trailCount: number; // Rastros das pegadas pegas, na bolsa
@@ -185,6 +207,8 @@ export interface ExpeditionReportView {
   clearingXp: number;
   guaranteeGold: number; // o que a garantia pagou (zero se a bolsa já passou)
   guaranteeXp: number;
+  teamNames: string[]; // quem saiu
+  fallenNames: string[]; // quem caiu no caminho
 }
 
 // Os eventos do mapa chegam à tela como o domínio manda (golpe, derrota e dano)
@@ -250,7 +274,7 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
 
   return {
     mapId: scene.mapId,
-    leaderId: expedition.encantadoId,
+    activeId: scene.team[scene.activeIndex]?.encantadoId ?? expedition.encantadoId,
     playerX: scene.playerX,
     playerY: scene.playerY,
     hpFraction: scene.playerMaxHp > 0 ? scene.playerHp / scene.playerMaxHp : 0,
@@ -260,6 +284,16 @@ export function readSceneFrame(snapshot: GameSnapshot): SceneFrame | null {
     isInvulnerable: scene.invulnerableSeconds > 0,
     attackProgress: scene.attackProgress,
     specialReadiness: getSpecialReadiness(scene),
+    team: scene.team.map((member, index) => ({
+      encantadoId: member.encantadoId,
+      key: String(index + 1),
+      name: getEncantado(member.encantadoId).name,
+      hpFraction: member.maxHp > 0 ? Math.max(0, member.hp) / member.maxHp : 0,
+      specialReadiness: getReadiness(member.specialCooldown, member.specialCooldownTotal),
+      isActive: index === scene.activeIndex,
+      isDown: member.isDown,
+    })),
+    swapReadiness: getReadiness(scene.swapCooldown, BALANCE.swapCooldownSeconds),
     secondsLeft: Math.max(0, BALANCE.expeditionDurationSeconds - scene.elapsedSeconds),
     lootCount: countLoot(expedition.loot),
     trailCount: countTrails(expedition.trails),
@@ -306,8 +340,9 @@ function buildMapView(mapId: string): MapView {
 
 // Aba "Expedições": mapas e quem sairia agora
 function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
-  const fighter = getExpeditionFighter(snapshot, snapshot.lastSaveTimestamp);
-  const baseLevel = getFighterBaseLevel(fighter?.damage ?? 0);
+  const fighters = getExpeditionFighters(snapshot, snapshot.lastSaveTimestamp);
+  const fighter = fighters[0] ?? null;
+  const baseLevel = getTeamBaseLevel(fighters);
 
   return {
     leaderName: fighter === null ? null : getEncantado(fighter.encantadoId).name,
@@ -335,6 +370,7 @@ function buildExpeditionList(snapshot: GameSnapshot): ExpeditionListView {
       isLeader: index === 0,
       specialName: buildSpecialView(id).name,
     })),
+    relayMembers: buildTeamKeys(snapshot.party).slice(1),
   };
 }
 
@@ -346,10 +382,14 @@ function buildExpeditionHud(snapshot: GameSnapshot): ExpeditionHudView | null {
     return null;
   }
 
+  const scene = snapshot.expeditionScene;
+  const activeId = scene?.team[scene.activeIndex]?.encantadoId ?? expedition.encantadoId;
+
   return {
     mapName: getExpeditionMap(expedition.mapId).name,
-    leaderName: getEncantado(expedition.encantadoId).name,
-    special: buildSpecialView(expedition.encantadoId),
+    activeName: getEncantado(activeId).name,
+    special: buildSpecialView(activeId),
+    team: buildTeamKeys(expedition.team),
     lootCount: countLoot(expedition.loot),
     trailCount: countTrails(expedition.trails),
     preparationName: getPreparationName(expedition.preparationId),
@@ -384,15 +424,31 @@ function buildExpeditionReport(snapshot: GameSnapshot): ExpeditionReportView | n
     clearingXp: report.clearingXp,
     guaranteeGold: report.guaranteeGold,
     guaranteeXp: report.guaranteeXp,
+    teamNames: report.team.map(encantadoName),
+    fallenNames: report.fallen.map(encantadoName),
   };
 }
 
-// Quanto o golpe especial já recarregou: 0 (acabou de sair) a 1 (pronto)
+// Quem saiu (ou sairia), com a tecla e o golpe de cada um
+function buildTeamKeys(ids: readonly string[]): TeamKeyView[] {
+  return ids.map((id, index) => ({
+    key: String(index + 1),
+    name: getEncantado(id).name,
+    specialName: buildSpecialView(id).name,
+  }));
+}
+
+// Quanto o golpe especial de quem está em campo já recarregou: 0 (acabou de sair) a 1 (pronto)
 function getSpecialReadiness(scene: ExpeditionScene): number {
-  if (scene.specialCooldownTotal <= 0) {
+  return getReadiness(scene.specialCooldown, scene.specialCooldownTotal);
+}
+
+// Quanto uma recarga já andou: 0 (acabou de começar) a 1 (pronta). Recarga sem tamanho: pronta.
+function getReadiness(remaining: number, total: number): number {
+  if (total <= 0) {
     return 1;
   }
-  return Math.min(1, Math.max(0, 1 - scene.specialCooldown / scene.specialCooldownTotal));
+  return Math.min(1, Math.max(0, 1 - remaining / total));
 }
 
 // Golpe especial de um encantado, com a recarga sem preparo

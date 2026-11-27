@@ -149,6 +149,16 @@ const BALANCE_FIELDS = {
     step: 0.01,
   },
   playerSpeed: { group: GROUP.player, label: 'Velocidade (ladrilhos por segundo)', step: 0.1 },
+  swapCooldownSeconds: {
+    group: GROUP.player,
+    label: 'Recarga da troca de quem está em campo (s)',
+    step: 0.5,
+  },
+  fallInvulnerableSeconds: {
+    group: GROUP.player,
+    label: 'Tempo sem levar golpe de quem entra no lugar de quem caiu (s)',
+    step: 0.25,
+  },
   attackRange: { group: GROUP.player, label: 'Alcance do golpe comum (ladrilhos)', step: 0.1 },
   bodyRadius: {
     group: GROUP.player,
